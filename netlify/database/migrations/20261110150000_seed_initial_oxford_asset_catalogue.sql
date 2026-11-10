@@ -1,0 +1,136 @@
+-- Seed the initial Oxford Finance Hub catalogue from asset classes already discussed
+-- for Oxford's equipment, transport, healthcare, energy and commercial-asset services.
+-- Idempotent: existing industries, categories and asset types are preserved.
+-- These are the known initial options, not a claim to reproduce every legacy BuildAI option.
+
+INSERT INTO asset_industries (name, description, sort_order)
+VALUES
+  ('Construction & Civil Engineering', 'Construction, earthmoving, roadbuilding and civil engineering assets.', 10),
+  ('Transport & Logistics', 'Commercial vehicles, fleet assets and transport equipment.', 20),
+  ('Agriculture & Farming', 'Agricultural machinery, implements and farm infrastructure.', 30),
+  ('Healthcare & Medical', 'Medical, diagnostic, dialysis and dental equipment.', 40),
+  ('Energy & Utilities', 'Solar generation, backup power and energy infrastructure.', 50),
+  ('Office, IT & Commercial', 'Office automation, business technology, security and commercial fit-out.', 60),
+  ('Marine & Aviation', 'Marine vessels, yachts and private or business aircraft.', 70),
+  ('Commercial & Investment Property', 'Commercial buildings and property assets considered for finance.', 80)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO asset_categories (industry_id, finance_category, name, description, sort_order)
+SELECT i.id, v.finance_category::finance_category, v.name, v.description, v.sort_order
+FROM (VALUES
+  ('Construction & Civil Engineering','equipment','Earthmoving & Excavation','Earthmoving and site preparation machinery.',10),
+  ('Construction & Civil Engineering','equipment','Roadbuilding & Compaction','Road construction, grading and compaction machinery.',20),
+  ('Construction & Civil Engineering','equipment','Lifting & Materials Handling','Cranes, forklifts and lifting equipment.',30),
+  ('Construction & Civil Engineering','equipment','Concrete & Construction Plant','Concrete production, pumping and related construction plant.',40),
+  ('Construction & Civil Engineering','vehicle','Construction Trucks & Trailers','Tipper trucks, dump trucks and construction trailers.',50),
+  ('Transport & Logistics','vehicle','Heavy Commercial Vehicles','Heavy trucks and freight vehicles.',10),
+  ('Transport & Logistics','vehicle','Light Commercial Vehicles','Delivery vans, bakkies and business utility vehicles.',20),
+  ('Transport & Logistics','vehicle','Passenger & Fleet Vehicles','Cars, SUVs, minibuses and fleet vehicles for business use.',30),
+  ('Transport & Logistics','vehicle','Buses & Passenger Transport','Buses and passenger transport vehicles.',40),
+  ('Transport & Logistics','vehicle','Trailers & Refrigerated Transport','Freight trailers, tankers and refrigerated transport assets.',50),
+  ('Agriculture & Farming','equipment','Tractors & Farm Vehicles','Tractors and specialised farm vehicles.',10),
+  ('Agriculture & Farming','equipment','Harvesting & Planting Machinery','Harvesters, planters and planting machinery.',20),
+  ('Agriculture & Farming','equipment','Irrigation & Water Systems','Irrigation pumps, pivots and water-management systems.',30),
+  ('Agriculture & Farming','equipment','Spraying & Farm Implements','Sprayers, cultivators and tractor implements.',40),
+  ('Healthcare & Medical','equipment','Medical & Diagnostic Equipment','Clinical, diagnostic and patient-care equipment.',10),
+  ('Healthcare & Medical','equipment','Dialysis & Renal Equipment','Dialysis machines and related renal-care equipment.',20),
+  ('Healthcare & Medical','equipment','Dental Equipment & Practice Fit-out','Dental chairs, units and complete dental-room equipment.',30),
+  ('Energy & Utilities','equipment','Solar PV Systems','Commercial and industrial solar photovoltaic systems.',10),
+  ('Energy & Utilities','equipment','Inverters & Battery Storage','Inverters, battery banks and energy storage systems.',20),
+  ('Energy & Utilities','equipment','Generators & Backup Power','Generators and commercial backup-power installations.',30),
+  ('Office, IT & Commercial','equipment','Office Automation Equipment','Multifunction printers, copiers, scanners and document systems.',10),
+  ('Office, IT & Commercial','equipment','Computers & IT Infrastructure','Computers, workstations, servers and networking equipment.',20),
+  ('Office, IT & Commercial','equipment','Telecommunications Systems','Business telephone systems, PBX and connectivity equipment.',30),
+  ('Office, IT & Commercial','equipment','Security & Access Control','CCTV, alarms, access-control and related security systems.',40),
+  ('Office, IT & Commercial','commercial-asset','Commercial Furniture & Fit-out','Office furniture, fixtures and commercial interior fit-out.',50),
+  ('Marine & Aviation','commercial-asset','Yachts & Marine Vessels','Yachts, boats and other eligible marine vessels.',10),
+  ('Marine & Aviation','commercial-asset','Private & Business Aircraft','Private jets and business aircraft.',20),
+  ('Commercial & Investment Property','commercial-asset','Commercial Buildings','Offices, retail premises and other commercial buildings.',10),
+  ('Commercial & Investment Property','commercial-asset','Industrial & Warehousing Property','Warehouses, workshops and industrial premises.',20),
+  ('Commercial & Investment Property','commercial-asset','Residential Investment Property','Residential properties considered as investment assets, subject to product eligibility.',30)
+) AS v(industry_name, finance_category, name, description, sort_order)
+JOIN asset_industries i ON i.name = v.industry_name
+ON CONFLICT (industry_id, name) DO NOTHING;
+
+INSERT INTO asset_types (category_id, name, description, sort_order)
+SELECT c.id, v.name, v.description, v.sort_order
+FROM (VALUES
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Excavators','Tracked or wheeled excavators.',10),
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Graders','Motor graders for road and site work.',20),
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Bulldozers','Crawler or wheeled bulldozers.',30),
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Wheel Loaders','Front-end wheel loaders.',40),
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Backhoe Loaders','Backhoe loader machines.',50),
+  ('Construction & Civil Engineering','Earthmoving & Excavation','Skid-Steer Loaders','Compact skid-steer loaders.',60),
+  ('Construction & Civil Engineering','Roadbuilding & Compaction','Road Rollers','Single or double drum road rollers.',10),
+  ('Construction & Civil Engineering','Roadbuilding & Compaction','Compactors','Soil, plate and trench compactors.',20),
+  ('Construction & Civil Engineering','Roadbuilding & Compaction','Asphalt Pavers','Asphalt paving machines.',30),
+  ('Construction & Civil Engineering','Lifting & Materials Handling','Mobile Cranes','Mobile lifting cranes.',10),
+  ('Construction & Civil Engineering','Lifting & Materials Handling','Tower Cranes','Tower cranes for construction sites.',20),
+  ('Construction & Civil Engineering','Lifting & Materials Handling','Forklifts','Warehouse and industrial forklifts.',30),
+  ('Construction & Civil Engineering','Concrete & Construction Plant','Concrete Mixers','Truck-mounted and stationary concrete mixers.',10),
+  ('Construction & Civil Engineering','Concrete & Construction Plant','Concrete Pumps','Concrete pumping equipment.',20),
+  ('Construction & Civil Engineering','Construction Trucks & Trailers','Tipper Trucks','Tipper and dumper trucks.',10),
+  ('Construction & Civil Engineering','Construction Trucks & Trailers','Dump Trucks','Rigid and articulated dump trucks.',20),
+  ('Construction & Civil Engineering','Construction Trucks & Trailers','Lowbed Trailers','Lowbed equipment transport trailers.',30),
+  ('Transport & Logistics','Heavy Commercial Vehicles','Horse & Tractor Units','Truck tractor units for freight.',10),
+  ('Transport & Logistics','Heavy Commercial Vehicles','Rigid Trucks','Rigid commercial delivery and freight trucks.',20),
+  ('Transport & Logistics','Heavy Commercial Vehicles','Refrigerated Trucks','Refrigerated commercial trucks.',30),
+  ('Transport & Logistics','Light Commercial Vehicles','Panel Vans','Commercial panel and delivery vans.',10),
+  ('Transport & Logistics','Light Commercial Vehicles','Bakkies & Pick-ups','Commercial bakkies and pick-up vehicles.',20),
+  ('Transport & Logistics','Light Commercial Vehicles','Light Delivery Trucks','Light-duty delivery trucks.',30),
+  ('Transport & Logistics','Passenger & Fleet Vehicles','Passenger Cars','Business and fleet passenger cars.',10),
+  ('Transport & Logistics','Passenger & Fleet Vehicles','SUVs & 4x4 Vehicles','Business SUVs and 4x4 vehicles, including premium models such as Mercedes-AMG G-Class.',20),
+  ('Transport & Logistics','Passenger & Fleet Vehicles','Performance & Luxury Vehicles','Premium performance vehicles, including examples such as McLaren models, subject to finance-provider eligibility.',30),
+  ('Transport & Logistics','Passenger & Fleet Vehicles','Minibuses','Minibus and shuttle vehicles.',40),
+  ('Transport & Logistics','Buses & Passenger Transport','Buses','Commercial passenger buses.',10),
+  ('Transport & Logistics','Buses & Passenger Transport','Midibuses','Midibus and staff transport vehicles.',20),
+  ('Transport & Logistics','Trailers & Refrigerated Transport','Flatbed Trailers','Flatbed freight trailers.',10),
+  ('Transport & Logistics','Trailers & Refrigerated Transport','Box Trailers','Enclosed freight trailers.',20),
+  ('Transport & Logistics','Trailers & Refrigerated Transport','Refrigerated Trailers','Temperature-controlled trailers.',30),
+  ('Agriculture & Farming','Tractors & Farm Vehicles','Utility Tractors','General-purpose farm tractors.',10),
+  ('Agriculture & Farming','Tractors & Farm Vehicles','High-Horsepower Tractors','Large agricultural tractors.',20),
+  ('Agriculture & Farming','Harvesting & Planting Machinery','Combine Harvesters','Combine harvesting machines.',10),
+  ('Agriculture & Farming','Harvesting & Planting Machinery','Planters & Seeders','Planting and seeding machinery.',20),
+  ('Agriculture & Farming','Irrigation & Water Systems','Centre Pivot Irrigation','Centre-pivot irrigation systems.',10),
+  ('Agriculture & Farming','Irrigation & Water Systems','Irrigation Pumps','Agricultural water pumps.',20),
+  ('Agriculture & Farming','Spraying & Farm Implements','Agricultural Sprayers','Tractor-mounted and self-propelled sprayers.',10),
+  ('Agriculture & Farming','Spraying & Farm Implements','Cultivators & Ploughs','Cultivators, ploughs and soil preparation implements.',20),
+  ('Healthcare & Medical','Medical & Diagnostic Equipment','Patient Monitors','Clinical patient monitoring equipment.',10),
+  ('Healthcare & Medical','Medical & Diagnostic Equipment','Ultrasound Equipment','Diagnostic ultrasound systems.',20),
+  ('Healthcare & Medical','Medical & Diagnostic Equipment','X-ray & Imaging Equipment','Diagnostic radiography and imaging systems.',30),
+  ('Healthcare & Medical','Medical & Diagnostic Equipment','Hospital Beds','Hospital and clinical beds.',40),
+  ('Healthcare & Medical','Dialysis & Renal Equipment','Dialysis Machines','Haemodialysis machines and systems.',10),
+  ('Healthcare & Medical','Dental Equipment & Practice Fit-out','Dental Chairs & Units','Dental treatment chairs and integrated units.',10),
+  ('Healthcare & Medical','Dental Equipment & Practice Fit-out','Dental Practice Room Fit-out','Dental room equipment and practice fit-out.',20),
+  ('Energy & Utilities','Solar PV Systems','Commercial Solar PV Installation','Commercial rooftop and ground-mounted solar PV systems.',10),
+  ('Energy & Utilities','Solar PV Systems','Industrial Solar PV Installation','Larger industrial solar PV installations.',20),
+  ('Energy & Utilities','Inverters & Battery Storage','Hybrid Inverters','Hybrid solar inverters.',10),
+  ('Energy & Utilities','Inverters & Battery Storage','Battery Energy Storage Systems','Battery storage systems for commercial and industrial use.',20),
+  ('Energy & Utilities','Generators & Backup Power','Diesel Generators','Diesel standby and prime-power generators.',10),
+  ('Energy & Utilities','Generators & Backup Power','Commercial Backup Power Systems','Integrated backup power installations.',20),
+  ('Office, IT & Commercial','Office Automation Equipment','Multifunction Printers','Multifunction print, copy and scan devices.',10),
+  ('Office, IT & Commercial','Office Automation Equipment','Production Printers','High-volume production print equipment.',20),
+  ('Office, IT & Commercial','Office Automation Equipment','Document Scanners','Business document scanning systems.',30),
+  ('Office, IT & Commercial','Computers & IT Infrastructure','Desktop Computers & Workstations','Business desktop computers and workstations.',10),
+  ('Office, IT & Commercial','Computers & IT Infrastructure','Laptops','Business laptops.',20),
+  ('Office, IT & Commercial','Computers & IT Infrastructure','Servers & Storage','Business servers and storage systems.',30),
+  ('Office, IT & Commercial','Computers & IT Infrastructure','Networking Equipment','Switches, routers, wireless and structured networking.',40),
+  ('Office, IT & Commercial','Telecommunications Systems','Business PABX & VoIP Systems','Business telephone, PABX and VoIP systems.',10),
+  ('Office, IT & Commercial','Security & Access Control','CCTV & Video Surveillance','Commercial CCTV and surveillance systems.',10),
+  ('Office, IT & Commercial','Security & Access Control','Access Control Systems','Electronic access-control systems.',20),
+  ('Office, IT & Commercial','Security & Access Control','Alarm & Intrusion Systems','Commercial alarm and intrusion detection systems.',30),
+  ('Office, IT & Commercial','Commercial Furniture & Fit-out','Office Furniture','Desks, chairs, storage and meeting-room furniture.',10),
+  ('Office, IT & Commercial','Commercial Furniture & Fit-out','Commercial Interior Fit-out','Commercial premises fixtures and interior fit-out.',20),
+  ('Marine & Aviation','Yachts & Marine Vessels','Yachts','Private and commercial yachts.',10),
+  ('Marine & Aviation','Yachts & Marine Vessels','Motor Boats','Motor boats and leisure vessels.',20),
+  ('Marine & Aviation','Private & Business Aircraft','Private Jets','Private jet aircraft, including the Gulfstream class of aircraft.',10),
+  ('Marine & Aviation','Private & Business Aircraft','Business Aircraft','Aircraft used for business operations.',20),
+  ('Commercial & Investment Property','Commercial Buildings','Office Buildings','Commercial office properties.',10),
+  ('Commercial & Investment Property','Commercial Buildings','Retail Properties','Retail shops and shopping premises.',20),
+  ('Commercial & Investment Property','Industrial & Warehousing Property','Warehouses','Commercial warehousing properties.',10),
+  ('Commercial & Investment Property','Industrial & Warehousing Property','Workshops & Industrial Units','Industrial workshops and units.',20),
+  ('Commercial & Investment Property','Residential Investment Property','Luxury Residential Property','Residential investment properties, including high-value homes where eligible.',10)
+) AS v(industry_name, category_name, name, description, sort_order)
+JOIN asset_industries i ON i.name = v.industry_name
+JOIN asset_categories c ON c.industry_id = i.id AND c.name = v.category_name
+ON CONFLICT (category_id, name) DO NOTHING;

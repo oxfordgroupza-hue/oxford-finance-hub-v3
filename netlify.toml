@@ -1,0 +1,22 @@
+[build]
+  # Fail closed until the dedicated V3 Netlify site ID is verified and this guard is updated.
+  ignore = "echo 'Oxford Business Group V3 site identity is not configured; skipping deployment'; exit 0"
+  command = "pnpm build && pnpm typecheck && pnpm test && pnpm lint"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[dev]
+  framework = "#custom"
+  command = "pnpm dev"
+  targetPort = 3000
+  port = 8888
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000"

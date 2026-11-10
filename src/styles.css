@@ -1,0 +1,176 @@
+@import 'tailwindcss' source('../');
+
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+body {
+  @apply m-0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+:root {
+  --font-body: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-heading: 'Cormorant Garamond', 'Times New Roman', Georgia, serif;
+  --content-width: 76rem;
+  --reading-width: 44rem;
+  --background: #050b14;
+  --foreground: #f5f2eb;
+  --card: #101722;
+  --card-foreground: #f5f2eb;
+  --popover: #101722;
+  --popover-foreground: #f5f2eb;
+  --primary: #c9a15b;
+  --primary-foreground: #050b14;
+  --secondary: #171f2b;
+  --secondary-foreground: #f5f2eb;
+  --muted: #171f2b;
+  --muted-foreground: #a9adb5;
+  --accent: #171f2b;
+  --accent-foreground: #e4c58c;
+  --destructive: oklch(0.6 0.19 27);
+  --destructive-foreground: oklch(0.97 0 0);
+  --border: #343b45;
+  --input: #343b45;
+  --ring: #e4c58c;
+  --gold: #c9a15b;
+  --gold-soft: #e4c58c;
+  --gold-deep: #c99e5b;
+  --charcoal: #101722;
+  --success: oklch(0.72 0.13 155);
+  --warning: oklch(0.8 0.13 75);
+  --info: oklch(0.72 0.09 235);
+  --chart-1: #c9a15b;
+  --chart-2: #e4c58c;
+  --chart-3: #a9adb5;
+  --chart-4: #343b45;
+  --chart-5: #171f2b;
+  --radius: 0.375rem;
+  --sidebar: #050b14;
+  --sidebar-foreground: #f5f2eb;
+  --sidebar-primary: #c9a15b;
+  --sidebar-primary-foreground: #050b14;
+  --sidebar-accent: #171f2b;
+  --sidebar-accent-foreground: #e4c58c;
+  --sidebar-border: #343b45;
+  --sidebar-ring: #e4c58c;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-deep: var(--gold-deep);
+  --color-charcoal: var(--charcoal);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --container-content: var(--content-width);
+  --container-reading: var(--reading-width);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .text-gold-gradient {
+    background: linear-gradient(100deg, var(--gold-soft), var(--gold) 45%, var(--gold-deep));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .eyebrow {
+    @apply text-[0.7rem] font-semibold tracking-[0.28em] uppercase text-gold;
+  }
+  .btn-gold {
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold) 50%, var(--gold-deep));
+  }
+  .fade-up {
+    animation: fade-up 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up { animation: none; }
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
+.finance-category-slide {
+  opacity: 0;
+  animation-name: finance-category-fade;
+  animation-duration: 10s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+@keyframes finance-category-fade {
+  0%, 17% { opacity: 1; }
+  20%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .finance-category-slide { animation: none; }
+  .finance-category-slide:first-child { opacity: 1; }
+}
