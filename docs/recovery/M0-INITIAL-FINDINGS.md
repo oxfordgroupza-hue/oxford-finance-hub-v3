@@ -1,59 +1,68 @@
 # M0 Initial Recovery Audit
 
 Date: 10 November 2026
-Status: Initial read-only audit; source import and full validation remain outstanding.
+Status: Sanitised source snapshot imported; validation and Deploy Preview remain outstanding.
 
-## Repository state
+## Repository and source provenance
 
-- V3 target: `oxfordgroupza-hue/oxford-finance-hub-v3` — public and initially empty.
+- V3 target: `oxfordgroupza-hue/oxford-finance-hub-v3`, public repository.
+- Development branch: `recovery/import-verified-baseline`.
+- V3 baseline commit: `3553c74388fb122a8497cd7fd878891497b60bec`.
 - V2 recovery baseline: `183ea2117d4be9a587a1632f68e8245091a72897`.
-- V2 advanced workflow head: `9c4ad86b27c30a7afe2366539b393ef51018afa5`.
-- V2 advanced branch is four commits ahead of the recovery baseline; the comparison identifies three changed paths, including the move of applicant encryption into a server-only module.
-- The V2 recovery Deploy Preview is Ready. The latest advanced-branch Deploy Preview failed during the build stage with exit code 2.
-- The original legacy repository contains fewer tracked files than V2 advanced. Its unique files are old briefs/handoff material and the earlier non-server-only PII module; these are not preferred import sources.
-- V2 PR #3 and PR #4 have not been modified or merged.
+- V2 advanced workflow source: `9c4ad86b27c30a7afe2366539b393ef51018afa5`.
+- Imported the V2 advanced application source, database schema, migrations, tests, UI, Netlify functions, configuration and imagery as a snapshot. The original V2 and legacy repositories were not changed.
+- Replaced V2-only repository instructions and roadmap with V3-specific documents.
+- Excluded obsolete V2 Netlify setup, old site-ID guard, outdated Supabase database migration notes, WhatsApp setup notes and internal commercial workflow notes.
+- No migrations have been run and no production deployment has been made.
 
-## Candidate baseline
+## Focused corrections included in the import
 
-Use the verified recovery baseline plus the approved server-only PII changes from the advanced branch. Do not use V2 main alone. Import as a documented V3 baseline snapshot because the empty V3 repository cannot reference V2 Git objects directly.
+1. Updated the PII encryption test to import the renamed server-only module `pii-crypto.server.ts`.
+2. Restricted Partner role permissions: no `own_applications` or `own_documents`; retains own profile/support, own referrals and own payout view.
+3. Restricted customer application and draft server actions to actual customer accounts, not partner accounts.
+4. Removed customer application/draft loaders and the general applicant-document panel from the Partner portal. The dedicated, permission-controlled partner supplier-upload component remains.
+5. Changed normal password login to use the server-resolved workspace redirect instead of always navigating to the customer dashboard.
+6. Made failed Identity-to-Oxford provisioning explicit where an email conflict prevents safe auto-linking. No automatic account takeover/linking is performed.
+7. Forced the initial Super Administrator bootstrap's production flag to false; the V3 bootstrap path is Deploy Preview-only.
+8. Removed the V2 Netlify site ID and hard-coded V2 site URL from the API function; it now reads Netlify-provided deployment environment values.
+9. Removed the V2 Netlify site-specific build allow-list. V3 builds are deliberately skipped until the dedicated V3 Netlify site ID is verified and the guard is updated.
+10. Removed confidential commercial fee rates from the public V3 fee calculator and tests. The calculator fails closed pending approved restricted configuration. Settlement recording remains disabled.
 
-## Build defect found
+These are source-level corrections only; they are not yet validated by a full build or tests.
 
-The advanced branch renamed `src/lib/pii-crypto.ts` to `src/lib/pii-crypto.server.ts`, but `src/lib/pii-crypto.test.ts` still imports the deleted old path. The TypeScript configuration includes test files and the Netlify build runs typecheck and Vitest. Correct the test import in V3 and run the complete validation pipeline. The available Netlify deployment summary does not expose the detailed build log, so the stale import is a strong candidate cause, not a claim of confirmed exclusive cause.
+## Outstanding high-priority work
 
-## Security and business-rule corrections required before release
+- Run build, typecheck, tests and lint; fix any import/type/lint failures and add regression coverage.
+- Verify customer-only access and partner referral isolation across every server action, document API and direct route.
+- Complete partner referral starter-intake creation without collecting applicant-sensitive data.
+- Credit assessment currently accepts debit-reversal summary counts from the browser. Persist transaction-level evidence and require server-side human verification before applying the greater-than-two manual-review gate.
+- Audit provisioning and role mutations, including the bootstrap's one-time history checks and disabled/suspended account behavior.
+- Complete full customer invitation claim, ownership, status, PDF, document upload/download, notification and audit end-to-end testing.
+- Complete storage split-failure recovery, upload concurrency, signed URL expiry and server-side ownership tests.
+- Add V3 Netlify project/site and database branch only after selecting the correct connected Netlify account. No V3 Netlify project has been created in this step.
+- Review all migration files against the new V3 database before any preview migration. Never assume V2 database migration history applies to V3.
 
-1. The V3 repository is public. Do not import internal commercial fee values or internal fee schedules from V2 source, tests or documentation. Keep the settlement gate closed and move approved terms to restricted server-side configuration. The public fee module must not contain Oxford's confidential rates.
-2. Replace the V2 `AGENTS.md`, README, PLAN and Netlify setup instructions with V3-specific documentation. Do not carry over V2-only branch restrictions or obsolete OneDrive/Graph/Supabase-database migration instructions.
-3. Remove the V2 Netlify site-ID ignore rule from V3. Configure a build guard only after the V3 Netlify site exists and its ID is verified.
-4. Partner currently has `own_applications` and `own_documents` permissions; the Partner dashboard also loads personal applications/drafts and renders a generic document panel. Restrict Partner to referrals, profile, support and explicitly permitted supplier uploads/payouts.
-5. The application server actions currently allow partner accounts through customer application/draft paths. Separate customer ownership from partner referral/upload operations.
-6. Normal login navigates to `/dashboard`; that route does not redirect Partner to `/partner`. Fix role-aware navigation.
-7. Provisioning silently ignores unique-email conflicts and may leave a confirmed Identity account unprovisioned. Detect and report conflicts without auto-linking identities.
-8. Super Admin bootstrap code permits a production bootstrap when a special flag is enabled. V3 must enforce preview-only, one-time bootstrap.
-9. Credit assessment includes the six weighted dimensions and debit-order reversal threshold logic, but the report currently accepts summary counts from the browser and does not persist the required transaction-level reversal evidence. Complete server-side evidence capture and verification.
-10. Partner-originated starter-intake creation is not present in the current Partner actions; implement the approved referral-intake path without collecting applicant-sensitive data.
+## Provider verification (read-only, previous audit)
 
-## Provider verification (read-only)
-
-- V2 Netlify feature flags for applications, document uploads and email delivery are disabled.
-- V2 Netlify environment variable names for the Supabase, PII-encryption and Brevo integrations are present. Values were not recorded in this report.
-- The configured Supabase URL and bucket name match the documented project and bucket.
-- Supabase project is active and healthy.
-- `oxford-customer-documents` is private, has the documented 10 MiB bucket limit and allows PDF/JPEG/PNG. A deny-all policy applies to anon/authenticated roles for storage objects. The bucket currently contains zero objects.
-- Supabase also contains five empty public finance-related tables with RLS enabled and no client policies. Do not use them as authoritative application tables; leave them untouched.
+- V2 Netlify feature flags for applications, document uploads and email delivery were disabled.
+- V2 Netlify variable names for Supabase, PII encryption and Brevo were present; values were not recorded.
+- Supabase project was active and healthy.
+- `oxford-customer-documents` bucket was private, configured for PDF/JPEG/PNG, had a 10 MiB bucket limit and zero stored objects. Anon/authenticated storage-object access was denied by policy.
+- Supabase also contained five empty public finance-related tables with RLS enabled and no client policies. They remain untouched and are not the authoritative application database.
 - No provider configuration, production variables, production database records, bucket settings or V2 repositories were changed.
 
-## Evidence and limitations
+## Security and evidence limitations
 
-- The recovery Deploy Preview secret scan reported no matches across its scanned files.
-- A static scan of the advanced branch's text files found no obvious hard-coded API keys, private keys or literal tokens. Two test files contain ID-shaped synthetic test values that should remain clearly synthetic.
-- The latest advanced Deploy Preview did not complete its Netlify validation scan because the build failed.
-- Code presence is not end-to-end acceptance. Login, customer ownership, partner isolation, invitations, storage uploads/downloads, email delivery, credit assessment, settlement and production workflows remain unverified until their respective tests pass.
+- Previous V2 recovery Deploy Preview secret scan reported no matches across its scanned files.
+- Previous static scan of V2 advanced text files found no obvious hard-coded API keys, private keys or literal tokens. Two test files contained ID-shaped synthetic values.
+- The latest V2 advanced Deploy Preview failed during build with exit code 2. A stale PII test import was identified and corrected in V3, but the detailed Netlify log was not available to establish that as the sole failure cause.
+- A local test runner was not available during this step: the connected Windows desktop device was offline. No V3 build, typecheck, test or lint command has yet been run.
+- No V3 Netlify project has been created, so there is no V3 Deploy Preview or V3 build evidence yet.
+- Source presence is not end-to-end acceptance. Login, ownership, partner isolation, invitations, storage, email, credit assessment, settlement and production workflows remain unverified.
 
-## Changes made in V3 so far
+## Changes made in V3
 
-- Added a safe V3 recovery README on `main`.
-- Created branch `recovery/import-verified-baseline`.
-- No application source has been imported yet.
-- No production deployment or feature activation has been performed.
+- Initial V3 README and recovery branch created.
+- Sanitised application source snapshot imported into `recovery/import-verified-baseline`.
+- V3-specific README, AGENTS, PLAN, architecture, environment and security documents added.
+- No production deployment, database migration, provider configuration change or feature activation performed.
