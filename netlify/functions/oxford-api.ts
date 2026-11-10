@@ -169,8 +169,8 @@ async function resolveAccount(identity: IdentityUser) {
 }
 
 async function customerFor(identity: IdentityUser, account: { id: string; accountType: string }) {
-  if (account.accountType !== 'customer' && account.accountType !== 'partner') {
-    throw new HttpError('A customer or approved partner account is required.', 403)
+  if (account.accountType !== 'customer') {
+    throw new HttpError('An active customer account is required.', 403)
   }
   if (!identity.email || !isIdentityEmailConfirmed(identity)) {
     throw new HttpError('Your account must have a verified email address.', 403)
@@ -194,7 +194,7 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
   }).from(financeApplications).where(eq(financeApplications.id, applicationId)).limit(1)
   if (!application) throw new HttpError('Application not found or access denied.', 404)
 
-  if (account.account.accountType === 'customer' || account.account.accountType === 'partner') {
+  if (account.account.accountType === 'customer') {
     if (!account.permissions.has('own_documents.view') || !customerId || application.customerId !== customerId) {
       throw new HttpError('Application not found or access denied.', 404)
     }
@@ -244,7 +244,7 @@ function isDeployPreviewRequest(request: Request, context?: NetlifyRuntimeContex
   const hostname = new URL(request.url).hostname.toLowerCase()
   return context?.site?.id === SITE_ID &&
     context?.deploy?.context === 'deploy-preview' &&
-    /^deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app$/.test(hostname)
+    /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
 
 export default async (request: Request, context?: NetlifyRuntimeContext) => {
@@ -253,7 +253,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
     if (origin) {
       const originHost = new URL(origin).hostname
       const productionHost = new URL(SITE_URL).hostname
-      const isThisSitePreview = /^deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app$/.test(originHost)
+      const isThisSitePreview = /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(originHost)
       if (originHost !== productionHost && !isThisSitePreview) throw new HttpError('Origin not allowed.', 403)
     }
 
@@ -280,7 +280,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
 
     const identity = await authenticate(request)
     const account = await resolveAccount(identity)
-    const isApplicant = account.account.accountType === 'customer' || account.account.accountType === 'partner'
+    const isApplicant = account.account.accountType === 'customer'
     const customer = isApplicant ? await customerFor(identity, account.account) : null
 
     if (action === 'create-application') {
@@ -314,7 +314,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
       if (validationError) throw new HttpError(validationError, 400)
 
       let application: Awaited<ReturnType<typeof applicationAccess>>
-      if (account.account.accountType === 'partner' && customer) {
+      if (account.account.accountType === 'partner') {
         // Partners can always upload the supplier quotation to their own referral.
         // Super Admin may additionally enable non-sensitive supplier supporting files.
         // Neither path grants access to list or download the applicant's private documents.
@@ -339,7 +339,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
           }
           application = partnerApplication
         } else {
-          application = await applicationAccess(applicationId, account, customer.id)
+          throw new HttpError('Application not found or access denied.', 404)
         }
       } else {
         application = await applicationAccess(applicationId, account, customer?.id ?? null)
