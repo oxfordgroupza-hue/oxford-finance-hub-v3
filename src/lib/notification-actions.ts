@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db } from '../../db'
 import { auditEvents, customerPreferences, customers, notifications, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { decryptApplicantData } from './pii-crypto'
+import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
