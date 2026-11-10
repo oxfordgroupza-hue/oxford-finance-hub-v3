@@ -60,19 +60,26 @@ describe('access-control catalogue', () => {
     }
   })
 
-  it('allows approved partners to access only their own applicant and referral permissions', () => {
+  it('limits partners to their own referrals, profile, support and payout summary', () => {
     const partnerRole = roleTemplates.find((role) => role.key === 'partner')
     expect(partnerRole?.permissions).toEqual(expect.arrayContaining([
       'partner_referrals.view',
+      'partner_referrals.create',
+      'own_profile.view',
+      'own_profile.edit',
+      'own_support.view',
+      'own_support.create',
       'own_payouts.view',
-      'own_applications.view',
-      'own_applications.create',
-      'own_documents.view',
-      'own_documents.create',
-      'own_documents.download',
     ]))
-    expect(isPermittedForAccountType('own_applications.view', 'partner')).toBe(true)
-    expect(isPermittedForAccountType('own_documents.download', 'partner')).toBe(true)
+    expect(partnerRole?.permissions).not.toContain('own_applications.view')
+    expect(partnerRole?.permissions).not.toContain('own_applications.create')
+    expect(partnerRole?.permissions).not.toContain('own_documents.view')
+    expect(partnerRole?.permissions).not.toContain('own_documents.create')
+    expect(partnerRole?.permissions).not.toContain('own_documents.download')
+    expect(isPermittedForAccountType('own_applications.view', 'partner')).toBe(false)
+    expect(isPermittedForAccountType('own_documents.download', 'partner')).toBe(false)
+    expect(isPermittedForAccountType('own_profile.edit', 'partner')).toBe(true)
+    expect(isPermittedForAccountType('own_support.view', 'partner')).toBe(true)
     expect(isPermittedForAccountType('own_payouts.view', 'partner')).toBe(true)
     expect(isPermittedForAccountType('settlements.view', 'partner')).toBe(false)
     expect(isPermittedForAccountType('settlements.create', 'partner')).toBe(false)
