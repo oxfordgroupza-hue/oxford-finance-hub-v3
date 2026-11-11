@@ -347,9 +347,12 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
           businessName: partnerRegistrations.businessName,
         })
           .from(partnerRegistrations)
+          .innerJoin(users, eq(partnerRegistrations.userId, users.id))
           .where(and(
             eq(partnerRegistrations.referralCode, referralCode),
             eq(partnerRegistrations.status, 'Approved'),
+            eq(users.accountType, 'partner'),
+            eq(users.status, 'active'),
           )).limit(1)
         if (!partner?.userId) throw new Error('The referral code is not recognised or is not active. Check the link or contact the referring partner.')
         referringPartnerUserId = partner.userId

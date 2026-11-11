@@ -13,7 +13,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M4 | Roles, permissions and Super Admin | Seven role templates and account-type ceilings are in source; end-to-end account/permission verification pending |
 | M5 | Public site and customer application | Public pages and application route return 200 on Deploy Preview; application submission remains feature-gated pending auth and PII key configuration |
 | M6 | Customer and Office lifecycle | Source imported; verification pending |
-| M7 | Partner referrals, linking and Office intake | Own-referral scoping and registration-only notification are implemented; partner document access remains denied, supplier uploads are restricted to quote plus optional supporting files, and active partner account is revalidated before linking/permission changes; end-to-end verification pending |
+| M7 | Partner referrals, linking and Office intake | Own-referral scoping and registration-only notification are implemented; partner document access remains denied, supplier uploads are restricted to quote plus optional supporting files, and active partner account is revalidated for application referral attribution, linking and permission changes; end-to-end verification pending |
 | M8 | Commercial fee model | Terms not approved; public rate logic removed and gated |
 | M9 | Settlements and payouts | Gate remains closed |
 | M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
