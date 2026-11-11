@@ -19,6 +19,21 @@
    - Application reviewer: assigned applications.
    - Administrator and Super Administrator: full demo oversight.
 
+## Credit assessment implementation in the current recovery branch
+
+The Office credit-assessment worksheet now captures separate Individual and Business financial inputs.
+
+- Individual: net monthly income, living expenses, existing debt/repayment commitments and proposed monthly instalment.
+- Business: monthly business income/receipts, operating expenses, existing business obligations, proposed monthly instalment, trading history and financial-statement evidence status.
+- Each amount is classified as verified, applicant-declared or independently unverifiable. Only verified inputs enter the arithmetic; the source status and review flags remain in the saved report.
+- Individual disposable income is calculated as verified net income less verified living expenses and existing commitments. Proposed-instalment headroom is shown separately.
+- Business available cash flow is an interim reviewer calculation from verified monthly income less verified operating expenses and existing business obligations. It is not an approved lender formula or automated lending decision.
+- Financial amounts in saved assessment report/version snapshots are encrypted. The scoring rules version is recorded.
+- The current 100-point weighting is a draft baseline, not an approved Oxford ruleset. Configurable weighting and formal Oxford approval remain outstanding.
+- Bank-statement reversals are still derived server-side from encrypted transaction candidates and the latest append-only human classifications. More than two verified reversals in the latest three calendar months triggers manual review, never automatic decline.
+
+These features are implemented in source and covered by automated tests. They have not yet been accepted end-to-end because Netlify Identity and the preview bootstrap are not available. Do not enter real applicant information in this preview.
+
 ## Intentionally unavailable
 
 - `/apply` displays a pause notice. Do not enter or submit real personal, identity, banking or financial information.
