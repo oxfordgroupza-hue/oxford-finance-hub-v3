@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { StatusBadge } from '@/components/site/StatusBadge'
 import { applicantTypes, applicationStatuses, getCategory } from '@/lib/finance-config'
 import { formatDate, formatDateTime, formatZAR } from '@/lib/format'
+import { calculateFinanceAmount } from '@/lib/fee-calculation'
 import { cn } from '@/lib/utils'
 
 const trackedStages = applicationStatuses.filter((status) => status !== 'Draft' && status !== 'Closed')
@@ -47,6 +48,9 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
           </div>
         ) : applications.map((application) => {
           const stage = trackedStages.indexOf(application.status as (typeof trackedStages)[number])
+          const financeCalculation = application.financeAmount && application.financeAmount > 0
+            ? calculateFinanceAmount(application.financeAmount * 100)
+            : null
           return (
             <article key={application.id} className="rounded-sm border border-border bg-card p-6">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -56,6 +60,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
                   <p className="mt-1 text-sm text-muted-foreground">
                     {applicantTypes[application.applicantType].label} · Principal requested: {formatZAR(application.financeAmount ?? 0)} · submitted {application.submittedAt ? formatDate(String(application.submittedAt)) : 'pending'}
                   </p>
+                  {financeCalculation && <p className="mt-1 text-sm text-muted-foreground">Total finance amount including 1% documentation fee and 15% VAT: {formatZAR(financeCalculation.totalFinanceAmountCents / 100)}</p>}
                   {application.assetDescription && <p className="mt-2 text-sm text-muted-foreground">{application.assetDescription}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

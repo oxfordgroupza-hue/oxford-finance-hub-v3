@@ -264,7 +264,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                     <button key={application.id} type="button" onClick={() => { setSelectedId(application.id); setView('applications') }}
                       className="flex w-full flex-wrap items-center justify-between gap-3 py-3 text-left hover:text-gold">
                       <span><span className="block font-mono text-xs text-gold">{application.reference}</span><span className="mt-1 block text-sm">{applicantName(application)}</span></span>
-                      <span className="flex items-center gap-3"><StatusBadge status={application.status} /><span className="text-xs text-muted-foreground">{formatZAR(application.financeAmount ?? 0)}</span></span>
+                      <span className="flex items-center gap-3"><StatusBadge status={application.status} /><span className="text-xs text-muted-foreground">Principal {formatZAR(application.financeAmount ?? 0)}</span></span>
                     </button>
                   ))}
                   {data.applications.length === 0 && <p className="py-5 text-sm text-muted-foreground">No live applications have been submitted.</p>}
@@ -282,7 +282,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                     <button key={application.id} type="button" onClick={() => setSelectedId(application.id)}
                       className={`w-full rounded-sm py-4 text-left ${selectedId === application.id ? 'bg-gold/5' : ''}`}>
                       <span className="flex items-start justify-between gap-3"><span><span className="block font-mono text-xs text-gold">{application.reference}</span><span className="mt-1 block text-sm font-medium">{applicantName(application)}</span></span><StatusBadge status={application.status} /></span>
-                      <span className="mt-2 block text-xs text-muted-foreground">{application.category} · {formatZAR(application.financeAmount ?? 0)}</span>
+                      <span className="mt-2 block text-xs text-muted-foreground">{application.category} · Principal {formatZAR(application.financeAmount ?? 0)}</span>
                     </button>
                   ))}
                   {data.applications.length === 0 && <p className="py-6 text-sm text-muted-foreground">No live applications to display.</p>}

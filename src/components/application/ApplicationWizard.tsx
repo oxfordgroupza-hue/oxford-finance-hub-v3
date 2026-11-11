@@ -195,7 +195,7 @@ function validate(step: StepId, f: ApplicationForm): Errors {
       }
       break
     case 'finance':
-      if (!numOk(f.amount) || Number(f.amount) < 10000) e.amount = 'Enter the amount required (minimum R10 000).'
+      if (!numOk(f.amount) || Number(f.amount) < 10000) e.amount = 'Enter the principal loan amount (minimum R10 000).'
       need('term', 'Select a preferred term.')
       need('assetIndustryId', 'Select an industry.')
       need('assetCategoryId', 'Select an asset category.')
@@ -827,7 +827,7 @@ function FinanceStep({
   const selectedType = catalogue.types.find((item) => item.id === form.assetTypeId)
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <Field id="amount" label="Amount required" error={errors.amount}>
+      <Field id="amount" label="Principal loan amount" error={errors.amount}>
         <div className="relative">
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">R</span>
           <Input id="amount" inputMode="numeric" className="pl-7" value={form.amount} aria-invalid={Boolean(errors.amount)} onChange={(e) => update('amount', e.target.value.replace(/[^\d]/g, ''))} />
