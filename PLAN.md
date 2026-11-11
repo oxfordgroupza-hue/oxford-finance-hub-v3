@@ -20,7 +20,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M11 | Private document storage | Supabase bucket exists and is private (10 MiB, PDF/JPEG/PNG); no anon/authenticated grants on sensitive tables; server secret key missing, so upload/download integration remains disabled |
 | M12 | Notifications and automation | Delivery disabled; tests pending |
 | M13 | Security and QA | Build, TypeScript, 116 tests across 20 files, ESLint and diff checks pass; API origin validation rejects unrelated Deploy Previews; partner referral/linking permissions revalidate active partner accounts; demo role visibility is restricted and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
-| M14 | Staging and acceptance | Deploy Preview ready and public route smoke tests passed; Identity is not enabled (404), so authenticated acceptance remains blocked |
+| M14 | Staging and acceptance | Deploy Preview public routes and role-play demo are testable; role-based demo visibility is automated-tested and `docs/PREVIEW-TEST-GUIDE.md` records the exact test path; Identity is not enabled (404), so authenticated acceptance remains blocked |
 | M15 | Production | Requires separate explicit approval |
 
 ## Acceptance evidence states
