@@ -6,7 +6,8 @@ import { applicantPiiFields, withoutApplicantPii } from '../src/lib/applicant-pi
 
 const apply = process.argv.includes('--apply')
 const limitArg = process.argv.find((value) => value.startsWith('--limit='))
-const limit = Math.max(1, Math.min(5000, Number(limitArg?.split('=')[1] ?? 1000)))
+const requestedLimit = Number(limitArg?.split('=')[1] ?? 1000)
+const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(5000, requestedLimit)) : 1000
 const piiKeys: readonly string[] = applicantPiiFields
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -34,10 +35,10 @@ async function main() {
       )).limit(limit)
     for (const row of intakeRows) {
       const existingPii = row.applicantPiiCiphertext ? decryptApplicantData(row.applicantPiiCiphertext) : {}
-      const email = (row.applicantEmail ?? (typeof existingPii.email === 'string' ? existingPii.email : '')).trim().toLowerCase()
-      const applicantName = row.applicantName ?? (typeof existingPii.applicantName === 'string' ? existingPii.applicantName : '')
-      const phone = row.phone ?? (typeof existingPii.phone === 'string' ? existingPii.phone : '')
-      if (!row.applicantEmail && !row.applicantName && !row.phone) continue
+      const email = (row.applicantEmail?.trim() || (typeof existingPii.email === 'string' ? existingPii.email : '')).trim().toLowerCase()
+      const applicantName = row.applicantName?.trim() || (typeof existingPii.applicantName === 'string' ? existingPii.applicantName : '')
+      const phone = row.phone?.trim() || (typeof existingPii.phone === 'string' ? existingPii.phone : '')
+      if (row.applicantEmail === null && row.applicantName === null && row.phone === null) continue
       const applicantEmailFingerprint = fingerprintApplicantData({ email })
       const applicantPiiCiphertext = encryptApplicantData({ ...existingPii, email, applicantName, phone })
       counts.intakeRows += 1
@@ -68,12 +69,12 @@ async function main() {
       const identity = {
         ...existingPii,
         ...legacyProfilePii,
-        firstName: row.firstName ?? (typeof legacyProfilePii.firstName === 'string' ? legacyProfilePii.firstName : typeof existingPii.firstName === 'string' ? existingPii.firstName : ''),
-        lastName: row.lastName ?? (typeof legacyProfilePii.lastName === 'string' ? legacyProfilePii.lastName : typeof existingPii.lastName === 'string' ? existingPii.lastName : ''),
-        businessName: row.businessName ?? (typeof legacyProfilePii.businessName === 'string' ? legacyProfilePii.businessName : typeof existingPii.businessName === 'string' ? existingPii.businessName : ''),
-        phone: row.phone ?? (typeof legacyProfilePii.phone === 'string' ? legacyProfilePii.phone : typeof existingPii.phone === 'string' ? existingPii.phone : ''),
+        firstName: row.firstName?.trim() || (typeof legacyProfilePii.firstName === 'string' ? legacyProfilePii.firstName : typeof existingPii.firstName === 'string' ? existingPii.firstName : ''),
+        lastName: row.lastName?.trim() || (typeof legacyProfilePii.lastName === 'string' ? legacyProfilePii.lastName : typeof existingPii.lastName === 'string' ? existingPii.lastName : ''),
+        businessName: row.businessName?.trim() || (typeof legacyProfilePii.businessName === 'string' ? legacyProfilePii.businessName : typeof existingPii.businessName === 'string' ? existingPii.businessName : ''),
+        phone: row.phone?.trim() || (typeof legacyProfilePii.phone === 'string' ? legacyProfilePii.phone : typeof existingPii.phone === 'string' ? existingPii.phone : ''),
       }
-      if (!row.firstName && !row.lastName && !row.businessName && !row.phone && Object.keys(legacyProfilePii).length === 0) continue
+      if (row.firstName === null && row.lastName === null && row.businessName === null && row.phone === null && Object.keys(legacyProfilePii).length === 0) continue
       const piiCiphertext = encryptApplicantData(identity)
       const safeProfile = withoutApplicantPii(profile)
       counts.customerProfiles += 1
@@ -98,19 +99,23 @@ async function main() {
     for (const row of applications) {
       const data = isRecord(row.applicationData) ? { ...row.applicationData } : {}
       const legacyPii: Record<string, unknown> = {}
+      let foundLegacyPiiKey = false
       for (const key of piiKeys) {
-        if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
-          legacyPii[key] = data[key]
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          foundLegacyPiiKey = true
+          if (data[key] !== undefined && data[key] !== null && data[key] !== '') legacyPii[key] = data[key]
           delete data[key]
         }
       }
+      if (!foundLegacyPiiKey) continue
       const existingCiphertext = typeof data.piiCiphertext === 'string'
         ? decryptApplicantData(data.piiCiphertext)
         : {}
       const mergedPii = { ...existingCiphertext, ...legacyPii }
-      if (Object.keys(mergedPii).length === 0) continue
-      data.piiCiphertext = encryptApplicantData(mergedPii)
-      data.piiEncryptionVersion = 'aes-256-gcm-v1'
+      if (Object.keys(mergedPii).length > 0) {
+        data.piiCiphertext = encryptApplicantData(mergedPii)
+        data.piiEncryptionVersion = 'aes-256-gcm-v1'
+      }
       counts.applicationSnapshots += 1
       if (apply) {
         await tx.update(financeApplications).set({ applicationData: data, updatedAt: new Date() })
@@ -144,7 +149,7 @@ async function main() {
       .where(and(eq(users.accountType, 'customer')))
       .limit(limit)
     for (const account of customerAccounts) {
-      if (!account.displayName) continue
+      if (account.displayName === null) continue
       counts.customerDisplayNames += 1
       if (apply) {
         await tx.update(users).set({ displayName: null, updatedAt: new Date() })
