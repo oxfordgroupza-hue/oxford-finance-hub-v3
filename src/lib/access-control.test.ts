@@ -50,14 +50,25 @@ describe('access-control catalogue', () => {
   it('keeps Customer Support limited to support operations', () => {
     const supportRole = roleTemplates.find((role) => role.key === 'customer_support')
     expect(supportRole?.permissions).toEqual(expect.arrayContaining([
-      'office.view', 'support.view', 'support.create', 'support.edit', 'support.assign',
+      'office.view', 'support.view', 'support.create', 'support.edit', 'support.assign', 'directory.view',
     ]))
+    expect(supportRole?.permissions).not.toContain('identity_records.view')
     for (const key of [
       'applications.view', 'customers.view', 'customers.edit',
       'partners.view', 'notes.view', 'notes.create',
     ]) {
       expect(supportRole?.permissions).not.toContain(key)
     }
+  })
+
+  it('grants the restricted directory to Customer Support without granting full identity-number visibility', () => {
+    const supportRole = roleTemplates.find((role) => role.key === 'customer_support')
+    const officeStaff = roleTemplates.find((role) => role.key === 'office_staff')
+    const reviewer = roleTemplates.find((role) => role.key === 'application_reviewer')
+    expect(supportRole?.permissions).toContain('directory.view')
+    expect(supportRole?.permissions).not.toContain('identity_records.view')
+    expect(officeStaff?.permissions).toContain('identity_records.view')
+    expect(reviewer?.permissions).toContain('identity_records.view')
   })
 
   it('limits partners to their own referrals, profile, support and payout summary', () => {

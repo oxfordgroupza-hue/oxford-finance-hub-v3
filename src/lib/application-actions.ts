@@ -26,7 +26,7 @@ import { createApplicationReference } from './application-reference'
 import { withoutApplicantPii } from './applicant-pii-sanitization'
 import { calculateFinanceAmount } from './fee-calculation'
 import { generateApplicationPack } from './pdf-pack-actions'
-import { decryptApplicantData, encryptApplicantData } from './pii-crypto.server'
+import { decryptApplicantData, encryptApplicantData, fingerprintIdentityNumber } from './pii-crypto.server'
 
 const submissionInput = z.object({
   idempotencyKey: z.string().uuid(),
@@ -404,6 +404,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
             assetTypeNameSnapshot: selectedAssetType.name,
             referralCode: referralCode || null,
             submittedAt: new Date(),
+            idNumberFingerprint: sensitiveData.idNumber ? fingerprintIdentityNumber(String(sensitiveData.idNumber)) : null,
             applicationData: officeSourceApplication
               ? { ...withoutApplicantPii(officeSourceApplication.applicationData), ...safeData, source: officeSourceApplication.applicationData.source }
               : safeData,
@@ -427,6 +428,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
             assetTypeNameSnapshot: selectedAssetType.name,
             referralCode: referralCode || null,
             submittedAt: new Date(),
+            idNumberFingerprint: sensitiveData.idNumber ? fingerprintIdentityNumber(String(sensitiveData.idNumber)) : null,
             applicationData: safeData,
           }).returning({ id: financeApplications.id })
       if (!application) throw new Error('This application draft has already been submitted or is no longer available.')

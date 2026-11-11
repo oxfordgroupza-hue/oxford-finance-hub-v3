@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
+import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData, fingerprintIdentityNumber } from './pii-crypto.server'
 
 const originalKey = process.env.OXFORD_PII_ENCRYPTION_KEY
 const testKey = 'a'.repeat(64)
@@ -40,6 +40,14 @@ describe('server-side applicant PII cryptography', () => {
     expect(fingerprint).not.toContain(value.email)
     expect(fingerprintApplicantData(value)).toBe(fingerprint)
     expect(fingerprintApplicantData({ email: 'other@example.com' })).not.toBe(fingerprint)
+  })
+
+  it('creates a normalised, non-reversible exact identity lookup fingerprint', () => {
+    const fingerprint = fingerprintIdentityNumber('800101 5009-087')
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/)
+    expect(fingerprintIdentityNumber('8001015009087')).toBe(fingerprint)
+    expect(fingerprint).not.toContain('8001015009087')
+    expect(() => fingerprintIdentityNumber('abc')).toThrow('Enter a valid complete ID or passport number.')
   })
 
   it('fails closed when the server-only encryption key is absent or malformed', () => {

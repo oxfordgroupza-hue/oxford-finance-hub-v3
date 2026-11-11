@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { Activity, BarChart3, Bell, ClipboardList, Download, Handshake, Inbox, LayoutDashboard, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Activity, BarChart3, Bell, ClipboardList, Download, Handshake, Inbox, LayoutDashboard, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,6 +20,7 @@ import { linkMerchantPartnerToApplication } from '@/lib/partner-link-actions'
 import { getNotificationQueue, processNotificationQueue } from '@/lib/notification-actions'
 import { WorkspaceSignOutButton } from '@/components/site/WorkspaceSignOutButton'
 import { calculateFinanceAmount } from '@/lib/fee-calculation'
+import { backfillDirectoryIdentityIndex, searchRestrictedDirectory } from '@/lib/directory-actions'
 
 type OfficeData = {
   applications: Array<{
@@ -42,7 +43,7 @@ type OfficeData = {
   administratorEmail: string
 }
 
-type View = 'overview' | 'applications' | 'partners' | 'support' | 'notifications' | 'audit' | 'reports'
+type View = 'overview' | 'applications' | 'partners' | 'support' | 'directory' | 'notifications' | 'audit' | 'reports'
 
 export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
   const router = useRouter()
@@ -59,6 +60,11 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
   const [notificationProviderConfigured, setNotificationProviderConfigured] = useState(false)
   const [notificationDeliveryEnabled, setNotificationDeliveryEnabled] = useState(false)
   const [notificationBusy, setNotificationBusy] = useState(false)
+  const [directoryQuery, setDirectoryQuery] = useState('')
+  const [directoryBusy, setDirectoryBusy] = useState(false)
+  const [directoryResults, setDirectoryResults] = useState<Array<{ id: string; group: string; name: string; email: string; phone: string; reference: string; status: string; identityNumber: string }>>([])
+  const [directorySearched, setDirectorySearched] = useState(false)
+  const [directoryBackfillBusy, setDirectoryBackfillBusy] = useState(false)
   const selected = data.applications.find((application) => application.id === selectedId) ?? null
   const selectedFinanceCalculation = selected?.financeAmount && selected.financeAmount > 0
     ? calculateFinanceAmount(selected.financeAmount * 100)
@@ -66,6 +72,43 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
   const can = (permission: string) => data.isSuperAdmin || data.permissions.includes(permission)
 
   const refresh = async () => { await router.invalidate() }
+  const runDirectoryBackfill = async () => {
+    if (directoryBackfillBusy) return
+    setDirectoryBackfillBusy(true)
+    let afterId: string | undefined
+    let scanned = 0
+    let indexed = 0
+    try {
+      for (let batch = 0; batch < 100; batch += 1) {
+        const result = await backfillDirectoryIdentityIndex({ data: { afterId } })
+        scanned += result.scanned
+        indexed += result.indexed
+        if (!result.hasMore || !result.nextCursor) break
+        afterId = result.nextCursor
+      }
+      toast.success(`Identity search index checked ${scanned} applications; ${indexed} records indexed.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The identity search index could not be rebuilt.')
+    } finally {
+      setDirectoryBackfillBusy(false)
+    }
+  }
+
+  const runDirectorySearch = async () => {
+    const query = directoryQuery.trim()
+    if (query.length < 2 || directoryBusy) return
+    setDirectoryBusy(true)
+    setDirectorySearched(false)
+    try {
+      const result = await searchRestrictedDirectory({ data: { query } })
+      setDirectoryResults(result.entries)
+      setDirectorySearched(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The directory search could not be completed.')
+    } finally {
+      setDirectoryBusy(false)
+    }
+  }
   const loadNotifications = async () => {
     try {
       const result = await getNotificationQueue()
@@ -209,6 +252,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
     { id: 'applications', label: 'Applications', icon: ClipboardList, permission: 'applications.view' },
     { id: 'partners', label: 'Partners', icon: Handshake, permission: 'partners.view' },
     { id: 'support', label: 'Support inbox', icon: Inbox, permission: 'support.view' },
+    { id: 'directory', label: 'People directory', icon: Search, permission: 'directory.view' },
     { id: 'notifications', label: 'Notifications', icon: Bell, permission: 'notifications.view' },
     { id: 'audit', label: 'Audit trail', icon: ShieldCheck, permission: 'audit_log.view' },
     { id: 'reports', label: 'Reports', icon: BarChart3, permission: 'reports.view' },
@@ -420,6 +464,36 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                   }}><SelectTrigger className="mt-3 max-w-56"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Open">Open</SelectItem><SelectItem value="Awaiting customer">Awaiting customer</SelectItem><SelectItem value="Resolved">Resolved</SelectItem></SelectContent></Select>}
                 </article>)}
                 {data.support.length === 0 && <p className="py-5 text-sm text-muted-foreground">No support requests have been received.</p>}
+              </div>
+            </section>
+          )}
+
+          {view === 'directory' && (
+            <section className="rounded-sm border border-border bg-card p-5">
+              <div>
+                <h2 className="text-xl">Restricted people directory</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Find applicants, customers, people who contacted Support, partners and Oxford staff. Search by name, email, phone or application reference. For an exact ID/passport lookup, prefix the number with ID: or PASSPORT:.</p>
+                <p className="mt-2 text-xs text-muted-foreground">This is a contact lookup only. Financial information, credit assessments and private documents are never displayed. ID/passport numbers are masked unless your role has separate sensitive-identity permission.</p>
+              </div>
+              <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void runDirectorySearch() }}>
+                <input value={directoryQuery} onChange={(event) => setDirectoryQuery(event.target.value)} maxLength={100} minLength={2} placeholder="Name, email, phone, reference or ID: number" className="min-w-0 flex-1 rounded-sm border border-border bg-background px-3 py-2 text-sm outline-none focus:border-gold" />
+                <Button type="submit" variant="gold" className="rounded-sm" disabled={directoryBusy || directoryQuery.trim().length < 2}><Search className="mr-2 size-4" />{directoryBusy ? 'Searching…' : 'Search directory'}</Button>
+              </form>
+              {data.isSuperAdmin && <div className="mt-4 flex flex-wrap items-center gap-3"><Button type="button" variant="outline" className="rounded-sm" disabled={directoryBackfillBusy} onClick={() => void runDirectoryBackfill()}>{directoryBackfillBusy ? 'Indexing...' : 'Backfill existing ID/passport searches'}</Button><span className="text-xs text-muted-foreground">Super Administrator only. Existing encrypted applications are processed in small batches.</span></div>}
+              <div className="mt-5 divide-y divide-border">
+                {directoryResults.map((entry) => (
+                  <article key={entry.id} className="py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div><p className="font-medium">{entry.name}</p><p className="mt-1 text-xs text-muted-foreground">{entry.group}</p></div>
+                      <span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{entry.status}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">{entry.email}{entry.phone ? ` · ${entry.phone}` : ''}</p>
+                    {entry.reference && <p className="mt-1 text-xs text-muted-foreground">{entry.group === 'Applicant / customer' ? 'Application / account reference' : 'Related detail'}: {entry.reference}</p>}
+                    {entry.identityNumber && <p className="mt-1 text-xs text-muted-foreground">ID / passport: <span className="font-mono">{entry.identityNumber}</span></p>}
+                  </article>
+                ))}
+                {directorySearched && directoryResults.length === 0 && <p className="py-5 text-sm text-muted-foreground">No matching records were found.</p>}
+                {!directorySearched && directoryResults.length === 0 && <p className="py-5 text-sm text-muted-foreground">Enter a search term and select Search directory. Results are limited to contact and account information.</p>}
               </div>
             </section>
           )}

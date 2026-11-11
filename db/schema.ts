@@ -226,9 +226,10 @@ export const financeApplications = pgTable('finance_applications', {
   referralCode: text('referral_code'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   providerDecision: text('provider_decision'),
+  idNumberFingerprint: text('id_number_fingerprint'),
   applicationData: jsonb('application_data').$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps(),
-}, (t) => [uniqueIndex('finance_applications_reference_uq').on(t.reference), check('finance_applications_provider_decision_check', sql`${t.providerDecision} is null or ${t.providerDecision} in ('approved', 'declined', 'withdrawn')`), index('finance_applications_customer_idx').on(t.customerId), index('finance_applications_status_idx').on(t.status), index('finance_applications_referral_idx').on(t.referralCode)])
+}, (t) => [uniqueIndex('finance_applications_reference_uq').on(t.reference), check('finance_applications_provider_decision_check', sql`${t.providerDecision} is null or ${t.providerDecision} in ('approved', 'declined', 'withdrawn')`), index('finance_applications_customer_idx').on(t.customerId), index('finance_applications_status_idx').on(t.status), index('finance_applications_referral_idx').on(t.referralCode), index('finance_applications_identity_fingerprint_idx').on(t.idNumberFingerprint).where(sql`${t.idNumberFingerprint} is not null`)])
 
 export const financeDrafts = pgTable('finance_drafts', {
   id: uuid('id').defaultRandom().primaryKey(),

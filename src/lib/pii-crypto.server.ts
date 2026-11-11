@@ -24,6 +24,15 @@ export function fingerprintApplicantData(value: Record<string, unknown>): string
   return createHmac('sha256', fingerprintKey()).update(JSON.stringify(value), 'utf8').digest('hex')
 }
 
+/** Normalise an exact identity number before generating its non-reversible lookup fingerprint. */
+export function fingerprintIdentityNumber(value: string): string {
+  const normalised = value.normalize('NFKC').replace(/[\s-]/g, '').toUpperCase()
+  if (normalised.length < 4 || normalised.length > 32 || !/^[A-Z0-9]+$/.test(normalised)) {
+    throw new Error('Enter a valid complete ID or passport number.')
+  }
+  return fingerprintApplicantData({ identityNumber: normalised })
+}
+
 export function encryptApplicantData(value: Record<string, unknown>): string {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv)
