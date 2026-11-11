@@ -22,6 +22,7 @@ import {
 import { getAuthorizationSnapshot } from './auth'
 import { createApplicationReference } from './application-reference'
 import { encryptApplicantData } from './pii-crypto.server'
+import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -47,12 +48,7 @@ async function requireIntakeOffice() {
 }
 
 function previewOrigin() {
-  const origin = process.env.DEPLOY_PRIME_URL ?? ''
-  if (process.env.CONTEXT !== 'deploy-preview' ||
-      !/^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app\/?$/i.test(origin)) {
-    throw new Error('Office applicant invitations are available only in the approved Deploy Preview environment.')
-  }
-  return origin.replace(/\/$/, '')
+  return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
 }
 
 function createInvitationToken() {
@@ -131,10 +127,14 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
         businessName: partnerRegistrations.businessName,
         referralCode: partnerRegistrations.referralCode,
         userId: partnerRegistrations.userId,
-      }).from(partnerRegistrations).where(and(
-        eq(partnerRegistrations.id, data.partnerRegistrationId),
-        eq(partnerRegistrations.status, 'Approved'),
-      )).limit(1)
+      }).from(partnerRegistrations)
+        .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+        .where(and(
+          eq(partnerRegistrations.id, data.partnerRegistrationId),
+          eq(partnerRegistrations.status, 'Approved'),
+          eq(users.accountType, 'partner'),
+          eq(users.status, 'active'),
+        )).limit(1)
       // Approved merchant partners must have a linked partner account and referral code.
       if (!approved?.referralCode || !approved.userId) throw new Error('Choose an approved merchant partner with an active linked partner account.')
       partner = { id: approved.id, businessName: approved.businessName, referralCode: approved.referralCode }
@@ -263,7 +263,12 @@ export const getOfficeIntakeOptions = createServerFn({ method: 'GET' }).handler(
       .orderBy(assetIndustries.sortOrder, assetCategories.sortOrder, assetTypes.sortOrder),
     db.select({ id: partnerRegistrations.id, businessName: partnerRegistrations.businessName })
       .from(partnerRegistrations)
-      .where(and(eq(partnerRegistrations.status, 'Approved'), /* require a linked partner account */ sql`${partnerRegistrations.userId} is not null`))
+      .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+      .where(and(
+        eq(partnerRegistrations.status, 'Approved'),
+        eq(users.accountType, 'partner'),
+        eq(users.status, 'active'),
+      ))
       .orderBy(partnerRegistrations.businessName),
   ])
   return { assets, partners }
@@ -285,7 +290,13 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
       : [undefined]
     const [partner] = row.partnerRegistrationId
       ? await db.select({ businessName: partnerRegistrations.businessName }).from(partnerRegistrations)
-        .where(and(eq(partnerRegistrations.id, row.partnerRegistrationId), eq(partnerRegistrations.status, 'Approved'))).limit(1)
+        .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+        .where(and(
+          eq(partnerRegistrations.id, row.partnerRegistrationId),
+          eq(partnerRegistrations.status, 'Approved'),
+          eq(users.accountType, 'partner'),
+          eq(users.status, 'active'),
+        )).limit(1)
       : [undefined]
     const { token, hash } = createInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
@@ -396,16 +407,31 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
           userId: partnerRegistrations.userId,
           referralCode: partnerRegistrations.referralCode,
           businessName: partnerRegistrations.businessName,
-        }).from(partnerRegistrations).where(and(
-          eq(partnerRegistrations.id, intake.partnerRegistrationId),
-          eq(partnerRegistrations.status, 'Approved'),
-        )).limit(1)
-        if (!partner?.userId || !partner.referralCode) {
-          throw new Error('The linked merchant partner is no longer approved. Contact Oxford Business Group before continuing.')
+        }).from(partnerRegistrations)
+          .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+          .where(and(
+            eq(partnerRegistrations.id, intake.partnerRegistrationId),
+            eq(partnerRegistrations.status, 'Approved'),
+            eq(users.accountType, 'partner'),
+            eq(users.status, 'active'),
+          )).limit(1)
+        if (partner?.userId && partner.referralCode) {
+          referralCode = partner.referralCode
+          partnerUserId = partner.userId
+          partnerBusinessName = partner.businessName
+        } else {
+          await tx.insert(auditEvents).values({
+            actorUserId: account.id,
+            event: 'application_intake.partner_attribution_skipped',
+            resource: 'application_intake',
+            resourceId: intake.id,
+            details: {
+              intakeReference: intake.reference,
+              partnerRegistrationId: intake.partnerRegistrationId,
+              reason: 'partner_account_inactive_or_unapproved',
+            },
+          })
         }
-        referralCode = partner.referralCode
-        partnerUserId = partner.userId
-        partnerBusinessName = partner.businessName
       }
 
       const reference = createApplicationReference()
