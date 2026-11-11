@@ -22,12 +22,11 @@ import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-permissions'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
+import { isApprovedDeployPreviewRequest, isStorageBucketVerified, type NetlifyRuntimeContext } from '../../src/lib/document-storage-security'
 
 const SITE_URL = process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? 'http://localhost:8888'
 const SITE_ID = process.env.SITE_ID ?? ''
-const MAX_BUCKET_FILE_BYTES = 10 * 1024 * 1024
 const MAX_DOCUMENTS_PER_APPLICATION = 20
-const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
 const ALLOWED_DOCUMENT_KEYS = new Set([
   'id', 'payslips', 'bank', 'address', 'licence', 'cipc', 'directors-id',
   'afs', 'resolution', 'quote', 'contracts', 'motivation',
@@ -221,12 +220,7 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
 async function verifyStorageBucket() {
   const { bucket } = storageConfig()
   const details = await storage(`bucket/${encodeURIComponent(bucket)}`) as Row
-  const allowedTypes = Array.isArray(details.allowed_mime_types) ? details.allowed_mime_types : []
-  return details.id === bucket &&
-    details.public === false &&
-    Number(details.file_size_limit) === MAX_BUCKET_FILE_BYTES &&
-    ALLOWED_TYPES.size === allowedTypes.length &&
-    [...ALLOWED_TYPES].every((type) => allowedTypes.includes(type))
+  return isStorageBucketVerified(details)
 }
 
 function storageObjectPath(path: string) {
@@ -236,16 +230,8 @@ function storageObjectPath(path: string) {
 // Netlify build-context variables are not guaranteed in Function runtime.
 // Use the platform-supplied deploy context and site identity, plus the expected
 // preview hostname, as a fail-closed boundary for preview-only document uploads.
-type NetlifyRuntimeContext = {
-  site?: { id?: string }
-  deploy?: { context?: string }
-}
-
 function isDeployPreviewRequest(request: Request, context?: NetlifyRuntimeContext) {
-  const hostname = new URL(request.url).hostname.toLowerCase()
-  return context?.site?.id === SITE_ID &&
-    context?.deploy?.context === 'deploy-preview' &&
-    /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
+  return isApprovedDeployPreviewRequest(request.url, context, SITE_ID)
 }
 
 export default async (request: Request, context?: NetlifyRuntimeContext) => {
