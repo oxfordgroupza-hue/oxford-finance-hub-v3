@@ -220,6 +220,7 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       `Category: ${application.category}`,
       `Principal loan amount: ${application.financeAmount == null ? 'Not recorded' : formatZAR(application.financeAmount)}`,
       `Documentation fee (1%): ${financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : 'Not calculated'}`,
+      `VAT base (principal + documentation): ${financeCalculation ? formatZAR(financeCalculation.vatBaseCents / 100) : 'Not calculated'}`,
       `VAT (15%): ${financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : 'Not calculated'}`,
       `Total finance amount: ${financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : 'Not calculated'}`,
       `Term: ${safe.term ?? '—'} months`,

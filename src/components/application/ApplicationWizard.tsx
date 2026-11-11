@@ -979,6 +979,7 @@ function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: numb
       items: [
         ['Principal loan amount', form.amount ? formatZAR(principalAmount) : '—'],
         ['Documentation fee (1%)', financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : '—'],
+        ['VAT base (principal + documentation)', financeCalculation ? formatZAR(financeCalculation.vatBaseCents / 100) : '—'],
         ['VAT (15%)', financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : '—'],
         ['Total finance amount', financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : '—'],
         ['Term', `${form.term} months`],
