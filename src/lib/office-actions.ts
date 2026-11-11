@@ -14,12 +14,64 @@ import {
   partnerRegistrations,
   supportRequests,
   users,
+  staffRoles,
+  roles,
+  rolePermissions,
+  permissions,
+  userPermissionOverrides,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { applicationStatuses, canTransitionApplicationStatus } from './domain'
 import { decryptApplicantData } from './pii-crypto.server'
 import type { PermissionKey } from './access-control'
 
+async function getAssignableStaff() {
+  const rows = await db.select({
+    id: users.id,
+    name: users.displayName,
+    email: users.email,
+    roleKey: roles.key,
+    permission: permissions.key,
+  }).from(users)
+    .innerJoin(staffRoles, and(eq(staffRoles.userId, users.id), isNull(staffRoles.revokedAt)))
+    .innerJoin(roles, and(eq(roles.id, staffRoles.roleId), eq(roles.isActive, true), eq(roles.audience, 'office')))
+    .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+    .leftJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+    .where(and(eq(users.accountType, 'office'), eq(users.status, 'active')))
+    .orderBy(users.displayName)
+
+  const byUser = new Map<string, { id: string; name: string | null; email: string; roleKeys: Set<string>; permissionKeys: Set<string> }>()
+  for (const row of rows) {
+    const item = byUser.get(row.id) ?? { id: row.id, name: row.name, email: row.email, roleKeys: new Set<string>(), permissionKeys: new Set<string>() }
+    item.roleKeys.add(row.roleKey)
+    if (row.permission) item.permissionKeys.add(row.permission)
+    byUser.set(row.id, item)
+  }
+
+  const candidates = [...byUser.values()].filter((item) =>
+    item.roleKeys.has('super_administrator') || (item.permissionKeys.has('applications.view') && item.permissionKeys.has('applications.edit')),
+  )
+  if (!candidates.length) return []
+
+  const denied = await db.select({ userId: userPermissionOverrides.userId, permission: permissions.key, expiresAt: userPermissionOverrides.expiresAt })
+    .from(userPermissionOverrides)
+    .innerJoin(permissions, eq(permissions.id, userPermissionOverrides.permissionId))
+    .where(and(
+      inArray(userPermissionOverrides.userId, candidates.map((item) => item.id)),
+      eq(userPermissionOverrides.effect, 'deny'),
+      isNull(userPermissionOverrides.revokedAt),
+    ))
+  const deniedByUser = new Map<string, Set<string>>()
+  for (const item of denied) {
+    if (item.expiresAt && item.expiresAt <= new Date()) continue
+    const keys = deniedByUser.get(item.userId) ?? new Set<string>()
+    keys.add(item.permission)
+    deniedByUser.set(item.userId, keys)
+  }
+  return candidates.filter((item) => item.roleKeys.has('super_administrator') ||
+    (!deniedByUser.get(item.id)?.has('applications.view') && !deniedByUser.get(item.id)?.has('applications.edit')))
+    .map(({ id, name, email }) => ({ id, name, email }))
+}
 async function requireOffice(permission: PermissionKey) {
   const session = await getAuthorizationSnapshot()
   if (!session.authenticated || !session.provisioned || session.blocked ||
@@ -134,9 +186,7 @@ export const getOfficeWorkspaceData = createServerFn({ method: 'GET' }).handler(
           .orderBy(desc(permissionAuditLog.createdAt)).limit(100)
       : Promise.resolve([]),
     session.permissions.includes('applications.assign') || session.isSuperAdmin
-      ? db.select({ id: users.id, name: users.displayName, email: users.email })
-          .from(users).where(and(eq(users.accountType, 'office'), eq(users.status, 'active')))
-          .orderBy(users.displayName)
+      ? getAssignableStaff()
       : Promise.resolve([]),
     session.permissions.includes('notes.view') && canViewApplications
       ? canViewAllApplications
@@ -305,13 +355,9 @@ export const assignApplication = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const session = await requireOffice('applications.assign')
     return db.transaction(async (tx) => {
-      const [target] = await tx.select({ id: users.id })
-        .from(users).where(and(
-          eq(users.id, data.assignedTo),
-          eq(users.accountType, 'office'),
-          eq(users.status, 'active'),
-        )).limit(1)
-      if (!target) throw new Error('The selected staff account is not active.')
+      const eligibleStaff = await getAssignableStaff()
+      const target = eligibleStaff.find((person) => person.id === data.assignedTo)
+      if (!target) throw new Error('The selected account is not an active staff member with application review permissions.')
       const [application] = await tx.select({ id: financeApplications.id })
         .from(financeApplications).where(eq(financeApplications.id, data.applicationId)).limit(1)
       if (!application) throw new Error('Application not found.')
