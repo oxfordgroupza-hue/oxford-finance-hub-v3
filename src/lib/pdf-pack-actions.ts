@@ -14,7 +14,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { decryptApplicantData } from './pii-crypto'
+import { decryptApplicantData } from './pii-crypto.server'
 import { formatZAR } from './format'
 
 function pdfText(value: unknown) {
