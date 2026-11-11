@@ -1,4 +1,4 @@
-﻿-- One-time, auditable initial Oxford Super Administrator provisioning.
+-- One-time, auditable initial Oxford Super Administrator provisioning.
 -- This migration runs against the isolated Deploy Preview database first.
 -- It deliberately fails closed if the designated verified account, reserved role,
 -- or first-administrator conditions do not match the expected state.
