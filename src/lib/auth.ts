@@ -1,13 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
-import { login as identityLogin, verifyRequestOrigin } from '@netlify/identity'
+import { getCookies, getRequest, setCookie } from '@tanstack/react-start/server'
+import { verifyRequestOrigin } from '@netlify/identity'
 import { z } from 'zod'
-import { isIdentityEmailConfirmed, resolveIdentityEmailConfirmation } from './identity-verification'
+import { isIdentityEmailConfirmed } from './identity-verification'
 
 /**
- * Establish the Identity session inside the Netlify server runtime so the nf_jwt
- * and nf_refresh cookies are attached to the Server Function response. This
- * avoids relying on browser storage surviving a full navigation on Deploy Preview.
+ * Authenticate through Netlify Identity and persist its session using TanStack Start
+ * response cookies. This app runs on TanStack Start, not inside a Netlify Function.
  */
 export const loginWithIdentity = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({
@@ -15,10 +14,27 @@ export const loginWithIdentity = createServerFn({ method: 'POST' })
     password: z.string().min(8).max(1024),
   }).parse(input))
   .handler(async ({ data }) => {
-    verifyRequestOrigin(getRequest())
-    await identityLogin(data.email, data.password)
+    const request = getRequest()
+    verifyRequestOrigin(request)
+    const identityUrl = new URL('/.netlify/identity/token', request.url)
+    const response = await fetch(identityUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'password', username: data.email, password: data.password }),
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { msg?: string; error_description?: string }
+      throw new Error(body.msg || body.error_description || 'Sign-in failed. Check your email and password.')
+    }
+    const tokens = await response.json() as { access_token?: string; refresh_token?: string }
+    if (!tokens.access_token) throw new Error('Identity did not return a valid sign-in session.')
+    setCookie('nf_jwt', tokens.access_token, { path: '/', secure: true, sameSite: 'lax' })
+    if (tokens.refresh_token) {
+      setCookie('nf_refresh', tokens.refresh_token, { path: '/', secure: true, sameSite: 'lax' })
+    }
     return { authenticated: true as const }
   })
+
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
@@ -27,14 +43,12 @@ export const loginWithIdentity = createServerFn({ method: 'POST' })
  */
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
-    { getUser },
     { and, eq, isNull },
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
     { isApprovedV3DeployPreview },
   ] = await Promise.all([
-    import('@netlify/identity'),
     import('drizzle-orm'),
     import('../../db/index'),
     import('../../db/schema'),
@@ -54,31 +68,29 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     users,
   } = schema
 
-  let identityUser: Awaited<ReturnType<typeof getUser>>
+  const cookies = getCookies()
+  const accessToken = cookies.nf_jwt
+  if (!accessToken) return { authenticated: false as const }
+
+  const request = getRequest()
+  let identityUser: { id: string; email?: string; confirmed_at?: string | null; user_metadata?: Record<string, unknown> }
   try {
-    identityUser = await getUser()
+    const identityResponse = await fetch(new URL('/.netlify/identity/user', request.url), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (identityResponse.status === 401 || identityResponse.status === 400) {
+      return { authenticated: false as const }
+    }
+    if (!identityResponse.ok) {
+      return { authenticated: false as const, identityUnavailable: true as const }
+    }
+    identityUser = await identityResponse.json() as typeof identityUser
   } catch {
     return { authenticated: false as const, identityUnavailable: true as const }
   }
 
-  if (!identityUser) return { authenticated: false as const }
-
-  // A token-claims fallback from getUser() omits confirmedAt. Resolve the full
-  // authoritative Identity record with the Functions-only admin API before
-  // treating a missing timestamp as an unverified email.
-  const verification = await resolveIdentityEmailConfirmation(identityUser, async (userId) => {
-    const { admin } = await import('@netlify/identity')
-    return admin.getUser(userId)
-  })
-  if (verification === 'unavailable') {
-    return {
-      authenticated: true as const,
-      provisioned: false as const,
-      email: identityUser.email?.trim().toLowerCase() || null,
-      identityVerificationUnavailable: true as const,
-    }
-  }
-  if (verification === 'unconfirmed') {
+  if (!identityUser.id) return { authenticated: false as const }
+  if (!isIdentityEmailConfirmed(identityUser)) {
     return {
       authenticated: true as const,
       provisioned: false as const,
