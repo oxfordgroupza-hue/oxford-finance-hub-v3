@@ -69,6 +69,21 @@ function validEmail(value: string | null | undefined) {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 }
 
+function notificationApplicantPii(payload: Record<string, unknown>) {
+  const envelope = typeof payload.applicantPiiEnvelope === 'string' ? payload.applicantPiiEnvelope : ''
+  const privateData = envelope
+    ? decryptApplicantData(envelope)
+    : {
+        // Compatibility for notifications queued before encrypted payloads were introduced.
+        recipient: payload.recipient,
+        applicantName: payload.applicantName,
+      }
+  return {
+    recipient: typeof privateData.recipient === 'string' ? privateData.recipient : '',
+    applicantName: typeof privateData.applicantName === 'string' ? privateData.applicantName : '',
+  }
+}
+
 async function resolveRecipient(item: typeof notifications.$inferSelect) {
   const payload = item.payload ?? {}
   if (item.template === 'new_support_request' || item.template === 'new_partner_registration') {
@@ -88,7 +103,7 @@ async function resolveRecipient(item: typeof notifications.$inferSelect) {
     }
     return accountEmail
   }
-  return typeof payload.recipient === 'string' ? validEmail(payload.recipient) : null
+  return validEmail(notificationApplicantPii(payload).recipient)
 }
 
 function emailContent(template: string, payload: Record<string, unknown>) {
@@ -100,9 +115,8 @@ function emailContent(template: string, payload: Record<string, unknown>) {
   const partnerBusinessName = typeof payload.partnerBusinessName === 'string'
     ? payload.partnerBusinessName.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
     : ''
-  const applicantName = typeof payload.applicantName === 'string'
-    ? payload.applicantName.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
-    : ''
+  const applicantName = notificationApplicantPii(payload).applicantName
+    .replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
   if (template === 'application_received') {
     const applicationFor = assetDescription || 'your selected equipment or vehicle'
     const message = partnerBusinessName
@@ -132,7 +146,7 @@ function emailContent(template: string, payload: Record<string, unknown>) {
     } catch { actionUrl = '' }
     const expiresAt = typeof payload.expiresAt === 'string' ? new Date(payload.expiresAt) : null
     if (!actionUrl || !expiresAt || !Number.isFinite(expiresAt.getTime())) throw new Error('The applicant invitation details are invalid or expired.')
-    const applicantName = typeof payload.applicantName === 'string' ? payload.applicantName.replace(/[\r\n\t]/g, ' ').slice(0, 120) : ''
+    const applicantName = notificationApplicantPii(payload).applicantName.replace(/[\r\n\t]/g, ' ').slice(0, 120)
     const asset = assetDescription || 'your selected finance asset'
     const partnerLine = partnerBusinessName ? ' Your referring merchant partner is ' + partnerBusinessName + '.' : ''
     const expiry = expiresAt.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' })

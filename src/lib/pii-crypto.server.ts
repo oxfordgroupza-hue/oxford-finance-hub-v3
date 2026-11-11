@@ -14,9 +14,14 @@ function encryptionKey(): Buffer {
   return Buffer.from(configured, 'hex')
 }
 
+/** Derive a separate HMAC key so fingerprint use is cryptographically domain-separated from AES encryption. */
+function fingerprintKey(): Buffer {
+  return createHmac('sha256', encryptionKey()).update('oxford-applicant-fingerprint-v1', 'utf8').digest()
+}
+
 /** Stable keyed fingerprint for duplicate detection without exposing low-entropy PII hashes. */
 export function fingerprintApplicantData(value: Record<string, unknown>): string {
-  return createHmac('sha256', encryptionKey()).update(JSON.stringify(value), 'utf8').digest('hex')
+  return createHmac('sha256', fingerprintKey()).update(JSON.stringify(value), 'utf8').digest('hex')
 }
 
 export function encryptApplicantData(value: Record<string, unknown>): string {

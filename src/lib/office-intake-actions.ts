@@ -21,7 +21,7 @@ import {
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { createApplicationReference } from './application-reference'
-import { encryptApplicantData } from './pii-crypto.server'
+import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
 import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
 import { partnerApplicantIntakeInput } from './partner-intake-validation'
 
@@ -63,6 +63,29 @@ function invitationUrl(token: string) {
   return url.toString()
 }
 
+type IntakePiiFields = {
+  applicantEmail: string | null
+  applicantName: string | null
+  phone: string | null
+  applicantPiiCiphertext: string | null
+}
+
+function readIntakeContact(row: IntakePiiFields) {
+  const pii = row.applicantPiiCiphertext
+    ? decryptApplicantData(row.applicantPiiCiphertext)
+    : {
+        // Compatibility path for records created before M22. Backfill before production release.
+        email: row.applicantEmail ?? '',
+        applicantName: row.applicantName ?? '',
+        phone: row.phone ?? '',
+      }
+  return {
+    email: typeof pii.email === 'string' ? pii.email.trim().toLowerCase() : '',
+    applicantName: typeof pii.applicantName === 'string' ? pii.applicantName : '',
+    phone: typeof pii.phone === 'string' ? pii.phone : '',
+  }
+}
+
 async function queueInvitation(input: {
   recipient: string
   reference: string
@@ -77,9 +100,8 @@ async function queueInvitation(input: {
     template: 'office_applicant_invitation',
     status: 'queued',
     payload: {
-      recipient: input.recipient,
+      applicantPiiEnvelope: encryptApplicantData({ recipient: input.recipient, applicantName: input.applicantName }),
       reference: input.reference,
-      applicantName: input.applicantName,
       assetDescription: input.assetDescription,
       partnerBusinessName: input.partnerBusinessName,
       invitationEnvelope: encryptApplicantData({ invitationUrl: input.url }),
@@ -141,15 +163,20 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
       partner = { id: approved.id, businessName: approved.businessName, referralCode: approved.referralCode }
     }
 
+    // Validate the encryption key before any applicant identity data is inserted.
+    const applicantEmailFingerprint = fingerprintApplicantData({ email })
+    const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
     const { token, hash } = createInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
     const [intake] = await db.insert(applicationIntakes).values({
       reference,
-      applicantEmail: email,
+      applicantEmail: null,
+      applicantEmailFingerprint,
+      applicantPiiCiphertext,
       applicantType: data.applicantType,
-      applicantName: data.applicantName,
-      phone: data.phone?.trim() || null,
+      applicantName: null,
+      phone: null,
       category: data.category,
       assetTypeId: data.assetTypeId ?? null,
       industryNameSnapshot: industryName,
@@ -250,15 +277,19 @@ export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
     if (!asset) throw new Error('Select an active asset from the approved catalogue for this finance category.')
 
     const email = data.applicantEmail.toLowerCase()
+    const applicantEmailFingerprint = fingerprintApplicantData({ email })
+    const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
     const { token, hash } = createInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
     const [intake] = await db.insert(applicationIntakes).values({
       reference,
-      applicantEmail: email,
+      applicantEmail: null,
+      applicantEmailFingerprint,
+      applicantPiiCiphertext,
       applicantType: data.applicantType,
-      applicantName: data.applicantName,
-      phone: data.phone?.trim() || null,
+      applicantName: null,
+      phone: null,
       category: data.category,
       assetTypeId: asset.id,
       industryNameSnapshot: asset.industryName,
@@ -342,6 +373,8 @@ export const getOfficeApplicantIntakes = createServerFn({ method: 'GET' }).handl
     id: applicationIntakes.id,
     reference: applicationIntakes.reference,
     applicantEmail: applicationIntakes.applicantEmail,
+    applicantEmailFingerprint: applicationIntakes.applicantEmailFingerprint,
+    applicantPiiCiphertext: applicationIntakes.applicantPiiCiphertext,
     applicantType: applicationIntakes.applicantType,
     applicantName: applicationIntakes.applicantName,
     phone: applicationIntakes.phone,
@@ -353,7 +386,18 @@ export const getOfficeApplicantIntakes = createServerFn({ method: 'GET' }).handl
     invitationSentAt: applicationIntakes.invitationSentAt,
     createdAt: applicationIntakes.createdAt,
   }).from(applicationIntakes).orderBy(desc(applicationIntakes.createdAt)).limit(100)
-  return { intakes: rows }
+  const intakes = rows.map((row) => {
+    const pii = readIntakeContact(row)
+    return {
+      ...row,
+      applicantEmail: typeof pii.email === 'string' ? pii.email : '',
+      applicantName: typeof pii.applicantName === 'string' ? pii.applicantName : '',
+      phone: typeof pii.phone === 'string' ? pii.phone : '',
+      applicantPiiCiphertext: undefined,
+      applicantEmailFingerprint: undefined,
+    }
+  })
+  return { intakes }
 })
 
 export const revokeOfficeApplicantIntake = createServerFn({ method: 'POST' })
@@ -420,6 +464,7 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
     if (!row || row.claimedAt || row.revokedAt || row.status === 'claimed' || row.status === 'revoked') {
       throw new Error('This intake cannot be re-invited.')
     }
+    const applicant = readIntakeContact(row)
     const [asset] = row.assetTypeId
       ? await db.select({ name: assetTypes.name }).from(assetTypes).where(eq(assetTypes.id, row.assetTypeId)).limit(1)
       : [undefined]
@@ -453,9 +498,8 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
         template: 'office_applicant_invitation',
         status: 'queued',
         payload: {
-          recipient: row.applicantEmail,
+          applicantPiiEnvelope: encryptApplicantData({ recipient: applicant.email, applicantName: applicant.applicantName }),
           reference: row.reference,
-          applicantName: row.applicantName,
           assetDescription: asset?.name ?? 'the selected finance asset',
           partnerBusinessName: partner?.businessName ?? '',
           invitationEnvelope: encryptApplicantData({ invitationUrl: invitationUrl(token) }),
@@ -503,7 +547,11 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
       const [intake] = await tx.select().from(applicationIntakes)
         .where(eq(applicationIntakes.tokenHash, tokenHash)).limit(1)
       if (!intake) throw new Error('This invitation is invalid or has already been used.')
-      if (intake.applicantEmail !== identityEmail) {
+      const applicant = readIntakeContact(intake)
+      const emailMatches = intake.applicantEmailFingerprint
+        ? intake.applicantEmailFingerprint === fingerprintApplicantData({ email: identityEmail })
+        : intake.applicantEmail?.trim().toLowerCase() === identityEmail
+      if (!emailMatches || applicant.email !== identityEmail) {
         throw new Error('The signed-in email address does not match the invited applicant.')
       }
       if (intake.status === 'claimed' || intake.claimedAt) throw new Error('This invitation has already been claimed.')
@@ -522,17 +570,28 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
 
       const [existingCustomer] = await tx.select().from(customers)
         .where(eq(customers.userId, account.id)).limit(1)
-      const nameParts = intake.applicantName.trim().split(/\s+/)
+      const nameParts = String(applicant.applicantName ?? '').trim().split(/\s+/)
       const customerValues = {
         applicantType: intake.applicantType,
-        firstName: intake.applicantType === 'individual' ? nameParts[0] ?? null : null,
-        lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') || null : null,
-        businessName: intake.applicantType === 'business' ? intake.applicantName : null,
-        phone: intake.phone,
+        firstName: null,
+        lastName: null,
+        businessName: null,
+        phone: null,
+        profile: {
+          piiCiphertext: encryptApplicantData({
+            firstName: intake.applicantType === 'individual' ? nameParts[0] ?? '' : '',
+            lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') : '',
+            businessName: intake.applicantType === 'business' ? String(applicant.applicantName ?? '') : '',
+            phone: typeof applicant.phone === 'string' ? applicant.phone : '',
+            email: identityEmail,
+          }),
+          piiEncryptionVersion: 'aes-256-gcm-v1',
+        },
       }
       const [customer] = existingCustomer
         ? await tx.update(customers).set(customerValues).where(eq(customers.id, existingCustomer.id)).returning()
         : await tx.insert(customers).values({ userId: account.id, ...customerValues }).returning()
+      await tx.update(users).set({ displayName: null, updatedAt: new Date() }).where(eq(users.id, account.id))
 
       let referralCode: string | null = null
       let partnerUserId: string | null = null
@@ -588,9 +647,15 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
         applicationData: {
           source: intake.partnerRegistrationId ? 'partner_referral_intake' : 'office_intake',
           intakeReference: intake.reference,
-          applicantName: intake.applicantName,
-          email: intake.applicantEmail,
-          phone: intake.phone ?? '',
+          piiCiphertext: encryptApplicantData({
+            applicantName: applicant.applicantName,
+            firstName: intake.applicantType === 'individual' ? nameParts[0] ?? '' : '',
+            lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') : '',
+            businessName: intake.applicantType === 'business' ? applicant.applicantName : '',
+            email: identityEmail,
+            phone: applicant.phone ?? '',
+          }),
+          piiEncryptionVersion: 'aes-256-gcm-v1',
           partnerBusinessName,
           completionRequired: true,
         },

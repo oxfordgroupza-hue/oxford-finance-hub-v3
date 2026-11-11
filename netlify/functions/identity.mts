@@ -162,14 +162,12 @@ export default {
 
     await ensureAccessControlCatalogue()
 
-    const fullName = typeof event.user.userMetadata?.full_name === 'string'
-      ? event.user.userMetadata.full_name.trim()
-      : null
-
+    // Customer names are collected only into the encrypted customer profile.
+    // Do not copy Identity user metadata into the plaintext display_name column.
     await db.insert(users).values({
       identityId,
       email,
-      displayName: fullName || null,
+      displayName: null,
       accountType: 'customer',
       status: 'active',
     }).onConflictDoNothing()
@@ -199,12 +197,6 @@ export default {
       ? event.user.userMetadata.full_name.trim()
       : undefined
 
-    await db.update(users).set({
-      ...(email ? { email } : {}),
-      ...(fullName ? { displayName: fullName } : {}),
-      lastLoginAt: new Date(),
-    }).where(eq(users.identityId, identityId))
-
     if (!email) return
     const [account] = await db
       .select({ id: users.id, accountType: users.accountType })
@@ -212,6 +204,13 @@ export default {
       .where(eq(users.identityId, identityId))
       .limit(1)
     if (!account) return
+
+    await db.update(users).set({
+      email,
+      // Applicant/customer names are kept in the encrypted profile, not display_name.
+      displayName: account.accountType === 'customer' ? null : (fullName || null),
+      lastLoginAt: new Date(),
+    }).where(eq(users.identityId, identityId))
 
     if (await bootstrapInitialAdministrator(account.id, email, isIdentityEmailConfirmed(event.user))) return
 

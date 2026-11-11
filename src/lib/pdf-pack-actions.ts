@@ -145,6 +145,7 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       createdAt: financeApplications.createdAt,
       applicationData: financeApplications.applicationData,
       customerId: customers.id,
+      profile: customers.profile,
       firstName: customers.firstName,
       lastName: customers.lastName,
       businessName: customers.businessName,
@@ -173,6 +174,12 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     const safe = application.applicationData ?? {}
     const encrypted = typeof safe.piiCiphertext === 'string' ? safe.piiCiphertext : null
     const sensitive = encrypted ? decryptApplicantData(encrypted) : {}
+    const storedProfile = application.profile ?? {}
+    const customerPii = typeof storedProfile.piiCiphertext === 'string'
+      ? decryptApplicantData(storedProfile.piiCiphertext)
+      : {}
+    const applicantEmail = typeof sensitive.email === 'string' ? sensitive.email : typeof customerPii.email === 'string' ? customerPii.email : typeof safe.email === 'string' ? safe.email : application.email
+    const applicantPhone = typeof sensitive.phone === 'string' ? sensitive.phone : typeof customerPii.phone === 'string' ? customerPii.phone : typeof safe.phone === 'string' ? safe.phone : application.phone ?? ''
     const [consents, documents] = await Promise.all([
       db.select({
         consentType: consentRecords.consentType,
@@ -191,8 +198,8 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     ])
 
     const applicant = application.applicantType === 'business'
-      ? application.businessName || safe.businessName || 'Business applicant'
-      : [application.firstName || safe.firstName, application.lastName || safe.lastName].filter(Boolean).join(' ') || 'Individual applicant'
+      ? String(sensitive.businessName ?? customerPii.businessName ?? safe.businessName ?? application.businessName ?? 'Business applicant')
+      : [sensitive.firstName ?? customerPii.firstName ?? safe.firstName ?? application.firstName, sensitive.lastName ?? customerPii.lastName ?? safe.lastName ?? application.lastName].filter(Boolean).join(' ') || 'Individual applicant'
     const financeCalculation = application.financeAmount && application.financeAmount > 0
       ? calculateFinanceAmount(application.financeAmount * 100)
       : null
@@ -204,8 +211,8 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       'APPLICANT',
       `Applicant type: ${application.applicantType}`,
       `Applicant / business: ${applicant}`,
-      `Email: ${application.email}`,
-      `Telephone: ${application.phone ?? safe.phone ?? '—'}`,
+      `Email: ${applicantEmail}`,
+      `Telephone: ${applicantPhone || '—'}`,
       `Identity type: ${sensitive.idType ?? 'Not recorded'}`,
       `Identity number: ${sensitive.idNumber ?? 'Not recorded'}`,
       `Date of birth: ${sensitive.dateOfBirth ?? 'Not recorded'}`,
@@ -226,7 +233,7 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       `Term: ${safe.term ?? '—'} months`,
       `Deposit: ${safe.deposit ?? '—'}`,
       `Asset / requirement: ${application.assetDescription ?? '—'}`,
-      `Supplier: ${safe.supplier ?? '—'}`,
+      `Supplier: ${sensitive.supplier ?? safe.supplier ?? '—'}`,
       `Timing: ${safe.timing ?? '—'}`,
       `Referral code: ${safe.referralCode ?? '—'}`,
       ' ',

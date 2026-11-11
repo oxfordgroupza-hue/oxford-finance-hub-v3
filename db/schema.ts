@@ -118,7 +118,7 @@ export const customers = pgTable('customers', {
   phone: text('phone'),
   profile: jsonb('profile').$type<Record<string, unknown>>().default({}).notNull(),
   ...timestamps(),
-}, (t) => [uniqueIndex('customers_user_id_uq').on(t.userId), index('customers_name_idx').on(t.lastName, t.firstName)])
+}, (t) => [uniqueIndex('customers_user_id_uq').on(t.userId), index('customers_name_idx').on(t.lastName, t.firstName), check('customers_pii_envelope_consistency_check', sql`(${t.profile} ->> 'piiCiphertext') is null or (${t.firstName} is null and ${t.lastName} is null and ${t.businessName} is null and ${t.phone} is null and NOT (${t.profile} ? 'firstName' OR ${t.profile} ? 'lastName' OR ${t.profile} ? 'businessName' OR ${t.profile} ? 'tradingName' OR ${t.profile} ? 'email' OR ${t.profile} ? 'phone' OR ${t.profile} ? 'supplier' OR ${t.profile} ? 'applicantName' OR ${t.profile} ? 'contactName' OR ${t.profile} ? 'comments' OR ${t.profile} ? 'idType' OR ${t.profile} ? 'idNumber' OR ${t.profile} ? 'dateOfBirth' OR ${t.profile} ? 'address' OR ${t.profile} ? 'employmentStatus' OR ${t.profile} ? 'employer' OR ${t.profile} ? 'grossMonthlyIncome' OR ${t.profile} ? 'netMonthlyIncome' OR ${t.profile} ? 'registrationNumber' OR ${t.profile} ? 'yearsTrading' OR ${t.profile} ? 'industry' OR ${t.profile} ? 'businessAddress' OR ${t.profile} ? 'annualTurnover' OR ${t.profile} ? 'directors'))`)])
 
 export const financeProducts = pgTable('finance_products', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -172,9 +172,13 @@ export const assetTypes = pgTable('asset_types', {
 export const applicationIntakes = pgTable('application_intakes', {
   id: uuid('id').defaultRandom().primaryKey(),
   reference: text('reference').notNull(),
-  applicantEmail: text('applicant_email').notNull(),
+  // Legacy plaintext columns remain nullable for a controlled encrypted backfill.
+  // New intake rows store only the keyed fingerprint and AES-256-GCM envelope below.
+  applicantEmail: text('applicant_email'),
+  applicantEmailFingerprint: text('applicant_email_fingerprint'),
+  applicantPiiCiphertext: text('applicant_pii_ciphertext'),
   applicantType: applicantTypeEnum('applicant_type').notNull(),
-  applicantName: text('applicant_name').notNull(),
+  applicantName: text('applicant_name'),
   phone: text('phone'),
   category: financeCategoryEnum('category').notNull(),
   assetTypeId: uuid('asset_type_id').references(() => assetTypes.id, { onDelete: 'set null' }),
@@ -196,7 +200,9 @@ export const applicationIntakes = pgTable('application_intakes', {
 }, (t) => [
   uniqueIndex('application_intakes_reference_uq').on(t.reference),
   uniqueIndex('application_intakes_token_hash_uq').on(t.tokenHash),
-  index('application_intakes_email_status_idx').on(t.applicantEmail, t.status),
+  index('application_intakes_email_fingerprint_status_idx').on(t.applicantEmailFingerprint, t.status),
+  check('application_intakes_pii_consistency_check', sql`(${t.applicantPiiCiphertext} is null and ${t.applicantEmailFingerprint} is null) or (${t.applicantPiiCiphertext} is not null and ${t.applicantEmailFingerprint} is not null)`),
+  check('application_intakes_pii_envelope_consistency_check', sql`${t.applicantPiiCiphertext} is null or (${t.applicantEmail} is null and ${t.applicantName} is null and ${t.phone} is null)`),
   index('application_intakes_creator_idx').on(t.creatorUserId, t.createdAt),
   check('application_intakes_status_check', sql`${t.status} in ('pending_invitation', 'invitation_sent', 'claimed', 'expired', 'revoked')`),
   check('application_intakes_claim_consistency_check', sql`(${t.status} = 'claimed' and ${t.claimedAt} is not null and ${t.customerId} is not null and ${t.applicationId} is not null) or (${t.status} <> 'claimed' and ${t.claimedAt} is null and ${t.customerId} is null and ${t.applicationId} is null)`),

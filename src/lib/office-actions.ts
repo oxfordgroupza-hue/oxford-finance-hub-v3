@@ -17,6 +17,7 @@ import {
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { applicationStatuses } from './domain'
+import { decryptApplicantData } from './pii-crypto.server'
 import type { PermissionKey } from './access-control'
 
 async function requireOffice(permission: PermissionKey) {
@@ -62,6 +63,7 @@ export const getOfficeWorkspaceData = createServerFn({ method: 'GET' }).handler(
     lastName: canViewCustomerDetails ? customers.lastName : sql<string | null>`null`,
     businessName: canViewCustomerDetails ? customers.businessName : sql<string | null>`null`,
     phone: canViewCustomerDetails ? customers.phone : sql<string | null>`null`,
+    profile: canViewCustomerDetails ? customers.profile : sql<Record<string, unknown> | null>`null`,
     email: canViewCustomerDetails ? users.email : sql<string | null>`null`,
   }).from(financeApplications)
     .innerJoin(customers, eq(financeApplications.customerId, customers.id))
@@ -183,8 +185,21 @@ export const getOfficeWorkspaceData = createServerFn({ method: 'GET' }).handler(
           : Promise.resolve([])
       : Promise.resolve([]),
   ])
+  const visibleApplications = applications.map((application) => {
+    const { profile, ...safeApplication } = application
+    const privateProfile = profile && typeof profile.piiCiphertext === 'string'
+      ? decryptApplicantData(profile.piiCiphertext)
+      : {}
+    return {
+      ...safeApplication,
+      firstName: typeof privateProfile.firstName === 'string' ? privateProfile.firstName : application.firstName,
+      lastName: typeof privateProfile.lastName === 'string' ? privateProfile.lastName : application.lastName,
+      businessName: typeof privateProfile.businessName === 'string' ? privateProfile.businessName : application.businessName,
+      phone: typeof privateProfile.phone === 'string' ? privateProfile.phone : application.phone,
+    }
+  })
   return {
-    applications,
+    applications: visibleApplications,
     partners,
     support,
     audit,

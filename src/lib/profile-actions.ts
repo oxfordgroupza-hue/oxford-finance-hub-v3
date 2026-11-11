@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { db } from '../../db'
 import { auditEvents, customerPreferences, customers, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { decryptApplicantData, encryptApplicantData } from './pii-crypto.server'
+import { withoutApplicantPii } from './applicant-pii-sanitization'
 
 async function requireProfilePermission(permission: 'own_profile.view' | 'own_profile.edit') {
   const session = await getAuthorizationSnapshot()
@@ -32,10 +34,17 @@ export const getCustomerProfile = createServerFn({ method: 'GET' }).handler(asyn
   const preferenceRows = await db.select({ preferences: customerPreferences.preferences })
     .from(customerPreferences).where(eq(customerPreferences.customerId, customer.id)).limit(1)
   const preferences: Record<string, unknown> = preferenceRows[0]?.preferences ?? {}
+  const storedProfile = customer.profile ?? {}
+  const privateProfile = typeof storedProfile.piiCiphertext === 'string'
+    ? decryptApplicantData(storedProfile.piiCiphertext)
+    : {}
+  const firstName = typeof privateProfile.firstName === 'string' ? privateProfile.firstName : customer.firstName ?? ''
+  const lastName = typeof privateProfile.lastName === 'string' ? privateProfile.lastName : customer.lastName ?? ''
+  const phone = typeof privateProfile.phone === 'string' ? privateProfile.phone : customer.phone ?? ''
   return {
-    name: [customer.firstName, customer.lastName].filter(Boolean).join(' ') || session.user.displayName || '',
+    name: [firstName, lastName].filter(Boolean).join(' ') || session.user.displayName || '',
     email: session.user.email,
-    phone: customer.phone ?? '',
+    phone,
     statusEmails: preferences.statusEmails !== false,
     marketing: preferences.marketing === true,
     preferredContact: preferences.preferredContact === 'Phone' ? 'Phone' as const : 'Email' as const,
@@ -70,15 +79,27 @@ export const updateCustomerProfile = createServerFn({ method: 'POST' })
       marketing: data.marketing,
       preferredContact: data.preferredContact,
     }
+    const storedProfile = customer.profile ?? {}
+    const existingPii = typeof storedProfile.piiCiphertext === 'string'
+      ? decryptApplicantData(storedProfile.piiCiphertext)
+      : {}
+    const encryptedProfile = encryptApplicantData({
+      ...existingPii,
+      firstName,
+      lastName,
+      phone: data.phone,
+    })
 
     await db.transaction(async (tx) => {
       await tx.update(customers).set({
-        firstName,
-        lastName,
-        phone: data.phone || null,
+        firstName: null,
+        lastName: null,
+        businessName: null,
+        phone: null,
+        profile: { ...withoutApplicantPii(storedProfile), piiCiphertext: encryptedProfile, piiEncryptionVersion: 'aes-256-gcm-v1' },
         updatedAt: now,
       }).where(eq(customers.id, customer.id))
-      await tx.update(users).set({ displayName: data.name.trim(), updatedAt: now })
+      await tx.update(users).set({ displayName: null, updatedAt: now })
         .where(eq(users.id, session.user.id))
       const existingRows = await tx.select({ id: customerPreferences.id })
         .from(customerPreferences).where(eq(customerPreferences.customerId, customer.id)).limit(1)

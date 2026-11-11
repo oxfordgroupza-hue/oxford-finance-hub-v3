@@ -25,6 +25,7 @@ import {
   users,
 } from '../../db/schema'
 import { createApplicationReference } from './application-reference'
+import { withoutApplicantPii } from './applicant-pii-sanitization'
 import { calculateFinanceAmount } from './fee-calculation'
 import { decryptApplicantData, encryptApplicantData } from './pii-crypto.server'
 
@@ -196,7 +197,17 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       if (form[consent] !== true) throw new Error('All required declarations and consents must be accepted.')
     }
 
-    const sensitiveData: Record<string, unknown> = {}
+    const sensitiveData: Record<string, unknown> = {
+      firstName: value(form, 'firstName'),
+      lastName: value(form, 'lastName'),
+      businessName: value(form, 'businessName'),
+      tradingName: value(form, 'tradingName'),
+      email,
+      phone,
+      supplier: value(form, 'supplier'),
+      contactName: value(form, 'contactName'),
+      comments: value(form, 'comments'),
+    }
     const sensitiveKeys = [
       'idType', 'idNumber', 'dateOfBirth', 'address', 'employmentStatus', 'employer',
       'grossMonthlyIncome', 'netMonthlyIncome', 'registrationNumber', 'yearsTrading',
@@ -206,16 +217,18 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       if (form[key] !== undefined && form[key] !== '') sensitiveData[key] = form[key]
     }
     const encryptedSensitiveData = encryptApplicantData(sensitiveData)
-
-    const safeData: Record<string, unknown> = {
-      applicantType,
-      category,
+    const encryptedCustomerProfile = encryptApplicantData({
       firstName: value(form, 'firstName'),
       lastName: value(form, 'lastName'),
       businessName: value(form, 'businessName'),
       tradingName: value(form, 'tradingName'),
       email,
       phone,
+    })
+
+    const safeData: Record<string, unknown> = {
+      applicantType,
+      category,
       entityType: value(form, 'entityType'),
       amount: financeAmount,
       financeCalculation: {
@@ -235,7 +248,6 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       assetCategoryName: selectedAssetCategory.name,
       assetTypeId: selectedAssetType.id,
       timing: value(form, 'timing'),
-      supplier: value(form, 'supplier'),
       referralCode: value(form, 'referralCode'),
       piiCiphertext: encryptedSensitiveData,
       piiEncryptionVersion: 'aes-256-gcm-v1',
@@ -256,14 +268,20 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       const businessName = value(form, 'businessName')
       const customerValues = {
         applicantType: applicantType as 'individual' | 'business',
-        firstName: firstName || null,
-        lastName: lastName || null,
-        businessName: businessName || null,
-        phone,
+        firstName: null,
+        lastName: null,
+        businessName: null,
+        phone: null,
+        profile: {
+          piiCiphertext: encryptedCustomerProfile,
+          piiEncryptionVersion: 'aes-256-gcm-v1',
+        },
       }
       const [customer] = existingCustomer
         ? await tx.update(customers).set(customerValues).where(eq(customers.id, existingCustomer.id)).returning()
         : await tx.insert(customers).values({ userId: account.id, ...customerValues }).returning()
+      // Customer identity is held in the encrypted profile, never in the display-name column.
+      await tx.update(users).set({ displayName: null, updatedAt: new Date() }).where(eq(users.id, account.id))
 
       const [existingOperation] = await tx.select()
         .from(integrationOperations)
@@ -318,8 +336,8 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
             eq(financeApplications.customerId, customer.id),
             eq(financeApplications.status, 'Draft'),
           )).limit(1)
-        if (!sourceApplication || sourceApplication.applicationData.source !== 'office_intake') {
-          throw new Error('The Office-created application draft could not be found for your account.')
+        if (!sourceApplication || !['office_intake', 'partner_referral_intake'].includes(String(sourceApplication.applicationData.source))) {
+          throw new Error('The assisted application draft could not be found for your account.')
         }
         officeSourceApplication = sourceApplication
         const originalReferralCode = sourceApplication.referralCode ?? ''
@@ -384,7 +402,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
             referralCode: referralCode || null,
             submittedAt: new Date(),
             applicationData: officeSourceApplication
-              ? { ...officeSourceApplication.applicationData, ...safeData, source: 'office_intake' }
+              ? { ...withoutApplicantPii(officeSourceApplication.applicationData), ...safeData, source: officeSourceApplication.applicationData.source }
               : safeData,
             updatedAt: new Date(),
           }).where(and(
@@ -416,7 +434,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
         toStatus: 'Submitted',
         changedBy: account.id,
         note: officeSourceApplication
-          ? 'Applicant completed and submitted the Office-created application.'
+          ? 'Applicant completed and submitted the Office- or partner-originated application.'
           : 'Application submitted by the authenticated customer.',
       })
 
@@ -451,8 +469,9 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
         status: 'queued',
         payload: {
           reference,
-          recipient: email,
-          applicantName: applicantType === 'business' ? businessName : [firstName, lastName].filter(Boolean).join(' '),
+          applicantPiiEnvelope: encryptApplicantData({
+            applicantName: applicantType === 'business' ? businessName : [firstName, lastName].filter(Boolean).join(' '),
+          }),
           partnerBusinessName: referringPartnerBusinessName,
           assetDescription,
         },
@@ -526,7 +545,7 @@ export const getMyFinanceApplications = createServerFn({ method: 'GET' }).handle
     assetDescription: application.assetDescription,
     submittedAt: application.submittedAt,
     updatedAt: application.updatedAt,
-    isOfficeIntakeDraft: application.status === 'Draft' && application.applicationData.source === 'office_intake',
+    isAssistedIntakeDraft: application.status === 'Draft' && ['office_intake', 'partner_referral_intake'].includes(String(application.applicationData.source)),
     statusHistory: history
       .filter((entry) => entry.applicationId === application.id)
       .map(({ fromStatus, toStatus, createdAt }) => ({ fromStatus, toStatus, createdAt })),
@@ -690,8 +709,8 @@ export const loadMyOfficeApplicationDraft = createServerFn({ method: 'POST' })
         eq(financeApplications.customerId, customer.id),
         eq(financeApplications.status, 'Draft'),
       )).limit(1)
-    if (!application || application.applicationData.source !== 'office_intake') {
-      throw new Error('This Office-created application draft is not available for your account.')
+    if (!application || !['office_intake', 'partner_referral_intake'].includes(String(application.applicationData.source))) {
+      throw new Error('This assisted application draft is not available for your account.')
     }
     const [asset] = application.assetTypeId
       ? await db.select({
@@ -747,8 +766,8 @@ export const saveMyOfficeApplicationDraft = createServerFn({ method: 'POST' })
         eq(financeApplications.customerId, customer.id),
         eq(financeApplications.status, 'Draft'),
       )).limit(1)
-    if (!existing || existing.applicationData.source !== 'office_intake') {
-      throw new Error('This Office-created application draft is not available for your account.')
+    if (!existing || !['office_intake', 'partner_referral_intake'].includes(String(existing.applicationData.source))) {
+      throw new Error('This assisted application draft is not available for your account.')
     }
     const form = data.form
     const assetTypeId = required(form, 'assetTypeId')
@@ -777,6 +796,7 @@ export const saveMyOfficeApplicationDraft = createServerFn({ method: 'POST' })
       throw new Error('Enter a valid principal loan amount of at least R10 000.')
     }
     const sensitiveKeys = [
+      'firstName', 'lastName', 'businessName', 'tradingName', 'email', 'phone', 'supplier',
       'idType', 'idNumber', 'dateOfBirth', 'address', 'employmentStatus', 'employer',
       'grossMonthlyIncome', 'netMonthlyIncome', 'registrationNumber', 'yearsTrading',
       'industry', 'businessAddress', 'annualTurnover', 'directors', 'contactName', 'comments',
@@ -786,15 +806,9 @@ export const saveMyOfficeApplicationDraft = createServerFn({ method: 'POST' })
       if (form[key] !== undefined && form[key] !== '') privateData[key] = form[key]
     }
     const safeData: Record<string, unknown> = {
-      ...existing.applicationData,
+      ...withoutApplicantPii(existing.applicationData),
       applicantType: existing.applicantType,
       category: existing.category,
-      firstName: value(form, 'firstName'),
-      lastName: value(form, 'lastName'),
-      businessName: value(form, 'businessName'),
-      tradingName: value(form, 'tradingName'),
-      email: value(form, 'email').toLowerCase(),
-      phone: value(form, 'phone'),
       entityType: value(form, 'entityType'),
       amount,
       term: value(form, 'term'),

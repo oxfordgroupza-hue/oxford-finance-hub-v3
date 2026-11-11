@@ -18,7 +18,7 @@ type CustomerApplication = {
   category: 'vehicle' | 'equipment' | 'commercial-asset' | 'other'
   status: (typeof applicationStatuses)[number]; financeAmount: number | null
   assetDescription: string | null; submittedAt: Date | string | null; updatedAt: Date | string
-  isOfficeIntakeDraft?: boolean
+  isAssistedIntakeDraft?: boolean
   statusHistory: Array<{ fromStatus: string | null; toStatus: string; createdAt: Date | string }>
 }
 type CustomerDraft = {
@@ -65,9 +65,9 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={application.status} />
-                  {application.status === 'Draft' && application.isOfficeIntakeDraft && (
+                  {application.status === 'Draft' && application.isAssistedIntakeDraft && (
                     <Button asChild size="sm" variant="outlineGold" className="rounded-sm">
-                      <Link to="/apply" search={{ application: application.id }}>Complete application</Link>
+                      <Link to="/apply" search={{ application: application.id }}>Complete assisted application</Link>
                     </Button>
                   )}
                 </div>

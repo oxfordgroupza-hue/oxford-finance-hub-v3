@@ -307,7 +307,7 @@ export function ApplicationWizard({
         setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
         setRestoredDraft(true)
       }).catch((error: unknown) => {
-        if (active) toast.error(error instanceof Error ? error.message : 'The Office-created application could not be restored.')
+        if (active) toast.error(error instanceof Error ? error.message : 'The assisted application could not be restored.')
       })
       return () => { active = false }
     }
