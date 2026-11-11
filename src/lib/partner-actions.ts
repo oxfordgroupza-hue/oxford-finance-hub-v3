@@ -13,6 +13,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { isActivePartnerAccount } from './partner-account-validation'
 
 export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await getAuthorizationSnapshot()
@@ -183,6 +184,13 @@ export const setPartnerSupportingDocumentPermission = createServerFn({ method: '
       .where(eq(partnerRegistrations.id, data.registrationId)).limit(1)
     if (!registration || registration.status !== 'Approved' || !registration.userId) {
       throw new Error('Only an approved partner linked to an active account can receive this permission.')
+    }
+    const [partnerAccount] = await db.select({
+      accountType: users.accountType,
+      status: users.status,
+    }).from(users).where(eq(users.id, registration.userId)).limit(1)
+    if (!isActivePartnerAccount(partnerAccount)) {
+      throw new Error('The partner account is no longer active. Reactivate and verify the account before changing upload permissions.')
     }
     if (registration.canUploadSupportingDocuments === data.enabled) {
       return { success: true, enabled: data.enabled, unchanged: true }

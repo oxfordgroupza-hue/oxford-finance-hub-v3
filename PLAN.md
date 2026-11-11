@@ -13,13 +13,13 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M4 | Roles, permissions and Super Admin | Seven role templates and account-type ceilings are in source; end-to-end account/permission verification pending |
 | M5 | Public site and customer application | Public pages and application route return 200 on Deploy Preview; application submission remains feature-gated pending auth and PII key configuration |
 | M6 | Customer and Office lifecycle | Source imported; verification pending |
-| M7 | Partner referrals, linking and Office intake | Partner isolation corrections required |
+| M7 | Partner referrals, linking and Office intake | Own-referral scoping and registration-only notification are implemented; partner document access remains denied, supplier uploads are restricted to quote plus optional supporting files, and active partner account is revalidated before linking/permission changes; end-to-end verification pending |
 | M8 | Commercial fee model | Terms not approved; public rate logic removed and gated |
 | M9 | Settlements and payouts | Gate remains closed |
 | M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
 | M11 | Private document storage | Supabase bucket exists and is private (10 MiB, PDF/JPEG/PNG); no anon/authenticated grants on sensitive tables; server secret key missing, so upload/download integration remains disabled |
 | M12 | Notifications and automation | Delivery disabled; tests pending |
-| M13 | Security and QA | Build, TypeScript, 108 tests, ESLint and diff checks pass; API origin validation now rejects requests from unrelated Deploy Previews; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
+| M13 | Security and QA | Build, TypeScript, 110 tests, ESLint and diff checks pass; API origin validation rejects unrelated Deploy Previews; partner linking and upload-permission changes revalidate active partner accounts; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
 | M14 | Staging and acceptance | Deploy Preview ready and public route smoke tests passed; Identity is not enabled (404), so authenticated acceptance remains blocked |
 | M15 | Production | Requires separate explicit approval |
 

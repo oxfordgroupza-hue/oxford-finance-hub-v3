@@ -2,8 +2,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
-import { auditEvents, financeApplications, notifications, partnerRegistrations, referrals } from '../../db/schema'
+import { auditEvents, financeApplications, notifications, partnerRegistrations, referrals, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { isActivePartnerAccount } from './partner-account-validation'
 
 const inputSchema = z.object({
   applicationId: z.string().uuid(),
@@ -48,6 +49,13 @@ export const linkMerchantPartnerToApplication = createServerFn({ method: 'POST' 
 
       if (!partner || partner.status !== 'Approved' || !partner.userId || !partner.referralCode) {
         throw new Error('Select an approved merchant partner with an active linked account and referral code.')
+      }
+      const [partnerAccount] = await tx.select({
+        accountType: users.accountType,
+        status: users.status,
+      }).from(users).where(eq(users.id, partner.userId)).limit(1)
+      if (!isActivePartnerAccount(partnerAccount)) {
+        throw new Error('The selected merchant partner account is no longer active. Reactivate and verify the partner before linking applications.')
       }
 
       const [existingReferral] = await tx.select({
