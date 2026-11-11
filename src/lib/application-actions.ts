@@ -1,7 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
 import { randomUUID } from 'node:crypto'
-import { getUser } from '@netlify/identity'
-import { isIdentityEmailConfirmed } from './identity-verification'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
 import { and, desc, eq, gt, inArray } from 'drizzle-orm'
@@ -71,15 +69,19 @@ function assertExistingDraftEditingEnabled() {
 }
 
 async function requireVerifiedIdentity(): Promise<{ id: string; email: string }> {
-  const identity = await getUser()
-  const email = identity?.email?.trim()
-  if (!identity?.id || !email) {
-    throw new Error('Please sign in before submitting an application or saving a draft.')
+  // Use the same TanStack-managed Identity session as the authorization layer.
+  // Netlify Identity's getUser() expects a Netlify Functions runtime and is not
+  // available inside these TanStack Start server functions.
+  const session = await getAuthorizationSnapshot()
+  if (!session.authenticated || !session.provisioned || session.blocked) {
+    throw new Error('Please sign in and verify your email before submitting an application or saving a draft.')
   }
-  if (!isIdentityEmailConfirmed(identity)) {
-    throw new Error('Please verify your email address before submitting an application or saving a draft.')
+  const [account] = await db.select({ identityId: users.identityId })
+    .from(users).where(eq(users.id, session.user.id)).limit(1)
+  if (!account?.identityId || !session.user.email) {
+    throw new Error('Your Oxford account could not be securely matched to its verified Identity account.')
   }
-  return { id: identity.id, email }
+  return { id: account.identityId, email: session.user.email }
 }
 
 async function requireCustomerPermission(permission: PermissionKey) {
@@ -497,12 +499,10 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
 
 /** Return only the authenticated customer's own application summaries. */
 export const getMyFinanceApplications = createServerFn({ method: 'GET' }).handler(async () => {
-  await requireCustomerPermission('own_applications.view')
-  const identity = await getUser()
-  if (!identity?.id) throw new Error('Please sign in to view your applications.')
+  const session = await requireCustomerPermission('own_applications.view')
 
   const [account] = await db.select({ id: users.id, status: users.status, accountType: users.accountType })
-    .from(users).where(eq(users.identityId, identity.id)).limit(1)
+    .from(users).where(eq(users.id, session.user.id)).limit(1)
   if (!account || account.status !== 'active' || account.accountType !== 'customer') {
     throw new Error('This account cannot access the customer application dashboard.')
   }
