@@ -75,6 +75,7 @@ export const submitEnquiry = createServerFn({ method: 'POST' })
       status: 'Open',
       name: data.name,
       email: data.email.toLowerCase(),
+      phone: data.phone || null,
       subject: data.fields.topic || data.fields.subject || (data.kind === 'complaint' ? 'Complaint received' : 'Website enquiry'),
       message: data.message,
     }).returning({ id: supportRequests.id })

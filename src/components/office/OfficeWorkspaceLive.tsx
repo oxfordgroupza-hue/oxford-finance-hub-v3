@@ -31,7 +31,7 @@ type OfficeData = {
     phone: string | null; email: string | null
   }>
   partners: Array<{ id: string; businessName: string; contactName: string; email: string; phone: string | null; linkedUserId: string | null; status: string; referralCode: string | null; createdAt: Date }>
-  support: Array<{ id: string; channel: string; status: string; name: string; email: string; subject: string; message: string; createdAt: Date }>
+  support: Array<{ id: string; channel: string; status: string; name: string; email: string; phone: string | null; subject: string; message: string; createdAt: Date }>
   audit: Array<{ id: string; actorUserId: string | null; actorName: string | null; actorEmail: string | null; event: string; resource: string; resourceId: string | null; details: string; createdAt: Date }>
   securityAudit: Array<{ id: string; actorUserId: string | null; actorName: string | null; actorEmail: string | null; affectedUserId: string | null; action: string; resource: string; recordId: string | null; previousValue: string | null; newValue: string | null; reason: string | null; createdAt: Date }>
   staff: Array<{ id: string; name: string | null; email: string }>
@@ -456,7 +456,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
               <h2 className="text-xl">Support inbox</h2>
               <div className="mt-4 divide-y divide-border">
                 {data.support.map((request) => <article key={request.id} className="py-4">
-                  <div className="flex flex-wrap justify-between gap-3"><div><p className="font-medium">{request.subject}</p><p className="mt-1 text-xs text-muted-foreground">{request.name} · {request.email} · {request.channel}</p></div><span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{request.status}</span></div>
+                  <div className="flex flex-wrap justify-between gap-3"><div><p className="font-medium">{request.subject}</p><p className="mt-1 text-xs text-muted-foreground">{request.name} · {request.email}{request.phone ? ` · ${request.phone}` : ''} · {request.channel}</p></div><span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{request.status}</span></div>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{request.message}</p>
                   {can('support.edit') && <Select value={request.status} onValueChange={async (status) => {
                     try { await updateSupportRequestStatus({ data: { requestId: request.id, status: status as 'Open' | 'Awaiting customer' | 'Resolved' } }); toast.success('Support request updated.'); await refresh() }

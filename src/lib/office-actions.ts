@@ -150,6 +150,7 @@ export const getOfficeWorkspaceData = createServerFn({ method: 'GET' }).handler(
           status: supportRequests.status,
           name: supportRequests.name,
           email: supportRequests.email,
+          phone: supportRequests.phone,
           subject: supportRequests.subject,
           message: supportRequests.message,
           createdAt: supportRequests.createdAt,

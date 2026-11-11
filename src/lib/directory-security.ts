@@ -4,6 +4,11 @@ export function maskIdentityNumber(value: string): string {
   return normalized.length > 4 ? `${mask}${normalized.slice(-4)}` : mask
 }
 
+export function canSearchOwnRecords(accountType: string, permissions: readonly string[]): boolean {
+  return accountType === 'customer' && permissions.includes('own_applications.view') ||
+    accountType === 'partner' && permissions.includes('partner_referrals.view')
+}
+
 export function isSupportDirectoryOnly(permissions: readonly string[]): boolean {
   return permissions.includes('support.view') && !permissions.includes('applications.view')
 }

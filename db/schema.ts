@@ -507,11 +507,12 @@ export const supportRequests = pgTable('support_requests', {
   status: supportStatusEnum('status').default('Open').notNull(),
   name: text('name').notNull(),
   email: text('email').notNull(),
+  phone: text('phone'),
   subject: text('subject').notNull(),
   message: text('message').notNull(),
   assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   ...timestamps(),
-}, (t) => [index('support_requests_status_idx').on(t.status)])
+}, (t) => [index('support_requests_status_idx').on(t.status), index('support_requests_phone_idx').on(t.phone)])
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').defaultRandom().primaryKey(),

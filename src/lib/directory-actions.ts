@@ -5,7 +5,7 @@ import { db } from '../../db'
 import { assignments, customers, financeApplications, partnerRegistrations, permissionAuditLog, referrals, supportRequests, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData, fingerprintIdentityNumber } from './pii-crypto.server'
-import { canSearchInternalDirectoryUsers, identityNumberFromQuery, isSupportDirectoryOnly, maskIdentityNumber } from './directory-security'
+import { canSearchInternalDirectoryUsers, canSearchOwnRecords, identityNumberFromQuery, isSupportDirectoryOnly, maskIdentityNumber } from './directory-security'
 
 const directorySearchInput = z.object({ query: z.string().trim().min(2).max(100) })
 const myRecordsSearchInput = z.object({ query: z.string().trim().min(2).max(100) })
@@ -96,8 +96,9 @@ export const searchMyRecords = createServerFn({ method: 'POST' })
       throw new Error('Please sign in to search your Oxford records.')
     }
     const isCustomer = session.user.accountType === 'customer' && session.permissions.includes('own_applications.view')
-    const isPartner = session.user.accountType === 'partner' && session.permissions.includes('partner_referrals.view')
-    if (!isCustomer && !isPartner) throw new Error('Your account is not authorised to search these records.')
+    if (!canSearchOwnRecords(session.user.accountType, session.permissions)) {
+      throw new Error('Your account is not authorised to search these records.')
+    }
 
     const query = data.query.trim()
     const identityQuery = identityNumberFromQuery(query)
@@ -221,14 +222,14 @@ export const searchRestrictedDirectory = createServerFn({ method: 'POST' })
     const enquiryRows = session.permissions.includes('support.view') || session.isSuperAdmin
       ? await db.select({
           id: supportRequests.id, name: supportRequests.name, email: supportRequests.email,
-          subject: supportRequests.subject, status: supportRequests.status,
+          phone: supportRequests.phone, subject: supportRequests.subject, status: supportRequests.status,
         }).from(supportRequests)
-          .where(or(ilike(supportRequests.name, pattern), ilike(supportRequests.email, pattern), ilike(supportRequests.subject, pattern)))
+          .where(or(ilike(supportRequests.name, pattern), ilike(supportRequests.email, pattern), ilike(supportRequests.phone, pattern), ilike(supportRequests.subject, pattern)))
           .orderBy(desc(supportRequests.createdAt)).limit(15)
       : []
     for (const row of enquiryRows) add({
       id: `support:${row.id}`, group: 'Support enquiry', name: row.name,
-      email: row.email, phone: '', reference: '', status: row.status, identityNumber: '',
+      email: row.email, phone: row.phone ?? '', reference: '', status: row.status, identityNumber: '',
     })
 
     // Partner directory: only registration/contact fields, never commercial terms or referrals.
