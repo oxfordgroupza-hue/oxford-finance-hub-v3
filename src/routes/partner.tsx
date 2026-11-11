@@ -5,9 +5,11 @@ import { Copy, ExternalLink, Handshake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteLayout } from '@/components/site/SiteLayout'
 import { PartnerReferralDocumentUpload } from '@/components/application/PartnerReferralDocumentUpload'
+import { PartnerReferralStarter } from '@/components/partner/PartnerReferralStarter'
 import { StatusBadge } from '@/components/site/StatusBadge'
 import { getAuthorizationSnapshot } from '@/lib/auth'
 import { getPartnerWorkspaceData } from '@/lib/partner-actions'
+import { getPartnerIntakeOptions } from '@/lib/office-intake-actions'
 import { getMySupportRequests } from '@/lib/support-actions'
 import { formatDateTime } from '@/lib/format'
 
@@ -24,14 +26,17 @@ export const Route = createFileRoute('/partner')({
       getPartnerWorkspaceData(),
       getMySupportRequests(),
     ])
-    return { workspace, supportRequests }
+    const intakeOptions = workspace.partner.status === 'Approved'
+      ? await getPartnerIntakeOptions()
+      : { assets: [] }
+    return { workspace, supportRequests, assets: intakeOptions.assets }
   },
   head: () => ({ meta: [{ title: 'Partner portal | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
   component: PartnerWorkspace,
 })
 
 function PartnerWorkspace() {
-  const { workspace, supportRequests } = Route.useLoaderData()
+  const { workspace, supportRequests, assets } = Route.useLoaderData()
   const [copyBusy, setCopyBusy] = useState(false)
   const referralUrl = workspace.referralUrl ?? ''
 
@@ -66,6 +71,12 @@ function PartnerWorkspace() {
           <Metric label="Applications in progress" value={workspace.referrals.filter((item) => item.status !== 'Closed').length} />
           <Metric label="Support requests" value={supportRequests.length} />
         </section>
+
+        <PartnerReferralStarter
+          assets={assets}
+          intakes={workspace.intakes}
+          approved={workspace.partner.status === 'Approved'}
+        />
 
         {workspace.referralUrl ? (
         <section className="rounded-sm border border-gold/30 bg-card p-6 sm:p-8">
