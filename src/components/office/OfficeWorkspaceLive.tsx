@@ -487,7 +487,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                       <div><p className="font-medium">{entry.name}</p><p className="mt-1 text-xs text-muted-foreground">{entry.group}</p></div>
                       <span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{entry.status}</span>
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{entry.email}{entry.phone ? ` · ${entry.phone}` : ''}</p>
+                    {(entry.email && entry.email !== entry.name || entry.phone) && <p className="mt-2 text-sm text-muted-foreground">{entry.email && entry.email !== entry.name ? entry.email : ''}{entry.phone ? `${entry.email && entry.email !== entry.name ? ' · ' : ''}${entry.phone}` : ''}</p>}
                     {entry.reference && <p className="mt-1 text-xs text-muted-foreground">{entry.group === 'Applicant / customer' ? 'Application / account reference' : 'Related detail'}: {entry.reference}</p>}
                     {entry.identityNumber && <p className="mt-1 text-xs text-muted-foreground">ID / passport: <span className="font-mono">{entry.identityNumber}</span></p>}
                   </article>

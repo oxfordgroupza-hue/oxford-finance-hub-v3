@@ -265,7 +265,7 @@ export const searchRestrictedDirectory = createServerFn({ method: 'POST' })
       add({
         id: `user:${row.id}`,
         group: row.accountType === 'office' || row.accountType === 'service' ? 'Internal user' : 'Applicant / customer',
-        name: row.displayName || row.email, email: row.email, phone: '',
+        name: row.displayName || 'Oxford user', email: row.email, phone: '',
         reference: '', status: row.status, identityNumber: '',
       })
     }
