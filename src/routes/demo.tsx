@@ -35,6 +35,7 @@ function DemoWorkspace() {
       action,
       record: role === 'Customer support' ? 'SUP-DEMO-004' : 'OBG-DEMO-2026-001',
       outcome: 'Simulated locally in this preview; no database record, email, WhatsApp or provider submission was created.',
+      visibleTo: [role],
     }, ...current])
   }
 

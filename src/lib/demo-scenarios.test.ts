@@ -13,6 +13,15 @@ describe('role-play demo visibility boundaries', () => {
     expect(getDemoVisibleEvents('Customer support', 'demo-support', demoTimeline).map((event) => event.record)).toEqual(['SUP-DEMO-004'])
   })
 
+  it('shows partners only their supplier-upload event, not applicant or internal assessment history', () => {
+    expect(getDemoVisibleEvents('Partner', 'demo-partner', demoTimeline).map((event) => event.id)).toEqual(['demo-event-03'])
+  })
+
+  it('hides internal assessment and reviewer assignment events from customers', () => {
+    const visibleIds = getDemoVisibleEvents('Customer', 'demo-customer', demoTimeline).map((event) => event.id)
+    expect(visibleIds).toEqual(['demo-event-01', 'demo-event-02', 'demo-event-05'])
+  })
+
   it('limits Office staff to applications they created', () => {
     expect(getDemoVisibleApplications('Office staff', 'demo-office').map((item) => item.reference)).toEqual([
       'OBG-DEMO-2026-001',

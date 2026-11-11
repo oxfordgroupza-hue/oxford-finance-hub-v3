@@ -32,6 +32,7 @@ export interface DemoTimelineEvent {
   action: string
   record: string
   outcome: string
+  visibleTo: DemoRole[]
 }
 
 export interface DemoApplication {
@@ -199,19 +200,17 @@ export function getDemoVisibleApplications(role: DemoRole, actorId: string): Dem
 
 export function getDemoVisibleEvents(role: DemoRole, actorId: string, events: DemoTimelineEvent[]): DemoTimelineEvent[] {
   if (role === 'Super Administrator' || role === 'Administrator') return events
-  const visibleReferences = new Set(getDemoVisibleApplications(role, actorId).map((item) => item.reference))
-  return events.filter((event) => event.actorId === actorId || visibleReferences.has(event.record) ||
-    (role === 'Customer support' && event.record.startsWith('SUP-DEMO-')))
+  return events.filter((event) => event.actorId === actorId || event.visibleTo.includes(role))
 }
 
 export const demoTimeline: DemoTimelineEvent[] = [
-  { id: 'demo-event-01', actorId: 'demo-office', occurredAt: '2026-11-10T08:10:00+02:00', action: 'Created walk-in intake and issued applicant invitation', record: 'OBG-DEMO-2026-001', outcome: 'Invitation queued in preview-only mode' },
-  { id: 'demo-event-02', actorId: 'demo-customer', occurredAt: '2026-11-10T08:34:00+02:00', action: 'Created own account and verified email', record: 'OBG-DEMO-2026-001', outcome: 'Applicant identity verified in demo scenario' },
-  { id: 'demo-event-03', actorId: 'demo-partner', occurredAt: '2026-11-10T08:42:00+02:00', action: 'Uploaded supplier quotation', record: 'OBG-DEMO-2026-001', outcome: 'Quotation received; no applicant-private documents exposed' },
-  { id: 'demo-event-04', actorId: 'demo-reviewer', occurredAt: '2026-11-10T09:05:00+02:00', action: 'Completed preliminary assessment', record: 'OBG-DEMO-2026-001', outcome: 'Manual review required because three verified reversals were identified' },
-  { id: 'demo-event-05', actorId: 'demo-support', occurredAt: '2026-11-10T09:18:00+02:00', action: 'Responded to applicant document query', record: 'SUP-DEMO-004', outcome: 'Applicant advised which documents remain outstanding' },
-  { id: 'demo-event-06', actorId: 'demo-admin', occurredAt: '2026-11-10T09:30:00+02:00', action: 'Assigned application to reviewer', record: 'OBG-DEMO-2026-001', outcome: 'Assignment recorded in the demo activity trail' },
-  { id: 'demo-event-07', actorId: 'demo-super-admin', occurredAt: '2026-11-10T09:45:00+02:00', action: 'Reviewed partner document-upload permission', record: 'PARTNER-DEMO-01', outcome: 'Additional supplier uploads enabled for this demo partner only' },
+  { id: 'demo-event-01', actorId: 'demo-office', occurredAt: '2026-11-10T08:10:00+02:00', action: 'Created walk-in intake and issued applicant invitation', record: 'OBG-DEMO-2026-001', outcome: 'Invitation queued in preview-only mode', visibleTo: ['Customer', 'Office staff', 'Application reviewer'] },
+  { id: 'demo-event-02', actorId: 'demo-customer', occurredAt: '2026-11-10T08:34:00+02:00', action: 'Created own account and verified email', record: 'OBG-DEMO-2026-001', outcome: 'Applicant identity verified in demo scenario', visibleTo: ['Customer', 'Office staff', 'Application reviewer'] },
+  { id: 'demo-event-03', actorId: 'demo-partner', occurredAt: '2026-11-10T08:42:00+02:00', action: 'Uploaded supplier quotation', record: 'OBG-DEMO-2026-001', outcome: 'Quotation received; no applicant-private documents exposed', visibleTo: ['Partner', 'Office staff', 'Application reviewer'] },
+  { id: 'demo-event-04', actorId: 'demo-reviewer', occurredAt: '2026-11-10T09:05:00+02:00', action: 'Completed preliminary assessment', record: 'OBG-DEMO-2026-001', outcome: 'Manual review required because three verified reversals were identified', visibleTo: ['Application reviewer', 'Office staff'] },
+  { id: 'demo-event-05', actorId: 'demo-support', occurredAt: '2026-11-10T09:18:00+02:00', action: 'Responded to applicant document query', record: 'SUP-DEMO-004', outcome: 'Applicant advised which documents remain outstanding', visibleTo: ['Customer support', 'Customer'] },
+  { id: 'demo-event-06', actorId: 'demo-admin', occurredAt: '2026-11-10T09:30:00+02:00', action: 'Assigned application to reviewer', record: 'OBG-DEMO-2026-001', outcome: 'Assignment recorded in the demo activity trail', visibleTo: ['Administrator', 'Application reviewer', 'Office staff'] },
+  { id: 'demo-event-07', actorId: 'demo-super-admin', occurredAt: '2026-11-10T09:45:00+02:00', action: 'Reviewed partner document-upload permission', record: 'PARTNER-DEMO-01', outcome: 'Additional supplier uploads enabled for this demo partner only', visibleTo: ['Administrator', 'Super Administrator'] },
 ]
 
 export const demoSupportRequests = [
