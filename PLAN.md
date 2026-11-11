@@ -30,11 +30,11 @@ Use these exact distinctions: implemented in source; automated tests passing; De
 No production deployment, live applications, document upload, email/WhatsApp delivery, settlement execution, payment or payout processing until separate approval and acceptance evidence are recorded. Legal and regulatory readiness requires qualified professional review.
 
 ## Latest verified checkpoint — 11 November 2026
-- Source commit `aa1b99d62afa18df0a92733bf60b5d537dca4178` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
-- Netlify Deploy Preview `6af410b14e6b981f3d4e444b` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
+- Latest tested code commit `3543f844b5b6d6dd6577ab95a21ae1c8a5d48f3d` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
+- Netlify Deploy Preview `6af413a6c8288547678a3946` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
 - Desktop Commander HTTP smoke tests returned 200 for `/`, `/login`, `/apply`, `/office`, `/office/credit-assessments`, `/demo`, `/privacy` and `/terms`. Protected workspace routes return the login page as expected.
 - The deployed document API returns 200 for the same preview origin and 403 for an unrelated Deploy Preview origin.
-- Build, TypeScript, all 110 automated tests across 19 files, ESLint and `git diff --check` pass. The login page now reports Identity unavailability explicitly.
+- Build, TypeScript, all 120 automated tests across 21 files, ESLint and `git diff --check` pass. The login page reports Identity unavailability explicitly; Office invitation origin and partner account checks are tested.
 - Netlify Identity endpoints return 404 on this preview; Identity is dashboard-only. The preview bootstrap environment-variable update was rejected with HTTP 403, so real account provisioning remains blocked.
 - Supabase's private document bucket is verified, but the server secret and PII encryption key are absent. Application, document-upload, email-delivery and settlement gates remain disabled.
 - The primary Netlify site URL returns 404 (no production deploy is published). No production deploy, real applicant data, uploads, email, WhatsApp, settlements or payouts were enabled.
