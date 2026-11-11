@@ -12,6 +12,9 @@ export interface OxfordFeeCalculation {
   oxfordTotalFeesCents: number
   adminRateBps: number
 }
-export function calculateOxfordFees(_approvedFinanceAmountCents: number, _actualFunderSettlementAmountCents?: number): OxfordFeeCalculation {
+export function calculateOxfordFees(approvedFinanceAmountCents: number, actualFunderSettlementAmountCents?: number): OxfordFeeCalculation {
+  // Keep the public function signature stable while settlement terms remain disabled.
+  void approvedFinanceAmountCents
+  void actualFunderSettlementAmountCents
   throw new Error('Oxford settlement terms have not been approved or configured. Settlement calculations are disabled.')
 }
