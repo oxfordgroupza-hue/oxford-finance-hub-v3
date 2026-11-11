@@ -9,7 +9,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M0 | Repository recovery, comparison, sanitised import | In progress |
 | M1 | Full audit, architecture and evidence register | Initial audit recorded; continue |
 | M2 | Database/core domain and migrations | Source imported; validation pending |
-| M3 | Identity provisioning and authentication | Preview-only Super Admin bootstrap requires an explicit server-side flag and verified Identity email; preview flag could not be set (Netlify environment update 403) and Identity endpoints return 404, so account provisioning remains externally blocked |
+| M3 | Identity provisioning and authentication | Bootstrap logic now requires the exact V3 Deploy Preview host, a preview-only flag and verified Identity email; preview flag could not be set (Netlify environment update 403) and Identity endpoints return 404, so account provisioning remains externally blocked |
 | M4 | Roles, permissions and Super Admin | Seven role templates and account-type ceilings are in source; end-to-end account/permission verification pending |
 | M5 | Public site and customer application | Public pages and application route return 200 on Deploy Preview; application submission remains feature-gated pending auth and PII key configuration |
 | M6 | Customer and Office lifecycle | Office invitation URL now validates the exact V3 Deploy Preview host; partner selection and referral attribution require an active approved partner account; invitation-origin and partner-eligibility tests pass; authenticated end-to-end verification pending |
@@ -19,7 +19,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
 | M11 | Private document storage | Supabase bucket exists and is private (10 MiB, PDF/JPEG/PNG); no anon/authenticated grants on sensitive tables; server secret key missing, so upload/download integration remains disabled |
 | M12 | Notifications and automation | Delivery disabled; tests pending |
-| M13 | Security and QA | Build, TypeScript, 120 tests across 21 files, ESLint and diff checks pass; API origin and Office invitation hosts are restricted to the correct preview; partner referral/linking permissions revalidate active partner accounts; demo application and event visibility is restricted by role and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
+| M13 | Security and QA | Build, TypeScript, 122 tests across 22 files, ESLint and diff checks pass; API origin, Office invitation and Super Admin bootstrap are restricted to the exact V3 Deploy Preview; partner referral/linking permissions revalidate active partner accounts; demo application and event visibility is restricted by role and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
 | M14 | Staging and acceptance | Deploy Preview public routes and role-play demo are testable; role-based demo visibility is automated-tested and `docs/PREVIEW-TEST-GUIDE.md` records the exact test path; Identity is not enabled (404), so authenticated acceptance remains blocked |
 | M15 | Production | Requires separate explicit approval |
 

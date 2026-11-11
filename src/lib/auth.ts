@@ -4,8 +4,8 @@ import { isIdentityEmailConfirmed } from './identity-verification'
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
- * Administrator role in an isolated Deploy Preview. Production additionally requires
- * a temporary server-side flag and a confirmed Identity email.
+ * Administrator role only in the approved V3 Deploy Preview with an explicit flag
+ * and a confirmed Identity email. Production bootstrap is disabled.
  */
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
@@ -14,12 +14,14 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
+    { isApprovedV3DeployPreview, isInitialSuperAdminBootstrapEnabled },
   ] = await Promise.all([
     import('@netlify/identity'),
     import('drizzle-orm'),
     import('../../db/index'),
     import('../../db/schema'),
     import('./access-control'),
+    import('./netlify-preview'),
   ])
 
   const {
@@ -155,10 +157,13 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
   const mayBootstrap = canBootstrapInitialSuperAdmin({
     email,
     bootstrapEmail,
-    isDeployPreview: process.env.CONTEXT === 'deploy-preview',
+    isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
     productionBootstrapEnabled: false, // V3 bootstrap is Deploy Preview-only.
-    bootstrapEnabled: process.env.CONTEXT === 'deploy-preview' &&
-      process.env.OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED === 'true',
+    bootstrapEnabled: isInitialSuperAdminBootstrapEnabled(
+      process.env.CONTEXT,
+      process.env.DEPLOY_PRIME_URL,
+      process.env.OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED,
+    ),
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),

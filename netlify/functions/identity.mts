@@ -11,6 +11,7 @@ import {
   userSuspensions,
 } from '../../db/schema'
 import { canBootstrapInitialSuperAdmin, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY } from '../../src/lib/access-control'
+import { isApprovedV3DeployPreview, isInitialSuperAdminBootstrapEnabled } from '../../src/lib/netlify-preview'
 
 interface IdentityUserEvent {
   user: {
@@ -77,17 +78,22 @@ async function assignBaselineRole(userId: string, roleKey: string) {
 }
 
 /**
- * One-time bootstrap of the explicitly designated administrator on Deploy
- * Previews only. Never reactivate a disabled/suspended account or restore a
- * Super Administrator assignment that has previously been revoked.
+ * One-time bootstrap of the explicitly designated administrator on the approved
+ * V3 Deploy Preview only. Never reactivate a disabled/suspended account or restore
+ * a Super Administrator assignment that has previously been revoked.
  */
 async function bootstrapInitialAdministrator(userId: string, email: string, emailConfirmed: boolean) {
-  const configuredEmail = process.env.OXFORD_INITIAL_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
-  // Defence in depth: never run the bootstrap on production, even if the
-  // Netlify variable was accidentally given an all-context scope.
-  const deployPrimeUrl = process.env.DEPLOY_PRIME_URL ?? ''
-  const isDeployPreview = process.env.CONTEXT === 'deploy-preview'
-    || /^https:\/\/deploy-preview-\d+--/i.test(deployPrimeUrl)
+  const configuredEmail = Netlify.env.get('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+  // Defence in depth: only the approved V3 Deploy Preview and its explicit
+  // preview-only flag can ever bootstrap the designated administrator.
+  const context = Netlify.env.get('CONTEXT')
+  const deployPrimeUrl = Netlify.env.get('DEPLOY_PRIME_URL')
+  const isDeployPreview = isApprovedV3DeployPreview(context, deployPrimeUrl)
+  const bootstrapEnabled = isInitialSuperAdminBootstrapEnabled(
+    context,
+    deployPrimeUrl,
+    Netlify.env.get('OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED'),
+  )
   if (!isDeployPreview || !configuredEmail || email !== configuredEmail) return false
 
   const [account] = await db.select({ status: users.status })
@@ -115,6 +121,7 @@ async function bootstrapInitialAdministrator(userId: string, email: string, emai
     bootstrapEmail: configuredEmail,
     isDeployPreview,
     productionBootstrapEnabled: false,
+    bootstrapEnabled,
     emailConfirmed,
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(assignmentHistory),

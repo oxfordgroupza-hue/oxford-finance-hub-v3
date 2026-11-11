@@ -30,8 +30,8 @@ import type { AccountStatus, AccountType } from './domain'
 /**
  * One-time Super Administrator bootstrap for the explicitly configured identity.
  * It must never override a disabled/suspended account or silently restore a role
- * that an administrator previously revoked. Production additionally requires a
- * temporary server-side flag and a confirmed Identity email.
+ * that an administrator previously revoked. V3 production bootstrap is disabled;
+ * the approved Deploy Preview requires an explicit flag and a confirmed Identity email.
  */
 export function canBootstrapInitialSuperAdmin(input: {
   email: string | null | undefined
