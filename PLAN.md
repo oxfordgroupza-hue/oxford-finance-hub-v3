@@ -30,8 +30,8 @@ Use these exact distinctions: implemented in source; automated tests passing; De
 No production deployment, live applications, document upload, email/WhatsApp delivery, settlement execution, payment or payout processing until separate approval and acceptance evidence are recorded. Legal and regulatory readiness requires qualified professional review.
 
 ## Latest verified checkpoint — 11 November 2026
-- Source commit `6598d8cdce98356b05869cf7b89eaf05014b3d27` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
-- Netlify Deploy Preview `6af4100e1a5e131bc685bbce` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
+- Source commit `aa1b99d62afa18df0a92733bf60b5d537dca4178` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
+- Netlify Deploy Preview `6af410b14e6b981f3d4e444b` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
 - Desktop Commander HTTP smoke tests returned 200 for `/`, `/login`, `/apply`, `/office`, `/office/credit-assessments`, `/demo`, `/privacy` and `/terms`. Protected workspace routes return the login page as expected.
 - The deployed document API returns 200 for the same preview origin and 403 for an unrelated Deploy Preview origin.
 - Build, TypeScript, all 110 automated tests across 19 files, ESLint and `git diff --check` pass. The login page now reports Identity unavailability explicitly.
