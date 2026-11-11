@@ -9,14 +9,14 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M0 | Repository recovery, comparison, sanitised import | In progress |
 | M1 | Full audit, architecture and evidence register | Initial audit recorded; continue |
 | M2 | Database/core domain and migrations | Source imported; validation pending |
-| M3 | Identity provisioning and authentication | Defects identified; remediation pending |
-| M4 | Roles, permissions and Super Admin | Partner permission corrections required |
+| M3 | Identity provisioning and authentication | Preview-only Super Admin bootstrap now requires an explicit server-side flag and verified Identity email; Netlify Identity provider availability still requires live preview verification |
+| M4 | Roles, permissions and Super Admin | Seven role templates and account-type ceilings are in source; end-to-end account/permission verification pending |
 | M5 | Public site and customer application | Source imported; end-to-end verification pending |
 | M6 | Customer and Office lifecycle | Source imported; verification pending |
 | M7 | Partner referrals, linking and Office intake | Partner isolation corrections required |
 | M8 | Commercial fee model | Terms not approved; public rate logic removed and gated |
 | M9 | Settlements and payouts | Gate remains closed |
-| M10 | Internal credit assessment | Source imported; evidence capture audit pending |
+| M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
 | M11 | Private document storage | Provider configuration checked read-only; integration tests pending |
 | M12 | Notifications and automation | Delivery disabled; tests pending |
 | M13 | Security and QA | Initial static review only |

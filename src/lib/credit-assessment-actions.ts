@@ -14,7 +14,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { buildCreditAssessmentReport, type CreditAssessmentReport } from './credit-assessment-report'
+import { buildCreditAssessmentReport, CREDIT_ASSESSMENT_OUTCOMES, type CreditAssessmentReport } from './credit-assessment-report'
 import { assessDebitOrderReversals, CREDIT_ASSESSMENT_WEIGHTS, type CreditAssessmentDimension, type DebitOrderReversalEvidence } from './credit-assessment'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
 
@@ -51,6 +51,7 @@ async function assertApplicationScope(
   const [application] = await db.select({
     id: financeApplications.id,
     reference: financeApplications.reference,
+    applicantType: financeApplications.applicantType,
   }).from(financeApplications).where(eq(financeApplications.id, applicationId)).limit(1)
   if (!application) throw new Error('Application not found.')
   if (!session.isSuperAdmin && !session.permissions.includes('applications.assign')) {
@@ -71,6 +72,7 @@ export const getCreditAssessmentQueue = createServerFn({ method: 'GET' }).handle
   const rows = await db.select({
     id: financeApplications.id,
     reference: financeApplications.reference,
+    applicantType: financeApplications.applicantType,
     applicationStatus: financeApplications.status,
     reportStatus: creditAssessmentReports.status,
     updatedAt: creditAssessmentReports.updatedAt,
@@ -101,6 +103,7 @@ const dimensionReviewInput = z.object({
 const saveInput = z.object({
   applicationId: z.string().uuid(),
   assessmentDate: z.string(),
+  outcome: z.enum(CREDIT_ASSESSMENT_OUTCOMES).nullable(),
   dimensions: z.array(dimensionReviewInput).length(6),
   overallReviewerSummary: z.string().max(8000),
 }).strict()
@@ -214,6 +217,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
       })
       const report = buildCreditAssessmentReport({
         evidenceSnapshot,
+        applicantType: application.applicantType,
+        outcome: data.outcome,
         applicationReference: application.reference,
         assessmentDate: data.assessmentDate,
         reviewerName: session.user.displayName || session.user.email,
@@ -270,6 +275,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
           applicationReference: application.reference,
           version,
           status: report.status,
+          preliminaryOutcome: report.outcome,
+          applicantType: report.applicantType,
           completedDimensions: report.completedDimensions,
         },
       })
@@ -531,6 +538,8 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
       ? JSON.parse(JSON.stringify(report.report)) as CreditAssessmentReport
       : null
     const serializableReport = rawReport ? {
+      applicantType: rawReport.applicantType,
+      outcome: rawReport.outcome,
       applicationReference: rawReport.applicationReference,
       assessmentDate: rawReport.assessmentDate,
       reviewerName: rawReport.reviewerName,

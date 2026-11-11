@@ -157,6 +157,8 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     bootstrapEmail,
     isDeployPreview: process.env.CONTEXT === 'deploy-preview',
     productionBootstrapEnabled: false, // V3 bootstrap is Deploy Preview-only.
+    bootstrapEnabled: process.env.CONTEXT === 'deploy-preview' &&
+      process.env.OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED === 'true',
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),

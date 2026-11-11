@@ -2,6 +2,15 @@ import { CREDIT_ASSESSMENT_WEIGHTS, type CreditAssessmentDimension } from './cre
 
 export type CreditAssessmentReviewStatus = 'not_started' | 'in_progress' | 'ready_for_human_decision'
 
+export const CREDIT_ASSESSMENT_OUTCOMES = [
+  'strong_preliminary_profile',
+  'conditional_further_information',
+  'manual_review',
+  'insufficient_information',
+  'not_recommended_under_current_criteria',
+] as const
+export type CreditAssessmentOutcome = (typeof CREDIT_ASSESSMENT_OUTCOMES)[number]
+
 export interface CreditAssessmentDimensionReview {
   dimension: CreditAssessmentDimension
   score: number | null
@@ -24,6 +33,8 @@ export interface CreditAssessmentEvidenceSnapshot {
 
 export interface CreditAssessmentReportInput {
   evidenceSnapshot?: CreditAssessmentEvidenceSnapshot[]
+  applicantType: 'individual' | 'business'
+  outcome: CreditAssessmentOutcome | null
   applicationReference: string
   assessmentDate: string
   reviewerName: string
@@ -40,6 +51,8 @@ export interface CreditAssessmentReportInput {
 }
 
 export interface CreditAssessmentReport {
+  applicantType: 'individual' | 'business'
+  outcome: CreditAssessmentOutcome | null
   applicationReference: string
   assessmentDate: string
   reviewerName: string
@@ -71,6 +84,12 @@ export function buildCreditAssessmentReport(
     throw new Error('The assessment date must be a valid YYYY-MM-DD date.')
   }
   if (!input.reviewerName.trim()) throw new Error('The reviewer name is required.')
+  if (input.applicantType !== 'individual' && input.applicantType !== 'business') {
+    throw new Error('The assessment must follow an Individual or Business applicant path.')
+  }
+  if (input.outcome !== null && !CREDIT_ASSESSMENT_OUTCOMES.includes(input.outcome)) {
+    throw new Error('Select a valid preliminary assessment outcome.')
+  }
 
   for (const [field, value] of [
     ['verified reversal count', input.reversalReview.verifiedReversalCount],
@@ -120,6 +139,8 @@ export function buildCreditAssessmentReport(
       : 'in_progress'
 
   return {
+    applicantType: input.applicantType,
+    outcome: input.outcome,
     applicationReference: input.applicationReference.trim(),
     assessmentDate: input.assessmentDate,
     reviewerName: input.reviewerName.trim(),

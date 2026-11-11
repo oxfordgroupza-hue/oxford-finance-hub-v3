@@ -15,6 +15,7 @@ import {
   saveCreditAssessmentReport,
 } from '@/lib/credit-assessment-actions'
 import type { CreditAssessmentDimension } from '@/lib/credit-assessment'
+import type { CreditAssessmentOutcome } from '@/lib/credit-assessment-report'
 
 const dimensions: Array<{ key: CreditAssessmentDimension; label: string; maximum: number }> = [
   { key: 'verifiedIncomeAndStability', label: 'Verified income and stability', maximum: 20 },
@@ -84,6 +85,7 @@ function CreditAssessmentsPage() {
   const canSave = selected ? (selected.reportStatus ? canEdit : canCreate) : false
   const [rows, setRows] = useState<ReviewRow[]>(blankRows)
   const [assessmentDate, setAssessmentDate] = useState('')
+  const [outcome, setOutcome] = useState<CreditAssessmentOutcome | null>(null)
   const [summary, setSummary] = useState('')
   const [versions, setVersions] = useState<Array<{ version: number; status: string; createdAt: string }>>([])
   const [bankStatementDocuments, setBankStatementDocuments] = useState<BankStatementDocument[]>([])
@@ -116,16 +118,19 @@ function CreditAssessmentsPage() {
       if (result.report) {
         const saved = result.report.report as {
           assessmentDate: string
+          outcome: CreditAssessmentOutcome | null
           dimensions: ReviewRow[]
           reversalReview: ReversalSummary
           overallReviewerSummary: string
         }
         setAssessmentDate(saved.assessmentDate)
+        setOutcome(saved.outcome ?? null)
         setRows(saved.dimensions)
         setReversalSummary(saved.reversalReview)
         setSummary(saved.overallReviewerSummary)
       } else {
         setAssessmentDate(new Date().toISOString().slice(0, 10))
+        setOutcome(null)
         setRows(blankRows())
         setReversalSummary(null)
         setSummary('')
@@ -146,6 +151,7 @@ function CreditAssessmentsPage() {
       const result = await saveCreditAssessmentReport({ data: {
         applicationId: selected.id,
         assessmentDate,
+        outcome,
         dimensions: rows,
         overallReviewerSummary: summary,
       } })
@@ -233,7 +239,11 @@ function CreditAssessmentsPage() {
       <section className="min-w-0 space-y-6 rounded-sm border border-border bg-card p-5 sm:p-7">
         {!selected ? <div><h2 className="text-xl">Select an application</h2><p className="mt-2 text-sm text-muted-foreground">Choose an assigned application to open its private assessment worksheet.</p></div> : <>
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-gold">Application reference</p><h2 className="mt-1 text-2xl">{selected.reference}</h2></div><div className="text-xs text-muted-foreground">Saved versions: {versions.length}</div></div>
-          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="assessment-date">Assessment date</Label><Input id="assessment-date" type="date" value={assessmentDate} onChange={(event) => { setAssessmentDate(event.target.value); setReversalSummary(null) }} required /></div></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="assessment-date">Assessment date</Label><Input id="assessment-date" type="date" value={assessmentDate} onChange={(event) => { setAssessmentDate(event.target.value); setReversalSummary(null) }} required /></div>
+            <div className="space-y-2"><Label htmlFor="assessment-outcome">Preliminary Oxford assessment outcome</Label><select id="assessment-outcome" value={outcome ?? ''} onChange={(event) => setOutcome((event.target.value || null) as CreditAssessmentOutcome | null)} className="w-full rounded-sm border border-border bg-background px-3 py-2.5 text-sm"><option value="">Not yet selected</option><option value="strong_preliminary_profile">Strong preliminary profile</option><option value="conditional_further_information">Conditional — further information required</option><option value="manual_review">Manual review</option><option value="insufficient_information">Insufficient information</option><option value="not_recommended_under_current_criteria">Not recommended for submission under current Oxford criteria</option></select><p className="text-xs text-muted-foreground">Human reviewer selection only. This is not a lender approval or decline.</p></div>
+          </div>
+          <div className="rounded-sm border border-border bg-background p-4 text-sm"><p className="font-semibold">{selected.applicantType === 'business' ? 'Business assessment path' : 'Individual assessment path'}</p><p className="mt-1 text-muted-foreground">{selected.applicantType === 'business' ? 'Assess business cash flow, bank statements, trading history, operating expenses, financial obligations and business stability. Record which facts are verified, declared or still unverified in each evidence summary.' : 'Assess personal verified income, employment stability, disposable income, existing commitments, bank-statement behaviour and consistency of identity and supporting documents. Distinguish verified facts from applicant declarations and missing evidence.'}</p></div>
           <div className="space-y-4">
             <div><h3 className="text-lg">Evidence dimensions</h3><p className="text-xs text-muted-foreground">Enter a score only when supported by verified evidence. Maximums are fixed by the assessment framework.</p></div>
             {dimensions.map((dimension, index) => <div key={dimension.key} className="space-y-3 border-t border-border pt-4">

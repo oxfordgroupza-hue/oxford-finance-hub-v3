@@ -293,6 +293,7 @@ describe('initial Super Administrator bootstrap gate', () => {
     bootstrapEmail: 'ADMIN@example.co.za',
     isDeployPreview: false,
     productionBootstrapEnabled: false,
+    bootstrapEnabled: true,
     emailConfirmed: false,
     accountStatus: 'active' as const,
     hasSuperAdminAssignmentHistory: false,
@@ -302,6 +303,10 @@ describe('initial Super Administrator bootstrap gate', () => {
   it('allows the configured identity in an isolated Deploy Preview only after email confirmation', () => {
     expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, emailConfirmed: true })).toBe(true)
     expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, emailConfirmed: false })).toBe(false)
+  })
+
+  it('requires the explicit bootstrap flag even in Deploy Preview', () => {
+    expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, bootstrapEnabled: false, emailConfirmed: true })).toBe(false)
   })
 
   it('does not rebootstrap disabled or suspended accounts, or restore a previously revoked Super Administrator role', () => {

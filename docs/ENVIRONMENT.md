@@ -17,7 +17,7 @@ This document lists variable names only. Never commit values.
 - `OXFORD_NOTIFICATION_FROM_NAME`
 - `OXFORD_NOTIFICATION_ADMIN_EMAIL`
 - `OXFORD_INITIAL_SUPER_ADMIN_EMAIL`
-- `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED`
+- `OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED` (Deploy Preview context only; must be `true` only for the controlled initial administrator test)
 
 ## Feature gates
 - `OXFORD_APPLICATIONS_ENABLED=false`

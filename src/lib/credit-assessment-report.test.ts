@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CREDIT_ASSESSMENT_WEIGHTS, type CreditAssessmentDimension } from './credit-assessment'
-import { buildCreditAssessmentReport, type CreditAssessmentReportInput } from './credit-assessment-report'
+import { buildCreditAssessmentReport, CREDIT_ASSESSMENT_OUTCOMES, type CreditAssessmentReportInput } from './credit-assessment-report'
 
 const dimensions = (score: number | null = null) =>
   (Object.keys(CREDIT_ASSESSMENT_WEIGHTS) as CreditAssessmentDimension[]).map((dimension) => ({
@@ -12,6 +12,8 @@ const dimensions = (score: number | null = null) =>
   }))
 
 const reportInput = (overrides: Partial<CreditAssessmentReportInput> = {}): CreditAssessmentReportInput => ({
+  applicantType: 'individual',
+  outcome: null,
   applicationReference: 'OBG-APP-20261110-ABC123',
   assessmentDate: '2026-11-10',
   reviewerName: 'Assigned reviewer',
@@ -29,6 +31,20 @@ const reportInput = (overrides: Partial<CreditAssessmentReportInput> = {}): Cred
 })
 
 describe('human-reviewed credit assessment report', () => {
+  it('preserves the applicant-specific assessment path and all five reviewer outcomes', () => {
+    for (const outcome of CREDIT_ASSESSMENT_OUTCOMES) {
+      const result = buildCreditAssessmentReport(reportInput({ applicantType: 'business', outcome }))
+      expect(result.applicantType).toBe('business')
+      expect(result.outcome).toBe(outcome)
+    }
+  })
+
+  it('keeps an unselected preliminary outcome distinct from technical report status', () => {
+    const result = buildCreditAssessmentReport(reportInput({ dimensions: dimensions(5) }))
+    expect(result.status).toBe('ready_for_human_decision')
+    expect(result.outcome).toBeNull()
+  })
+
   it('preserves evidence references and reviewer verification in the report snapshot', () => {
     const evidenceSnapshot = [{ evidenceId: 'e1', sourceDocumentId: 's1', statementPeriodStart: '2026-08-01', statementPeriodEnd: '2026-10-31', transactionDate: '2026-10-15', classification: 'debit_order_reversal' as const, reviewVersion: 2, reviewerId: 'r1', reviewedAt: '2026-11-10T10:00:00.000Z' }]
     const result = buildCreditAssessmentReport(reportInput({ evidenceSnapshot }))
