@@ -4,7 +4,7 @@ import { isIdentityEmailConfirmed } from './identity-verification'
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
- * Administrator role only in the approved V3 Deploy Preview with an explicit flag
+ * Administrator role only in the approved V3 Deploy Preview after email verification
  * and a confirmed Identity email. Production bootstrap is disabled.
  */
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
@@ -14,7 +14,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
-    { isApprovedV3DeployPreview, isInitialSuperAdminBootstrapEnabled },
+    { isApprovedV3DeployPreview },
   ] = await Promise.all([
     import('@netlify/identity'),
     import('drizzle-orm'),
@@ -159,11 +159,6 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     bootstrapEmail,
     isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
     productionBootstrapEnabled: false, // V3 bootstrap is Deploy Preview-only.
-    bootstrapEnabled: isInitialSuperAdminBootstrapEnabled(
-      process.env.CONTEXT,
-      process.env.DEPLOY_PRIME_URL,
-      process.env.OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED,
-    ),
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),

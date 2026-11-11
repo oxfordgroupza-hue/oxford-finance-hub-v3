@@ -12,14 +12,6 @@ export function isApprovedV3DeployPreview(context: string | undefined, deployPri
   }
 }
 
-export function isInitialSuperAdminBootstrapEnabled(
-  context: string | undefined,
-  deployPrimeUrl: string | undefined,
-  bootstrapFlag: string | undefined,
-): boolean {
-  return isApprovedV3DeployPreview(context, deployPrimeUrl) && bootstrapFlag === 'true'
-}
-
 export function isPreviewEmailDeliveryEnabled(
   context: string | undefined,
   deployPrimeUrl: string | undefined,
