@@ -139,14 +139,14 @@ function SettlementWorkspace() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#c7a45a]">Super Admin · Office finance control</p>
             <h1 className="mt-2 font-serif text-4xl">Confirmed settlements</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/60">Record a funder settlement only after it has been confirmed. Enter the gross funder settlement before the fixed 1% documentation deduction. That deduction is calculated on the approved finance amount; the approved partner-specific facilitation and administration terms are then applied to partner gross payable. No additional VAT is added. Original records cannot be edited or deleted. Reversals and corrections are recorded separately by Super Administrators.</p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/60">Record a funder settlement only after it has been confirmed. Enter the gross funder settlement before the fixed 1% documentation deduction. The 1% documentation fee is calculated on principal. The gross settlement includes the 1% documentation fee and 15% VAT on that subtotal; the approved partner-specific facilitation and administration terms are then applied to partner gross payable. Oxford's fees receive no additional VAT. Original records cannot be edited or deleted. Reversals and corrections are recorded separately by Super Administrators.</p>
           </div>
           <WorkspaceSignOutButton />
         </header>
 
         {data.isSuperAdmin && <section className="rounded-lg border border-[#c7a45a]/30 bg-[#121212] p-5 sm:p-6">
           <h2 className="font-serif text-2xl">Partner-specific commercial terms</h2>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-white/55">Every merchant partner must have its own explicitly approved terms. There are no global facilitation or administration defaults; the 2% and 6.5% figures are examples only. The funder documentation deduction remains 1% of approved finance. Facilitation and administration are deducted from partner gross payable. No additional VAT is calculated. Creating a draft does not activate it; activation requires a separate Super Administrator approval.</p>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-white/55">Every merchant partner must have its own explicitly approved terms. There are no global facilitation or administration defaults; the 2% and 6.5% figures are examples only. The funder documentation fee remains 1% of principal, and finance VAT is 15% on principal plus documentation fee. Facilitation and administration are deducted from partner gross payable; Oxford fees receive no additional VAT. Creating a draft does not activate it; activation requires a separate Super Administrator approval.</p>
 
           <form onSubmit={submitTerms} className="mt-5 grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm"><span className="text-white/70">Approved merchant partner</span>
@@ -203,14 +203,14 @@ function SettlementWorkspace() {
             <label className="space-y-2 text-sm"><span className="text-white/70">Approved application and partner</span>
               <select required value={applicationId} onChange={(e) => setApplicationId(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white">
                 <option value="">Select approved application</option>
-                {data.eligibleApplications.map((item) => <option key={item.id} value={item.id}>{item.reference} · {item.partnerBusinessName} · {formatZAR(item.financeAmount ?? 0)}</option>)}
+                {data.eligibleApplications.map((item) => <option key={item.id} value={item.id}>{item.reference} · {item.partnerBusinessName} · Principal {formatZAR(item.financeAmount ?? 0)}</option>)}
               </select>
             </label>
             <label className="space-y-2 text-sm"><span className="text-white/70">Funder settlement reference</span>
               <input required minLength={3} maxLength={100} value={settlementReference} onChange={(e) => setSettlementReference(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" placeholder="Enter funder reference" />
             </label>
-            <label className="space-y-2 text-sm"><span className="text-white/70">Gross funder settlement before the 1% documentation deduction (ZAR)</span>
-              <input required inputMode="decimal" pattern="\d{1,12}(\.\d{1,2})?" value={grossAmount} onChange={(e) => setGrossAmount(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" placeholder="e.g. 1000000.00" />
+            <label className="space-y-2 text-sm"><span className="text-white/70">Gross funder settlement including documentation fee and VAT, before the 1% documentation deduction (ZAR)</span>
+              <input required inputMode="decimal" pattern="\d{1,12}(\.\d{1,2})?" value={grossAmount} onChange={(e) => setGrossAmount(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" placeholder="e.g. 1161500.00" />
             </label>
             <label className="space-y-2 text-sm"><span className="text-white/70">Date of confirmed funder settlement</span>
               <input required type="datetime-local" value={settledAt} onChange={(e) => setSettledAt(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" />
@@ -236,7 +236,7 @@ function SettlementWorkspace() {
             <label className="space-y-2 text-sm"><span>Adjustment reference</span>
               <input required minLength={3} maxLength={100} value={adjustmentReference} onChange={(e) => setAdjustmentReference(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" />
             </label>
-            {adjustmentType === 'correction' && <label className="space-y-2 text-sm"><span>Correct gross funder settlement before documentation deduction (ZAR)</span>
+            {adjustmentType === 'correction' && <label className="space-y-2 text-sm"><span>Correct gross funder settlement including VAT before documentation deduction (ZAR)</span>
               <input required inputMode="decimal" pattern="\d{1,12}(\.\d{1,2})?" value={correctedGrossAmount} onChange={(e) => setCorrectedGrossAmount(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white" />
             </label>}
             <label className="space-y-2 text-sm md:col-span-2"><span>Reason and supporting reference</span>
@@ -252,7 +252,7 @@ function SettlementWorkspace() {
           {data.records.length === 0 ? <p className="mt-5 text-sm text-white/55">No confirmed settlements have been recorded.</p> : (
             <div className="mt-5 overflow-x-auto">
               <table className="w-full min-w-[1400px] text-left text-sm">
-                <thead className="border-b border-white/10 text-xs text-white/45"><tr>{['Settlement / application','Partner','Approved amount','Gross funder settlement','Documentation','Partner gross','Facilitation','Admin','Partner net','Oxford total','Terms','Settled'].map((x) => <th key={x} className="px-3 py-3 font-medium">{x}</th>)}</tr></thead>
+                <thead className="border-b border-white/10 text-xs text-white/45"><tr>{['Settlement / application','Partner','Principal amount','Gross funder settlement','Documentation','Partner gross','Facilitation','Admin','Partner net','Oxford total','Terms','Settled'].map((x) => <th key={x} className="px-3 py-3 font-medium">{x}</th>)}</tr></thead>
                 <tbody className="divide-y divide-white/10">
                   {data.records.map((item) => <tr key={item.id}>
                     <td className="px-3 py-4"><p className="font-mono text-[#d8bd7c]">{item.settlementReference}</p><p className="mt-1 text-xs text-white/45">{item.applicationReferenceSnapshot}</p></td>

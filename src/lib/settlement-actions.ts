@@ -3,7 +3,7 @@ import { and, desc, eq, max } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import { auditEvents, financeApplications, partnerCommercialTerms, partnerRegistrations, referrals, settlementAdjustments, settlementRecords, users } from '../../db/schema'
-import { calculateOxfordFees, type PartnerCommercialFeeTerms } from './fee-calculation'
+import { calculateFinanceAmount, calculateOxfordFees, type PartnerCommercialFeeTerms } from './fee-calculation'
 import { getAuthorizationSnapshot } from './auth'
 import {
   assertSettlementAdjustmentSequence,
@@ -417,7 +417,7 @@ export const recordConfirmedSettlement = createServerFn({ method: 'POST' })
       .limit(1)
 
     if (!application || !application.financeAmount || application.financeAmount <= 0) {
-      throw new Error('An approved application linked to an approved, active merchant partner and a valid approved amount is required.')
+      throw new Error('An approved application linked to an approved, active merchant partner and a valid approved principal loan amount is required.')
     }
 
     const [terms] = await db.select().from(partnerCommercialTerms)
@@ -581,7 +581,11 @@ export const getMyPartnerPayouts = createServerFn({ method: 'GET' }).handler(asy
       try {
         return {
           applicationReference: item.reference,
-          expectedNetPayableCents: calculateOxfordFees(approvedAmountCents, approvedAmountCents, feeTerms).partnerNetPayableCents,
+          expectedNetPayableCents: calculateOxfordFees(
+            approvedAmountCents,
+            calculateFinanceAmount(approvedAmountCents).totalFinanceAmountCents,
+            feeTerms,
+          ).partnerNetPayableCents,
           approvedAt: item.approvedAt,
         }
       } catch {

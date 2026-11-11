@@ -54,7 +54,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
                   <p className="font-mono text-xs text-gold">{application.reference}</p>
                   <h3 className="mt-1 text-2xl">{getCategory(application.category)?.name}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {applicantTypes[application.applicantType].label} · {formatZAR(application.financeAmount ?? 0)} · submitted {application.submittedAt ? formatDate(String(application.submittedAt)) : 'pending'}
+                    {applicantTypes[application.applicantType].label} · Principal requested: {formatZAR(application.financeAmount ?? 0)} · submitted {application.submittedAt ? formatDate(String(application.submittedAt)) : 'pending'}
                   </p>
                   {application.assetDescription && <p className="mt-2 text-sm text-muted-foreground">{application.assetDescription}</p>}
                 </div>

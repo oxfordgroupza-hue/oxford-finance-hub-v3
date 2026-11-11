@@ -28,7 +28,7 @@ function PartnerPayouts() {
         </header>
         <section className="rounded-sm border border-border bg-card p-5 sm:p-6">
           <h2 className="text-xl">Expected net payouts</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Estimates based on the approved finance amount and current fee terms. The final amount may change if the actual funder settlement differs.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Estimates use the principal loan amount plus the 1% documentation fee and 15% VAT, followed by your approved partner-specific fee terms. The final amount may change if the actual funder settlement differs.</p>
           {termsPendingApproval ? (
             <p className="mt-4 rounded-sm border border-border bg-background p-4 text-sm text-muted-foreground">Your partner-specific commercial terms are awaiting Super Administrator approval. Expected net payout estimates will appear here once your terms have been activated.</p>
           ) : expected.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">There are no approved applications awaiting funder settlement.</p> : (

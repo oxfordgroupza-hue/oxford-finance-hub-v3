@@ -25,6 +25,7 @@ import {
   users,
 } from '../../db/schema'
 import { createApplicationReference } from './application-reference'
+import { calculateFinanceAmount } from './fee-calculation'
 import { decryptApplicantData, encryptApplicantData } from './pii-crypto.server'
 
 const submissionInput = z.object({
@@ -187,9 +188,10 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
     }
 
     const financeAmount = Number(required(form, 'amount'))
-    if (!Number.isFinite(financeAmount) || financeAmount < 10000 || financeAmount > 2_000_000_000) {
-      throw new Error('Enter a valid finance amount of at least R10 000.')
+    if (!Number.isSafeInteger(financeAmount) || financeAmount < 10000 || financeAmount > 2_000_000_000) {
+      throw new Error('Enter a valid whole-rand principal loan amount of at least R10 000.')
     }
+    const financeCalculation = calculateFinanceAmount(financeAmount * 100)
     for (const consent of ['consentAccuracy', 'consentProcessing', 'consentShareProviders', 'consentCreditCheck']) {
       if (form[consent] !== true) throw new Error('All required declarations and consents must be accepted.')
     }
@@ -216,6 +218,14 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       phone,
       entityType: value(form, 'entityType'),
       amount: financeAmount,
+      financeCalculation: {
+        principalLoanAmount: financeCalculation.principalLoanAmountCents / 100,
+        documentationFee: financeCalculation.documentationFeeCents / 100,
+        vatRateBps: financeCalculation.vatRateBps,
+        vatBase: financeCalculation.vatBaseCents / 100,
+        vatAmount: financeCalculation.vatAmountCents / 100,
+        totalFinanceAmount: financeCalculation.totalFinanceAmountCents / 100,
+      },
       term: value(form, 'term'),
       deposit: value(form, 'deposit'),
       assetDescription,

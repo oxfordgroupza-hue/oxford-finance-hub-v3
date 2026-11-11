@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateOxfordFees, DOCUMENTATION_FEE_RATE_BPS } from './fee-calculation'
+import { calculateFinanceAmount, calculateOxfordFees, DOCUMENTATION_FEE_RATE_BPS, FINANCE_VAT_RATE_BPS } from './fee-calculation'
 
 const partnerTerms = {
   termsVersion: 'partner-example-v1',
@@ -9,8 +9,49 @@ const partnerTerms = {
   adminFixedAmountCents: null,
 }
 
+describe('finance amount calculation', () => {
+  it('adds 1% documentation fee and 15% VAT to principal plus documentation fee', () => {
+    const result = calculateFinanceAmount(100_000_000)
+
+    expect(result).toEqual({
+      principalLoanAmountCents: 100_000_000,
+      documentationFeeRateBps: 100,
+      documentationFeeCents: 1_000_000,
+      vatRateBps: 1_500,
+      vatBaseCents: 101_000_000,
+      vatAmountCents: 15_150_000,
+      totalFinanceAmountCents: 116_150_000,
+    })
+    expect(DOCUMENTATION_FEE_RATE_BPS).toBe(100)
+    expect(FINANCE_VAT_RATE_BPS).toBe(1_500)
+  })
+
+  it('uses the VAT-inclusive finance amount as expected gross settlement while deducting documentation on principal', () => {
+    const finance = calculateFinanceAmount(100_000_000)
+    const result = calculateOxfordFees(100_000_000, finance.totalFinanceAmountCents, {
+      termsVersion: 'partner-zero-fees-v1',
+      facilitationRateBps: 0,
+      adminFeeMode: 'percentage',
+      adminRateBps: 0,
+      adminFixedAmountCents: null,
+    })
+
+    expect(result.documentationFeeCents).toBe(1_000_000)
+    expect(result.actualFunderSettlementAmountCents).toBe(116_150_000)
+    expect(result.partnerGrossPayableCents).toBe(115_150_000)
+    expect(result.oxfordTotalFeesCents).toBe(0)
+    expect(result.partnerNetPayableCents).toBe(115_150_000)
+  })
+
+  it('rejects zero, negative and unsafe principal amounts', () => {
+    expect(() => calculateFinanceAmount(0)).toThrow(/positive principal/)
+    expect(() => calculateFinanceAmount(-100)).toThrow(/positive principal/)
+    expect(() => calculateFinanceAmount(Number.MAX_SAFE_INTEGER + 1)).toThrow(/positive principal/)
+  })
+})
+
 describe('partner-specific Oxford fee calculation', () => {
-  it('deducts 1% documentation from the approved amount, then calculates both Oxford fees on partner gross', () => {
+  it('deducts 1% documentation from approved principal, then calculates Oxford fees on partner gross without extra VAT', () => {
     const result = calculateOxfordFees(100_000_000, 100_000_000, partnerTerms)
 
     expect(result).toEqual({

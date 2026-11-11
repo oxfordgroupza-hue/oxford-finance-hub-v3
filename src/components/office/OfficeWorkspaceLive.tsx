@@ -19,6 +19,7 @@ import { decidePartnerRegistration } from '@/lib/partner-actions'
 import { linkMerchantPartnerToApplication } from '@/lib/partner-link-actions'
 import { getNotificationQueue, processNotificationQueue } from '@/lib/notification-actions'
 import { WorkspaceSignOutButton } from '@/components/site/WorkspaceSignOutButton'
+import { calculateFinanceAmount } from '@/lib/fee-calculation'
 
 type OfficeData = {
   applications: Array<{
@@ -59,6 +60,9 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
   const [notificationDeliveryEnabled, setNotificationDeliveryEnabled] = useState(false)
   const [notificationBusy, setNotificationBusy] = useState(false)
   const selected = data.applications.find((application) => application.id === selectedId) ?? null
+  const selectedFinanceCalculation = selected?.financeAmount && selected.financeAmount > 0
+    ? calculateFinanceAmount(selected.financeAmount * 100)
+    : null
   const can = (permission: string) => data.isSuperAdmin || data.permissions.includes(permission)
 
   const refresh = async () => { await router.invalidate() }
@@ -176,7 +180,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
   const exportReport = () => {
     if (!can('reports.export')) return
     const rows = [
-      ['Application reference', 'Applicant type', 'Category', 'Status', 'Finance amount (ZAR)', 'Submitted'],
+      ['Application reference', 'Applicant type', 'Category', 'Status', 'Principal loan amount (ZAR)', 'Submitted'],
       ...data.applications.map((application) => [
         application.reference,
         application.applicantType,
@@ -288,7 +292,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                 {selected ? (
                   <div className="space-y-5">
                     <div><p className="font-mono text-xs text-gold">{selected.reference}</p><h2 className="mt-1 text-2xl">{applicantName(selected)}</h2>{(selected.email || selected.phone) && <p className="mt-1 text-sm text-muted-foreground">{selected.email}{selected.email && selected.phone ? " · " : ""}{selected.phone}</p>}</div>
-                    <div className="grid grid-cols-2 gap-3 text-sm"><Detail label="Applicant" value={selected.applicantType} /><Detail label="Category" value={selected.category} /><Detail label="Finance amount" value={formatZAR(selected.financeAmount ?? 0)} /><Detail label="Submitted" value={selected.submittedAt ? formatDateTime(String(selected.submittedAt)) : '—'} /></div>
+                    <div className="grid grid-cols-2 gap-3 text-sm"><Detail label="Applicant" value={selected.applicantType} /><Detail label="Category" value={selected.category} /><Detail label="Principal loan amount" value={formatZAR(selected.financeAmount ?? 0)} /><Detail label="Documentation fee (1%)" value={selectedFinanceCalculation ? formatZAR(selectedFinanceCalculation.documentationFeeCents / 100) : '—'} /><Detail label="VAT (15%)" value={selectedFinanceCalculation ? formatZAR(selectedFinanceCalculation.vatAmountCents / 100) : '—'} /><Detail label="Total finance amount" value={selectedFinanceCalculation ? formatZAR(selectedFinanceCalculation.totalFinanceAmountCents / 100) : '—'} /><Detail label="Submitted" value={selected.submittedAt ? formatDateTime(String(selected.submittedAt)) : '—'} /></div>
                     <Detail label="Requirement" value={selected.assetDescription ?? '—'} />
                     {selected.partnerBusinessName
                       ? <Detail label="Referring merchant partner" value={selected.partnerBusinessName} />
@@ -447,7 +451,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Metric label="Applications in this view" value={data.applications.length} />
                 <Metric label="Open applications" value={data.applications.filter((a) => a.status !== 'Closed').length} />
-                <div className="rounded-sm border border-border bg-card p-5"><p className="text-xs uppercase tracking-wider text-muted-foreground">Total requested finance</p><p className="mt-2 font-display text-3xl text-gold">{formatZAR(data.applications.reduce((sum, a) => sum + (a.financeAmount ?? 0), 0))}</p></div>
+                <div className="rounded-sm border border-border bg-card p-5"><p className="text-xs uppercase tracking-wider text-muted-foreground">Total requested principal</p><p className="mt-2 font-display text-3xl text-gold">{formatZAR(data.applications.reduce((sum, a) => sum + (a.financeAmount ?? 0), 0))}</p></div>
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
                 <div className="rounded-sm border border-border bg-card p-5">

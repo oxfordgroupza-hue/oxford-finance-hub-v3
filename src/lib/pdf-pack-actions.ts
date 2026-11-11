@@ -16,6 +16,7 @@ import {
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { formatZAR } from './format'
+import { calculateFinanceAmount } from './fee-calculation'
 
 function pdfText(value: unknown) {
   const text = String(value ?? '—').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
@@ -192,6 +193,9 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     const applicant = application.applicantType === 'business'
       ? application.businessName || safe.businessName || 'Business applicant'
       : [application.firstName || safe.firstName, application.lastName || safe.lastName].filter(Boolean).join(' ') || 'Individual applicant'
+    const financeCalculation = application.financeAmount && application.financeAmount > 0
+      ? calculateFinanceAmount(application.financeAmount * 100)
+      : null
     const lines = [
       'OXFORD FINANCE HUB - CONFIDENTIAL APPLICATION PACK',
       `Application reference: ${application.reference}`,
@@ -214,7 +218,10 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       ' ',
       'FINANCE REQUIREMENT',
       `Category: ${application.category}`,
-      `Finance amount: ${application.financeAmount == null ? 'Not recorded' : formatZAR(application.financeAmount)}`,
+      `Principal loan amount: ${application.financeAmount == null ? 'Not recorded' : formatZAR(application.financeAmount)}`,
+      `Documentation fee (1%): ${financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : 'Not calculated'}`,
+      `VAT (15%): ${financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : 'Not calculated'}`,
+      `Total finance amount: ${financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : 'Not calculated'}`,
       `Term: ${safe.term ?? '—'} months`,
       `Deposit: ${safe.deposit ?? '—'}`,
       `Asset / requirement: ${application.assetDescription ?? '—'}`,

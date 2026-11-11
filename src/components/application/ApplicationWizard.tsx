@@ -22,6 +22,7 @@ import {
   type FinanceCategoryId,
 } from '@/lib/finance-config'
 import { formatZAR } from '@/lib/format'
+import { calculateFinanceAmount } from '@/lib/fee-calculation'
 import { cn } from '@/lib/utils'
 import { submitFinanceApplication, saveFinanceDraft, loadMyFinanceDraft, deleteMyFinanceDraft, loadMyOfficeApplicationDraft, saveMyOfficeApplicationDraft } from '@/lib/application-actions'
 import { getPublicAssetCatalogue } from '@/lib/catalog-actions'
@@ -949,6 +950,10 @@ function DocumentsStep({ form }: { form: ApplicationForm }) {
 function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: number) => void }) {
   const biz = form.applicantType === 'business'
   const cat = getCategory(form.category)
+  const principalAmount = Number(form.amount)
+  const financeCalculation = form.amount && Number.isSafeInteger(principalAmount) && principalAmount > 0
+    ? calculateFinanceAmount(principalAmount * 100)
+    : null
   const rows: { section: string; step: number; items: [string, string][] }[] = [
     { section: 'Application', step: 0, items: [['Applicant type', applicantTypes[form.applicantType ?? 'individual'].label], ['Finance category', cat?.name ?? '—']] },
     {
@@ -971,7 +976,17 @@ function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: numb
     },
     {
       section: 'Finance requirement', step: 4,
-      items: [['Amount', form.amount ? formatZAR(Number(form.amount)) : '—'], ['Term', `${form.term} months`], ['Deposit', form.deposit ? formatZAR(Number(form.deposit)) : 'None'], ['Requirement', form.assetDescription], ['Timing', form.timing], ['Referral code', form.referralCode || '—']],
+      items: [
+        ['Principal loan amount', form.amount ? formatZAR(principalAmount) : '—'],
+        ['Documentation fee (1%)', financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : '—'],
+        ['VAT (15%)', financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : '—'],
+        ['Total finance amount', financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : '—'],
+        ['Term', `${form.term} months`],
+        ['Deposit', form.deposit ? formatZAR(Number(form.deposit)) : 'None'],
+        ['Requirement', form.assetDescription],
+        ['Timing', form.timing],
+        ['Referral code', form.referralCode || '—'],
+      ],
     },
   ]
   const consents: { key: keyof ApplicationForm; label: string; required: boolean }[] = [

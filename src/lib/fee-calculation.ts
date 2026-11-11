@@ -26,6 +26,17 @@ export interface OxfordFeeCalculation {
 }
 
 export const DOCUMENTATION_FEE_RATE_BPS = 100
+export const FINANCE_VAT_RATE_BPS = 1_500
+
+export interface FinanceAmountCalculation {
+  principalLoanAmountCents: number
+  documentationFeeRateBps: number
+  documentationFeeCents: number
+  vatRateBps: number
+  vatBaseCents: number
+  vatAmountCents: number
+  totalFinanceAmountCents: number
+}
 
 function assertSafeNonNegativeInteger(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -43,12 +54,45 @@ function percentageCents(baseCents: number, rateBps: number): number {
 }
 
 /**
- * Calculates the settlement from the approved finance amount and the gross
- * funder settlement amount before the fixed documentation deduction.
+ * Finance amount rule: principal + 1% funder documentation fee, then 15% VAT
+ * on the principal plus documentation fee. Oxford's separate commercial fees
+ * are not part of this calculation and receive no additional VAT.
+ */
+export function calculateFinanceAmount(principalLoanAmountCents: number): FinanceAmountCalculation {
+  if (!Number.isSafeInteger(principalLoanAmountCents) || principalLoanAmountCents <= 0) {
+    throw new Error('A valid positive principal loan amount is required.')
+  }
+
+  const documentationFeeCents = percentageCents(principalLoanAmountCents, DOCUMENTATION_FEE_RATE_BPS)
+  const vatBaseCents = principalLoanAmountCents + documentationFeeCents
+  if (!Number.isSafeInteger(vatBaseCents)) {
+    throw new Error('The finance amount exceeds the supported monetary range.')
+  }
+  const vatAmountCents = percentageCents(vatBaseCents, FINANCE_VAT_RATE_BPS)
+  const totalFinanceAmountCents = vatBaseCents + vatAmountCents
+  if (!Number.isSafeInteger(totalFinanceAmountCents)) {
+    throw new Error('The finance amount exceeds the supported monetary range.')
+  }
+
+  return {
+    principalLoanAmountCents,
+    documentationFeeRateBps: DOCUMENTATION_FEE_RATE_BPS,
+    documentationFeeCents,
+    vatRateBps: FINANCE_VAT_RATE_BPS,
+    vatBaseCents,
+    vatAmountCents,
+    totalFinanceAmountCents,
+  }
+}
+
+/**
+ * Calculates the settlement from the approved principal loan amount and
+ * the gross funder settlement amount before the fixed documentation deduction.
  *
- * The funder documentation fee is 1% of the approved finance amount.
+ * The funder documentation fee is 1% of the approved principal loan amount.
  * Partner-specific facilitation and administration fees are both deducted
- * from partner gross payable. No additional VAT is added.
+ * from partner gross payable. No additional VAT is added to Oxford's fees;
+ * finance VAT is calculated separately by calculateFinanceAmount().
  *
  * No default partner rates exist: an approved partner terms snapshot is required.
  */
