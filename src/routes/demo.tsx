@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, CircleUserRound, FlaskConical, ShieldCheck } from 'lucide-react'
-import { demoActors, demoApplications, demoEnvironment, demoPartnerSummary, demoSupportRequests, demoTimeline, type DemoRole, type DemoTimelineEvent } from '@/lib/demo-scenarios'
+import { demoActors, demoEnvironment, demoPartnerSummary, demoSupportRequests, demoTimeline, getDemoVisibleApplications, getDemoVisibleEvents, type DemoRole, type DemoTimelineEvent } from '@/lib/demo-scenarios'
 
 export const Route = createFileRoute('/demo')({
   beforeLoad: () => {
@@ -21,16 +21,8 @@ function DemoWorkspace() {
   const [events, setEvents] = useState<DemoTimelineEvent[]>(demoTimeline)
   const [completed, setCompleted] = useState<string[]>([])
   const actor = demoActors.find((item) => item.role === role)!
-  const visibleApplications = useMemo(() => {
-    if (role === 'Customer') return demoApplications.filter((item) => item.applicantActorId === actor.id)
-    if (role === 'Partner') return demoApplications.filter((item) => item.partnerActorId === actor.id)
-    return demoApplications
-  }, [actor.id, role])
-  const visibleEvents = role === 'Customer'
-    ? events.filter((event) => event.actorId === actor.id || demoApplications.some((app) => app.reference === event.record && app.applicantActorId === actor.id))
-    : role === 'Partner'
-      ? events.filter((event) => event.actorId === actor.id || event.record === 'OBG-DEMO-2026-001')
-      : events
+  const visibleApplications = useMemo(() => getDemoVisibleApplications(role, actor.id), [actor.id, role])
+  const visibleEvents = useMemo(() => getDemoVisibleEvents(role, actor.id, events), [actor.id, events, role])
 
   const simulateAction = (action: string, index: number) => {
     const key = actor.id + ':' + index
@@ -108,7 +100,7 @@ function DemoWorkspace() {
         </section>
 
         <section className="rounded-lg border border-white/10 bg-[#121212] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-2xl">Applications visible to {role.toLowerCase()}</h2><p className="mt-1 text-xs text-white/45">Fictional records only · amounts shown in ZAR</p></div><span className="text-sm text-[#e5cc91]">{visibleApplications.length} records</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-2xl">Applications visible to {role.toLowerCase()}</h2><p className="mt-1 text-xs text-white/45">Fictional records only · amounts shown in ZAR</p>{role === 'Customer support' && <p className="mt-2 text-xs text-white/55">Customer support sees assigned support tickets only. Application records, assessments and private financial information are not available in this role.</p>}</div><span className="text-sm text-[#e5cc91]">{visibleApplications.length} records</span></div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleApplications.map((app) => <article key={app.reference} className="rounded border border-white/10 bg-black/20 p-4">
               <p className="font-mono text-xs text-[#e5cc91]">{app.reference}</p><h3 className="mt-2 font-semibold">{app.asset}</h3>

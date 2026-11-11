@@ -188,6 +188,22 @@ export const demoApplications: DemoApplication[] = [
   },
 ]
 
+export function getDemoVisibleApplications(role: DemoRole, actorId: string): DemoApplication[] {
+  if (role === 'Customer') return demoApplications.filter((item) => item.applicantActorId === actorId)
+  if (role === 'Partner') return demoApplications.filter((item) => item.partnerActorId === actorId)
+  if (role === 'Customer support') return []
+  if (role === 'Office staff') return demoApplications.filter((item) => item.createdByActorId === actorId)
+  if (role === 'Application reviewer') return demoApplications.filter((item) => item.reviewerActorId === actorId)
+  return demoApplications
+}
+
+export function getDemoVisibleEvents(role: DemoRole, actorId: string, events: DemoTimelineEvent[]): DemoTimelineEvent[] {
+  if (role === 'Super Administrator' || role === 'Administrator') return events
+  const visibleReferences = new Set(getDemoVisibleApplications(role, actorId).map((item) => item.reference))
+  return events.filter((event) => event.actorId === actorId || visibleReferences.has(event.record) ||
+    (role === 'Customer support' && event.record.startsWith('SUP-DEMO-')))
+}
+
 export const demoTimeline: DemoTimelineEvent[] = [
   { id: 'demo-event-01', actorId: 'demo-office', occurredAt: '2026-11-10T08:10:00+02:00', action: 'Created walk-in intake and issued applicant invitation', record: 'OBG-DEMO-2026-001', outcome: 'Invitation queued in preview-only mode' },
   { id: 'demo-event-02', actorId: 'demo-customer', occurredAt: '2026-11-10T08:34:00+02:00', action: 'Created own account and verified email', record: 'OBG-DEMO-2026-001', outcome: 'Applicant identity verified in demo scenario' },
