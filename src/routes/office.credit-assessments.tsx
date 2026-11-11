@@ -7,7 +7,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { WorkspaceSignOutButton } from '@/components/site/WorkspaceSignOutButton'
 import { getAuthorizationSnapshot } from '@/lib/auth'
-import { getCreditAssessmentQueue, getCreditAssessmentReport, saveCreditAssessmentReport } from '@/lib/credit-assessment-actions'
+import {
+  getCreditAssessmentQueue,
+  getCreditAssessmentReport,
+  recordDebitOrderTransactionEvidence,
+  reviewDebitOrderTransactionEvidence,
+  saveCreditAssessmentReport,
+} from '@/lib/credit-assessment-actions'
 import type { CreditAssessmentDimension } from '@/lib/credit-assessment'
 
 const dimensions: Array<{ key: CreditAssessmentDimension; label: string; maximum: number }> = [
@@ -26,6 +32,28 @@ type ReviewRow = {
   missingInformation: string
   reviewerNote: string
 }
+type BankStatementDocument = { id: string; filename: string; uploadedAt: string | null }
+type TransactionEvidence = {
+  id: string
+  sourceDocumentId: string
+  sourceDocumentName: string
+  sourceDocumentStatus: string
+  transactionDate: string
+  amountCents: number
+  description: string
+  classification: string
+  latestReviewVersion: number
+  reviewerNote: string
+  reviewedBy: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
+type ReversalSummary = {
+  verifiedReversalCount: number
+  unverifiedCandidateCount: number
+  requiresManualReview: boolean
+  explanation: string | null
+}
 const blankRows = (): ReviewRow[] => dimensions.map((item) => ({
   dimension: item.key, score: null, evidenceSummary: '', missingInformation: '', reviewerNote: '',
 }))
@@ -43,17 +71,25 @@ export const Route = createFileRoute('/office/credit-assessments')({
 })
 
 function CreditAssessmentsPage() {
-  const queue = Route.useLoaderData()
+  const queueData = Route.useLoaderData()
+  const queue = queueData.applications
+  const canCreate = queueData.canCreate
+  const canEdit = queueData.canEdit
   const router = useRouter()
   const [selected, setSelected] = useState<(typeof queue)[number] | null>(null)
+  const canSave = selected ? (selected.reportStatus ? canEdit : canCreate) : false
   const [rows, setRows] = useState<ReviewRow[]>(blankRows)
   const [assessmentDate, setAssessmentDate] = useState('')
-  const [verifiedReversals, setVerifiedReversals] = useState('0')
-  const [unverifiedCandidates, setUnverifiedCandidates] = useState('0')
-  const [manualReview, setManualReview] = useState(false)
-  const [reversalExplanation, setReversalExplanation] = useState('')
   const [summary, setSummary] = useState('')
   const [versions, setVersions] = useState<Array<{ version: number; status: string; createdAt: string }>>([])
+  const [bankStatementDocuments, setBankStatementDocuments] = useState<BankStatementDocument[]>([])
+  const [transactionEvidence, setTransactionEvidence] = useState<TransactionEvidence[]>([])
+  const [reversalSummary, setReversalSummary] = useState<ReversalSummary | null>(null)
+  const [evidenceDocumentId, setEvidenceDocumentId] = useState('')
+  const [evidenceDate, setEvidenceDate] = useState('')
+  const [evidenceAmount, setEvidenceAmount] = useState('')
+  const [evidenceDescription, setEvidenceDescription] = useState('')
+  const [reviewerNote, setReviewerNote] = useState('')
   const [busy, setBusy] = useState(false)
 
   const openApplication = async (application: (typeof queue)[number]) => {
@@ -62,27 +98,28 @@ function CreditAssessmentsPage() {
       const result = await getCreditAssessmentReport({ data: { applicationId: application.id } })
       setSelected(application)
       setVersions(result.versions)
+      setBankStatementDocuments(result.bankStatementDocuments)
+      setTransactionEvidence(result.transactionEvidence)
+      setEvidenceDocumentId(result.bankStatementDocuments[0]?.id ?? '')
+      setEvidenceDate('')
+      setEvidenceAmount('')
+      setEvidenceDescription('')
+      setReviewerNote('')
       if (result.report) {
         const saved = result.report.report as {
           assessmentDate: string
           dimensions: ReviewRow[]
-          reversalReview: { verifiedReversalCount: number; unverifiedCandidateCount: number; requiresManualReview: boolean; explanation: string | null }
+          reversalReview: ReversalSummary
           overallReviewerSummary: string
         }
         setAssessmentDate(saved.assessmentDate)
         setRows(saved.dimensions)
-        setVerifiedReversals(String(saved.reversalReview.verifiedReversalCount))
-        setUnverifiedCandidates(String(saved.reversalReview.unverifiedCandidateCount))
-        setManualReview(saved.reversalReview.requiresManualReview)
-        setReversalExplanation(saved.reversalReview.explanation ?? '')
+        setReversalSummary(saved.reversalReview)
         setSummary(saved.overallReviewerSummary)
       } else {
         setAssessmentDate(new Date().toISOString().slice(0, 10))
         setRows(blankRows())
-        setVerifiedReversals('0')
-        setUnverifiedCandidates('0')
-        setManualReview(false)
-        setReversalExplanation('')
+        setReversalSummary(null)
         setSummary('')
       }
     } catch (error) {
@@ -102,20 +139,67 @@ function CreditAssessmentsPage() {
         applicationId: selected.id,
         assessmentDate,
         dimensions: rows,
-        reversalReview: {
-          verifiedReversalCount: Number(verifiedReversals),
-          unverifiedCandidateCount: Number(unverifiedCandidates),
-          requiresManualReview: manualReview,
-          explanation: reversalExplanation || null,
-        },
         overallReviewerSummary: summary,
       } })
       toast.success(`Assessment version ${result.version} saved. Status: ${result.status.replaceAll('_', ' ')}.`)
       await router.invalidate()
       const refreshed = await getCreditAssessmentReport({ data: { applicationId: selected.id } })
       setVersions(refreshed.versions)
+      setBankStatementDocuments(refreshed.bankStatementDocuments)
+      setTransactionEvidence(refreshed.transactionEvidence)
+      const savedReport = refreshed.report?.report as { reversalReview: ReversalSummary } | undefined
+      setReversalSummary(savedReport?.reversalReview ?? null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'The assessment could not be saved.')
+    } finally { setBusy(false) }
+  }
+
+  const refreshEvidence = async () => {
+    if (!selected) return
+    const refreshed = await getCreditAssessmentReport({ data: { applicationId: selected.id } })
+    setBankStatementDocuments(refreshed.bankStatementDocuments)
+    setTransactionEvidence(refreshed.transactionEvidence)
+    setVersions(refreshed.versions)
+  }
+
+  const addTransactionEvidence = async () => {
+    if (!selected || busy || !evidenceDocumentId || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()) return
+    setBusy(true)
+    try {
+      await recordDebitOrderTransactionEvidence({ data: {
+        applicationId: selected.id,
+        sourceDocumentId: evidenceDocumentId,
+        transactionDate: evidenceDate,
+        amount: evidenceAmount,
+        description: evidenceDescription,
+      } })
+      toast.success('Transaction evidence recorded as an unverified candidate.')
+      setEvidenceDate('')
+      setEvidenceAmount('')
+      setEvidenceDescription('')
+      setReversalSummary(null)
+      await refreshEvidence()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Transaction evidence could not be recorded.')
+    } finally { setBusy(false) }
+  }
+
+  const reviewTransactionEvidence = async (evidenceId: string, classification: 'debit_order_reversal' | 'not_a_debit_order_reversal') => {
+    if (!selected || busy) return
+    setBusy(true)
+    try {
+      const result = await reviewDebitOrderTransactionEvidence({ data: {
+        applicationId: selected.id,
+        evidenceId,
+        classification,
+        reviewerNote,
+      } })
+      toast.success(`Evidence review version ${result.version} recorded.`)
+      setReviewerNote('')
+      setReversalSummary(null)
+      await refreshEvidence()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The transaction evidence could not be reviewed.')
     } finally { setBusy(false) }
   }
 
@@ -139,7 +223,7 @@ function CreditAssessmentsPage() {
       <section className="min-w-0 space-y-6 rounded-sm border border-border bg-card p-5 sm:p-7">
         {!selected ? <div><h2 className="text-xl">Select an application</h2><p className="mt-2 text-sm text-muted-foreground">Choose an assigned application to open its private assessment worksheet.</p></div> : <>
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-gold">Application reference</p><h2 className="mt-1 text-2xl">{selected.reference}</h2></div><div className="text-xs text-muted-foreground">Saved versions: {versions.length}</div></div>
-          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="assessment-date">Assessment date</Label><Input id="assessment-date" type="date" value={assessmentDate} onChange={(event) => setAssessmentDate(event.target.value)} required /></div></div>
+          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="assessment-date">Assessment date</Label><Input id="assessment-date" type="date" value={assessmentDate} onChange={(event) => { setAssessmentDate(event.target.value); setReversalSummary(null) }} required /></div></div>
           <div className="space-y-4">
             <div><h3 className="text-lg">Evidence dimensions</h3><p className="text-xs text-muted-foreground">Enter a score only when supported by verified evidence. Maximums are fixed by the assessment framework.</p></div>
             {dimensions.map((dimension, index) => <div key={dimension.key} className="space-y-3 border-t border-border pt-4">
@@ -150,14 +234,55 @@ function CreditAssessmentsPage() {
             </div>)}
           </div>
           <div className="space-y-4 border-t border-border pt-5">
-            <div><h3 className="text-lg">Debit-order reversal review</h3><p className="text-xs text-muted-foreground">Use the latest three-calendar-month assessment window. Unverified candidates are not counted as verified reversals.</p></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="verified-reversals">Verified reversals</Label><Input id="verified-reversals" type="number" min={0} step={1} value={verifiedReversals} onChange={(event) => setVerifiedReversals(event.target.value)} /></div><div className="space-y-1"><Label htmlFor="unverified-candidates">Unverified candidates</Label><Input id="unverified-candidates" type="number" min={0} step={1} value={unverifiedCandidates} onChange={(event) => setUnverifiedCandidates(event.target.value)} /></div></div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={manualReview} onChange={(event) => setManualReview(event.target.checked)} /> Additional manual review required</label>
-            <div className="space-y-1"><Label htmlFor="reversal-explanation">Reversal review explanation</Label><Textarea id="reversal-explanation" value={reversalExplanation} onChange={(event) => setReversalExplanation(event.target.value)} maxLength={4000} /></div>
+            <div>
+              <h3 className="text-lg">Bank-statement transaction evidence</h3>
+              <p className="text-xs text-muted-foreground">Transactions must be transcribed from a verified bank statement. A reviewer must classify each candidate; the server calculates the latest three-month reversal count from the stored review history.</p>
+            </div>
+            {reversalSummary && <div className="rounded-sm border border-border bg-background p-3 text-sm">
+              <p>Verified debit-order reversals in the saved three-month window: <strong>{reversalSummary.verifiedReversalCount}</strong></p>
+              <p>Unverified candidates: <strong>{reversalSummary.unverifiedCandidateCount}</strong></p>
+              <p>Additional manual review: <strong>{reversalSummary.requiresManualReview ? 'Required' : 'Not currently triggered'}</strong></p>
+              {reversalSummary.explanation && <p className="mt-1 text-xs text-muted-foreground">{reversalSummary.explanation}</p>}
+            </div>}
+            <div className="space-y-3 rounded-sm border border-border bg-background p-4">
+              <h4 className="text-sm font-semibold">Add a transaction candidate</h4>
+              {bankStatementDocuments.length ? <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm"><span className="block text-muted-foreground">Verified bank statement</span>
+                    <select value={evidenceDocumentId} onChange={(event) => setEvidenceDocumentId(event.target.value)} className="w-full rounded-sm border border-border bg-card px-3 py-2.5">
+                      {bankStatementDocuments.map((document) => <option key={document.id} value={document.id}>{document.filename}</option>)}
+                    </select>
+                  </label>
+                  <div className="space-y-1"><Label htmlFor="transaction-date">Transaction date</Label><Input id="transaction-date" type="date" value={evidenceDate} onChange={(event) => setEvidenceDate(event.target.value)} /></div>
+                  <div className="space-y-1"><Label htmlFor="transaction-amount">Transaction amount (ZAR)</Label><Input id="transaction-amount" type="number" min="0.01" step="0.01" value={evidenceAmount} onChange={(event) => setEvidenceAmount(event.target.value)} placeholder="0.00" /></div>
+                  <div className="space-y-1"><Label htmlFor="transaction-description">Statement narrative</Label><Input id="transaction-description" value={evidenceDescription} onChange={(event) => setEvidenceDescription(event.target.value)} maxLength={1000} placeholder="Transcribe the bank statement narrative" /></div>
+                </div>
+                {canCreate && <Button type="button" variant="outlineGold" onClick={() => void addTransactionEvidence()} disabled={busy || !evidenceDocumentId || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()}>{busy ? 'Working…' : 'Add unverified candidate'}</Button>}
+              </> : <p className="text-sm text-muted-foreground">No verified bank statements are available for this application. A bank statement must first be received and verified in the document workspace. Secure applicant uploads remain disabled in this preview.</p>}
+            </div>
+            {transactionEvidence.length > 0 && canEdit && <div className="space-y-1">
+              <Label htmlFor="transaction-review-note">Reviewer note for the next classification</Label>
+              <Textarea id="transaction-review-note" value={reviewerNote} onChange={(event) => setReviewerNote(event.target.value)} maxLength={1000} />
+            </div>}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">Recorded transaction evidence</h4>
+              {transactionEvidence.length ? transactionEvidence.map((item) => <div key={item.id} className="space-y-3 rounded-sm border border-border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><p className="font-medium">{item.transactionDate} · {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(item.amountCents / 100)}</p><p className="mt-1 text-sm">{item.description}</p><p className="mt-1 text-xs text-muted-foreground">Source: {item.sourceDocumentName} · {item.sourceDocumentStatus}</p></div>
+                  <span className="rounded-sm border border-border px-2 py-1 text-xs">{item.sourceDocumentStatus !== 'Verified' ? 'Source statement no longer verified' : item.classification === 'debit_order_reversal' ? 'Verified reversal' : item.classification === 'not_a_debit_order_reversal' ? 'Verified — not a reversal' : 'Pending human review'}</span>
+                </div>
+                {item.reviewerNote && <p className="text-xs text-muted-foreground">Reviewer note: {item.reviewerNote}</p>}
+                {canEdit && item.sourceDocumentStatus === 'Verified' && <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outlineGold" onClick={() => void reviewTransactionEvidence(item.id, 'debit_order_reversal')} disabled={busy}>Confirm debit-order reversal</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void reviewTransactionEvidence(item.id, 'not_a_debit_order_reversal')} disabled={busy}>Not a reversal</Button>
+                </div>}
+              </div>) : <p className="text-sm text-muted-foreground">No transaction evidence has been recorded for this application.</p>}
+            </div>
+            <p className="text-xs text-muted-foreground">The assessment save action ignores browser-entered reversal counts. It derives the count and review gate from encrypted, persisted evidence and the latest append-only reviewer classifications.</p>
           </div>
           <div className="space-y-2 border-t border-border pt-5"><Label htmlFor="overall-summary">Overall reviewer summary</Label><Textarea id="overall-summary" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={8000} /><p className="text-xs text-muted-foreground">A completed worksheet is not an approval, decline, pre-approval or guarantee of finance.</p></div>
           {versions.length > 0 && <div className="space-y-2 border-t border-border pt-5"><h3 className="text-sm font-semibold">Assessment history</h3>{versions.map((version) => <p key={version.version} className="text-xs text-muted-foreground">Version {version.version} · {version.status.replaceAll('_', ' ')} · {new Date(version.createdAt).toLocaleString()}</p>)}</div>}
-          <div className="flex flex-wrap justify-end gap-3"><Button type="button" variant="outlineGold" onClick={() => setSelected(null)} disabled={busy}>Close</Button><Button type="button" variant="gold" onClick={save} disabled={busy || !assessmentDate}>{busy ? 'Saving…' : 'Save assessment'}</Button></div>
+          <div className="flex flex-wrap justify-end gap-3"><Button type="button" variant="outlineGold" onClick={() => setSelected(null)} disabled={busy}>Close</Button><Button type="button" variant="gold" onClick={save} disabled={busy || !assessmentDate || !canSave}>{busy ? 'Saving…' : 'Save assessment'}</Button></div>
         </>}
       </section>
     </main>

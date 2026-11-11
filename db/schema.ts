@@ -311,6 +311,37 @@ export const creditAssessmentReportVersions = pgTable('credit_assessment_report_
   index('credit_assessment_report_versions_application_idx').on(t.applicationId, t.createdAt),
 ])
 
+/** Immutable, encrypted transaction evidence transcribed from verified bank statements. */
+export const creditAssessmentTransactionEvidence = pgTable('credit_assessment_transaction_evidence', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'restrict' }),
+  sourceDocumentId: uuid('source_document_id').notNull().references(() => applicationDocuments.id, { onDelete: 'restrict' }),
+  transactionDetailsCiphertext: text('transaction_details_ciphertext').notNull(),
+  evidenceFingerprint: text('evidence_fingerprint').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('credit_assessment_transaction_evidence_dedup_uq').on(t.applicationId, t.sourceDocumentId, t.evidenceFingerprint),
+  index('credit_assessment_transaction_evidence_application_idx').on(t.applicationId, t.createdAt),
+  index('credit_assessment_transaction_evidence_source_document_idx').on(t.sourceDocumentId),
+])
+
+/** Append-only human classification history; the latest version is authoritative. */
+export const creditAssessmentTransactionEvidenceReviews = pgTable('credit_assessment_transaction_evidence_reviews', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  evidenceId: uuid('evidence_id').notNull().references(() => creditAssessmentTransactionEvidence.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull(),
+  classification: text('classification').notNull(),
+  reviewerNote: text('reviewer_note').notNull().default(''),
+  reviewedBy: uuid('reviewed_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('credit_assessment_transaction_evidence_reviews_version_check', sql`${t.version} > 0`),
+  check('credit_assessment_transaction_evidence_reviews_classification_check', sql`${t.classification} in ('debit_order_reversal', 'not_a_debit_order_reversal')`),
+  uniqueIndex('credit_assessment_transaction_evidence_reviews_version_uq').on(t.evidenceId, t.version),
+  index('credit_assessment_transaction_evidence_reviews_latest_idx').on(t.evidenceId, t.version),
+])
+
 export const assignments = pgTable('assignments', {
   id: uuid('id').defaultRandom().primaryKey(),
   applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'cascade' }),

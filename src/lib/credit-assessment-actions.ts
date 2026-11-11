@@ -1,25 +1,30 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import {
+  applicationDocuments,
   assignments,
   auditEvents,
   creditAssessmentReports,
   creditAssessmentReportVersions,
+  creditAssessmentTransactionEvidence,
+  creditAssessmentTransactionEvidenceReviews,
   financeApplications,
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { buildCreditAssessmentReport, type CreditAssessmentReport } from './credit-assessment-report'
-import { CREDIT_ASSESSMENT_WEIGHTS, type CreditAssessmentDimension } from './credit-assessment'
+import { assessDebitOrderReversals, CREDIT_ASSESSMENT_WEIGHTS, type CreditAssessmentDimension, type DebitOrderReversalEvidence } from './credit-assessment'
+import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
 
 async function requireCreditAssessment(permission: 'credit_assessments.view' | 'credit_assessments.create' | 'credit_assessments.edit') {
   const session = await getAuthorizationSnapshot()
-  // A session with a user id is only returned after Identity authentication and
-  // database provisioning. Re-check the authoritative account row for office scope.
-  if (!('user' in session) || !session.user?.id) {
-    throw new Error('An authorised session is required.')
+  // Re-check authentication, provisioning, suspension and the authoritative
+  // account row on every request. A blocked session must never reach this service.
+  if (!session.authenticated || !session.provisioned || session.blocked ||
+      session.user.accountType !== 'office' || !session.user.id) {
+    throw new Error('An active, authorised office account is required.')
   }
   const [account] = await db.select({
     accountType: users.accountType,
@@ -79,7 +84,11 @@ export const getCreditAssessmentQueue = createServerFn({ method: 'GET' }).handle
           where assigned_to = ${session.user.id} and completed_at is null
         )`)
     .orderBy(desc(financeApplications.createdAt))
-  return rows
+  return {
+    applications: rows,
+    canCreate: session.isSuperAdmin || session.permissions.includes('credit_assessments.create'),
+    canEdit: session.isSuperAdmin || session.permissions.includes('credit_assessments.edit'),
+  }
 })
 
 const dimensionReviewInput = z.object({
@@ -93,14 +102,8 @@ const saveInput = z.object({
   applicationId: z.string().uuid(),
   assessmentDate: z.string(),
   dimensions: z.array(dimensionReviewInput).length(6),
-  reversalReview: z.object({
-    verifiedReversalCount: z.number().int().min(0),
-    unverifiedCandidateCount: z.number().int().min(0),
-    requiresManualReview: z.boolean(),
-    explanation: z.string().max(4000).nullable(),
-  }),
   overallReviewerSummary: z.string().max(8000),
-})
+}).strict()
 
 export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
   .validator((input: unknown) => saveInput.parse(input))
@@ -111,21 +114,6 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
     if (data.dimensions.some((item) => !dimensionKeys.includes(item.dimension))) {
       throw new Error('The assessment contains an unknown dimension.')
     }
-    const report = buildCreditAssessmentReport({
-      applicationReference: application.reference,
-      assessmentDate: data.assessmentDate,
-      reviewerName: session.user.displayName || session.user.email,
-      dimensions: data.dimensions as {
-        dimension: CreditAssessmentDimension
-        score: number | null
-        evidenceSummary: string
-        missingInformation: string
-        reviewerNote: string
-      }[],
-      reversalReview: data.reversalReview,
-      overallReviewerSummary: data.overallReviewerSummary,
-    })
-
     return db.transaction(async (tx) => {
       // Lock the application row so first-time saves for the same application serialize.
       const [lockedApplication] = await tx.select({ id: financeApplications.id })
@@ -146,6 +134,76 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
       if (!session.isSuperAdmin && !session.permissions.includes(permission)) {
         throw new Error(`Your account does not have the ${permission} permission.`)
       }
+
+      // Derive reversal counts from persisted, reviewer-classified evidence while
+      // the application row is locked. Browser-supplied counts are never trusted.
+      const evidenceRows = await tx.select({
+        id: creditAssessmentTransactionEvidence.id,
+        sourceDocumentId: creditAssessmentTransactionEvidence.sourceDocumentId,
+        sourceDocumentApplicationId: applicationDocuments.applicationId,
+        sourceDocumentType: applicationDocuments.documentType,
+        sourceDocumentStatus: applicationDocuments.status,
+        transactionDetailsCiphertext: creditAssessmentTransactionEvidence.transactionDetailsCiphertext,
+      }).from(creditAssessmentTransactionEvidence)
+        .innerJoin(applicationDocuments, eq(applicationDocuments.id, creditAssessmentTransactionEvidence.sourceDocumentId))
+        .where(eq(creditAssessmentTransactionEvidence.applicationId, application.id))
+
+      const evidenceIds = evidenceRows.map((item) => item.id)
+      const reviewRows = evidenceIds.length
+        ? await tx.select({
+            evidenceId: creditAssessmentTransactionEvidenceReviews.evidenceId,
+            version: creditAssessmentTransactionEvidenceReviews.version,
+            classification: creditAssessmentTransactionEvidenceReviews.classification,
+          }).from(creditAssessmentTransactionEvidenceReviews)
+            .where(inArray(creditAssessmentTransactionEvidenceReviews.evidenceId, evidenceIds))
+            .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
+        : []
+      const latestReviewByEvidence = new Map<string, (typeof reviewRows)[number]>()
+      for (const review of reviewRows) {
+        if (!latestReviewByEvidence.has(review.evidenceId)) latestReviewByEvidence.set(review.evidenceId, review)
+      }
+      const reversalEvidence: DebitOrderReversalEvidence[] = evidenceRows.map((item) => {
+        const review = latestReviewByEvidence.get(item.id)
+        const decrypted = decryptApplicantData(item.transactionDetailsCiphertext)
+        const transactionDate = typeof decrypted.transactionDate === 'string' ? decrypted.transactionDate : ''
+        const amountCents = typeof decrypted.amountCents === 'number' ? decrypted.amountCents : 0
+        const description = typeof decrypted.description === 'string' ? decrypted.description : ''
+        if (!isValidDateOnly(transactionDate) || !Number.isSafeInteger(amountCents) || amountCents <= 0 || !description) {
+          throw new Error('Stored bank transaction evidence failed integrity validation.')
+        }
+        return {
+          transactionDate,
+          amountCents,
+          description,
+          sourceDocumentId: item.sourceDocumentId,
+          classification: item.sourceDocumentApplicationId === application.id &&
+            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && review
+            ? review.classification as DebitOrderReversalEvidence['classification']
+            : 'needs_review',
+          verified: item.sourceDocumentApplicationId === application.id &&
+            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && Boolean(review),
+        }
+      })
+      const reversalAssessment = assessDebitOrderReversals(reversalEvidence, data.assessmentDate)
+      const report = buildCreditAssessmentReport({
+        applicationReference: application.reference,
+        assessmentDate: data.assessmentDate,
+        reviewerName: session.user.displayName || session.user.email,
+        dimensions: data.dimensions as {
+          dimension: CreditAssessmentDimension
+          score: number | null
+          evidenceSummary: string
+          missingInformation: string
+          reviewerNote: string
+        }[],
+        reversalReview: {
+          verifiedReversalCount: reversalAssessment.verifiedReversalCount,
+          unverifiedCandidateCount: reversalAssessment.unverifiedCandidates.length,
+          requiresManualReview: reversalAssessment.requiresManualReview,
+          explanation: reversalAssessment.reason,
+        },
+        overallReviewerSummary: data.overallReviewerSummary,
+      })
 
       const version = (existing?.latestVersion ?? 0) + 1
       const [saved] = existing
@@ -189,6 +247,140 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
     })
   })
 
+function parsePositiveZarCents(value: string): number {
+  const [whole, fraction = ''] = value.split('.')
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
+  if (!Number.isSafeInteger(cents) || cents <= 0) {
+    throw new Error('Enter a transaction amount greater than zero.')
+  }
+  return cents
+}
+
+function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
+const transactionEvidenceInput = z.object({
+  applicationId: z.string().uuid(),
+  sourceDocumentId: z.string().uuid(),
+  transactionDate: z.string().refine(isValidDateOnly, 'Enter a valid transaction date.'),
+  amount: z.string().trim().regex(/^\d{1,10}(\.\d{1,2})?$/, 'Enter a valid ZAR amount with up to two decimal places.'),
+  description: z.string().trim().min(3).max(1000),
+})
+
+/** Record a candidate from a verified bank statement; it is unverified by default. */
+export const recordDebitOrderTransactionEvidence = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => transactionEvidenceInput.parse(input))
+  .handler(async ({ data }) => {
+    const session = await requireCreditAssessment('credit_assessments.create')
+    const application = await assertApplicationScope(data.applicationId, session)
+    const amountCents = parsePositiveZarCents(data.amount)
+    const [sourceDocument] = await db.select({
+      id: applicationDocuments.id,
+    }).from(applicationDocuments).where(and(
+      eq(applicationDocuments.id, data.sourceDocumentId),
+      eq(applicationDocuments.applicationId, application.id),
+      eq(applicationDocuments.documentType, 'bank'),
+      eq(applicationDocuments.status, 'Verified'),
+    )).limit(1)
+    if (!sourceDocument) {
+      throw new Error('Select a bank statement for this application that has already been verified by authorised staff.')
+    }
+
+    const normalizedDetails = {
+      transactionDate: data.transactionDate,
+      amountCents,
+      description: data.description.trim().replace(/\s+/g, ' ').toUpperCase(),
+    }
+    const evidenceFingerprint = fingerprintApplicantData(normalizedDetails)
+    const transactionDetailsCiphertext = encryptApplicantData({
+      transactionDate: data.transactionDate,
+      amountCents,
+      description: data.description.trim(),
+    })
+    const evidenceId = await db.transaction(async (tx) => {
+      const [saved] = await tx.insert(creditAssessmentTransactionEvidence).values({
+        applicationId: application.id,
+        sourceDocumentId: sourceDocument.id,
+        transactionDetailsCiphertext,
+        evidenceFingerprint,
+        createdBy: session.user.id,
+      }).onConflictDoNothing().returning({ id: creditAssessmentTransactionEvidence.id })
+      if (!saved) throw new Error('This transaction is already recorded against the selected bank statement.')
+      await tx.insert(auditEvents).values({
+        actorUserId: session.user.id,
+        event: 'credit_assessment.transaction_evidence_recorded',
+        resource: 'credit_assessment_transaction_evidence',
+        resourceId: saved.id,
+        details: {
+          applicationReference: application.reference,
+          sourceDocumentId: sourceDocument.id,
+        },
+      })
+      return saved.id
+    })
+    return { success: true as const, evidenceId }
+  })
+
+const reviewTransactionEvidenceInput = z.object({
+  applicationId: z.string().uuid(),
+  evidenceId: z.string().uuid(),
+  classification: z.enum(['debit_order_reversal', 'not_a_debit_order_reversal']),
+  reviewerNote: z.string().trim().max(1000).default(''),
+})
+
+/** A human reviewer adds an immutable classification version; no client count is accepted. */
+export const reviewDebitOrderTransactionEvidence = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => reviewTransactionEvidenceInput.parse(input))
+  .handler(async ({ data }) => {
+    const session = await requireCreditAssessment('credit_assessments.edit')
+    const application = await assertApplicationScope(data.applicationId, session)
+    return db.transaction(async (tx) => {
+      const [evidence] = await tx.select({
+        id: creditAssessmentTransactionEvidence.id,
+      }).from(creditAssessmentTransactionEvidence)
+        .innerJoin(applicationDocuments, eq(applicationDocuments.id, creditAssessmentTransactionEvidence.sourceDocumentId))
+        .where(and(
+          eq(creditAssessmentTransactionEvidence.id, data.evidenceId),
+          eq(creditAssessmentTransactionEvidence.applicationId, application.id),
+          eq(applicationDocuments.applicationId, application.id),
+          eq(applicationDocuments.documentType, 'bank'),
+          eq(applicationDocuments.status, 'Verified'),
+        )).for('update').limit(1)
+      if (!evidence) throw new Error('Transaction evidence not found for this application.')
+
+      const [latest] = await tx.select({
+        version: creditAssessmentTransactionEvidenceReviews.version,
+      }).from(creditAssessmentTransactionEvidenceReviews)
+        .where(eq(creditAssessmentTransactionEvidenceReviews.evidenceId, evidence.id))
+        .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
+        .limit(1)
+      const version = (latest?.version ?? 0) + 1
+      const [review] = await tx.insert(creditAssessmentTransactionEvidenceReviews).values({
+        evidenceId: evidence.id,
+        version,
+        classification: data.classification,
+        reviewerNote: data.reviewerNote,
+        reviewedBy: session.user.id,
+      }).returning({ id: creditAssessmentTransactionEvidenceReviews.id })
+      await tx.insert(auditEvents).values({
+        actorUserId: session.user.id,
+        event: 'credit_assessment.transaction_evidence_reviewed',
+        resource: 'credit_assessment_transaction_evidence_review',
+        resourceId: review.id,
+        details: {
+          applicationReference: application.reference,
+          evidenceId: evidence.id,
+          classification: data.classification,
+          version,
+        },
+      })
+      return { success: true as const, reviewId: review.id, version }
+    })
+  })
+
 const reportLookupInput = z.object({ applicationId: z.string().uuid() })
 
 export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
@@ -205,16 +397,80 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
     }).from(creditAssessmentReports)
       .where(eq(creditAssessmentReports.applicationId, application.id))
       .limit(1)
-    const versions = report
+    const [versions, bankStatementDocuments, evidenceRows] = await Promise.all([
+      report
+        ? db.select({
+            version: creditAssessmentReportVersions.version,
+            status: creditAssessmentReportVersions.status,
+            savedBy: creditAssessmentReportVersions.savedBy,
+            createdAt: creditAssessmentReportVersions.createdAt,
+          }).from(creditAssessmentReportVersions)
+            .where(eq(creditAssessmentReportVersions.reportId, report.id))
+            .orderBy(desc(creditAssessmentReportVersions.version))
+        : Promise.resolve([]),
+      db.select({
+        id: applicationDocuments.id,
+        filename: applicationDocuments.originalName,
+        uploadedAt: applicationDocuments.uploadedAt,
+      }).from(applicationDocuments).where(and(
+        eq(applicationDocuments.applicationId, application.id),
+        eq(applicationDocuments.documentType, 'bank'),
+        eq(applicationDocuments.status, 'Verified'),
+      )).orderBy(desc(applicationDocuments.uploadedAt)),
+      db.select({
+        id: creditAssessmentTransactionEvidence.id,
+        sourceDocumentId: creditAssessmentTransactionEvidence.sourceDocumentId,
+        sourceDocumentName: applicationDocuments.originalName,
+        sourceDocumentStatus: applicationDocuments.status,
+        transactionDetailsCiphertext: creditAssessmentTransactionEvidence.transactionDetailsCiphertext,
+        createdAt: creditAssessmentTransactionEvidence.createdAt,
+      }).from(creditAssessmentTransactionEvidence)
+        .innerJoin(applicationDocuments, eq(applicationDocuments.id, creditAssessmentTransactionEvidence.sourceDocumentId))
+        .where(eq(creditAssessmentTransactionEvidence.applicationId, application.id))
+        .orderBy(desc(creditAssessmentTransactionEvidence.createdAt)),
+    ])
+    const evidenceIds = evidenceRows.map((item) => item.id)
+    const reviewRows = evidenceIds.length
       ? await db.select({
-          version: creditAssessmentReportVersions.version,
-          status: creditAssessmentReportVersions.status,
-          savedBy: creditAssessmentReportVersions.savedBy,
-          createdAt: creditAssessmentReportVersions.createdAt,
-        }).from(creditAssessmentReportVersions)
-          .where(eq(creditAssessmentReportVersions.reportId, report.id))
-          .orderBy(desc(creditAssessmentReportVersions.version))
+          evidenceId: creditAssessmentTransactionEvidenceReviews.evidenceId,
+          version: creditAssessmentTransactionEvidenceReviews.version,
+          classification: creditAssessmentTransactionEvidenceReviews.classification,
+          reviewerNote: creditAssessmentTransactionEvidenceReviews.reviewerNote,
+          reviewedBy: creditAssessmentTransactionEvidenceReviews.reviewedBy,
+          createdAt: creditAssessmentTransactionEvidenceReviews.createdAt,
+        }).from(creditAssessmentTransactionEvidenceReviews)
+          .where(inArray(creditAssessmentTransactionEvidenceReviews.evidenceId, evidenceIds))
+          .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
       : []
+    const latestReviewByEvidence = new Map<string, (typeof reviewRows)[number]>()
+    for (const review of reviewRows) {
+      if (!latestReviewByEvidence.has(review.evidenceId)) latestReviewByEvidence.set(review.evidenceId, review)
+    }
+    const transactionEvidence = evidenceRows.map((item) => {
+      const review = latestReviewByEvidence.get(item.id)
+      const decrypted = decryptApplicantData(item.transactionDetailsCiphertext)
+      const transactionDate = typeof decrypted.transactionDate === 'string' ? decrypted.transactionDate : ''
+      const amountCents = typeof decrypted.amountCents === 'number' ? decrypted.amountCents : 0
+      const description = typeof decrypted.description === 'string' ? decrypted.description : ''
+      if (!isValidDateOnly(transactionDate) || !Number.isSafeInteger(amountCents) || amountCents <= 0 || !description) {
+        throw new Error('Stored bank transaction evidence failed integrity validation.')
+      }
+      return {
+        id: item.id,
+        sourceDocumentId: item.sourceDocumentId,
+        sourceDocumentName: item.sourceDocumentName,
+        sourceDocumentStatus: item.sourceDocumentStatus,
+        transactionDate,
+        amountCents,
+        description,
+        classification: review?.classification ?? 'needs_review',
+        latestReviewVersion: review?.version ?? 0,
+        reviewerNote: review?.reviewerNote ?? '',
+        reviewedBy: review?.reviewedBy ?? null,
+        reviewedAt: review?.createdAt.toISOString() ?? null,
+        createdAt: item.createdAt.toISOString(),
+      }
+    }).sort((left, right) => right.transactionDate.localeCompare(left.transactionDate))
     const rawReport = report
       ? JSON.parse(JSON.stringify(report.report)) as CreditAssessmentReport
       : null
@@ -258,5 +514,11 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
         savedBy: version.savedBy,
         createdAt: version.createdAt.toISOString(),
       })),
+      bankStatementDocuments: bankStatementDocuments.map((document) => ({
+        id: document.id,
+        filename: document.filename,
+        uploadedAt: document.uploadedAt?.toISOString() ?? null,
+      })),
+      transactionEvidence,
     }
   })

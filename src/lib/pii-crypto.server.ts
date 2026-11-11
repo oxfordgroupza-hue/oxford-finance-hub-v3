@@ -1,6 +1,6 @@
 import '@tanstack/react-start/server-only'
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 
 /**
  * Encrypt applicant identity and financial details before they enter JSONB.
@@ -12,6 +12,11 @@ function encryptionKey(): Buffer {
     throw new Error('Secure application storage is not configured. Please try again later.')
   }
   return Buffer.from(configured, 'hex')
+}
+
+/** Stable keyed fingerprint for duplicate detection without exposing low-entropy PII hashes. */
+export function fingerprintApplicantData(value: Record<string, unknown>): string {
+  return createHmac('sha256', encryptionKey()).update(JSON.stringify(value), 'utf8').digest('hex')
 }
 
 export function encryptApplicantData(value: Record<string, unknown>): string {
