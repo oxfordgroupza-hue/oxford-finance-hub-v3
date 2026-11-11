@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { randomUUID } from 'node:crypto'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import {
+  applicationIntakes,
   auditEvents,
   financeApplications,
   partnerRegistrations,
@@ -52,6 +53,28 @@ export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler
     .orderBy(desc(referrals.referredAt))
     .limit(250)
 
+  const initiatedIntakes = await db.select({
+    id: applicationIntakes.id,
+    reference: applicationIntakes.reference,
+    category: applicationIntakes.category,
+    assetTypeName: applicationIntakes.assetTypeNameSnapshot,
+    status: applicationIntakes.status,
+    tokenExpiresAt: applicationIntakes.tokenExpiresAt,
+    createdAt: applicationIntakes.createdAt,
+  }).from(applicationIntakes)
+    .where(and(
+      eq(applicationIntakes.creatorUserId, session.user.id),
+      eq(applicationIntakes.partnerRegistrationId, registration.id),
+    ))
+    .orderBy(desc(applicationIntakes.createdAt))
+    .limit(50)
+  const now = Date.now()
+  const partnerIntakes = initiatedIntakes.map((intake) => ({
+    ...intake,
+    status: intake.status !== 'claimed' && intake.status !== 'revoked' &&
+      intake.tokenExpiresAt.getTime() <= now ? 'expired' : intake.status,
+  }))
+
   const siteUrl = process.env.DEPLOY_PRIME_URL || process.env.URL
   const referralUrl = registration.status === 'Approved' && registration.referralCode && siteUrl
     ? new URL(`/apply?ref=${encodeURIComponent(registration.referralCode)}`, siteUrl).toString()
@@ -59,6 +82,7 @@ export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler
   return {
     partner: registration,
     referrals: registration.status === 'Approved' ? referredApplications : [],
+    intakes: partnerIntakes,
     referralUrl,
   }
 })
