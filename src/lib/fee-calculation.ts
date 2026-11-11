@@ -102,7 +102,7 @@ export function calculateOxfordFees(
   terms: PartnerCommercialFeeTerms,
 ): OxfordFeeCalculation {
   if (!Number.isSafeInteger(approvedFinanceAmountCents) || approvedFinanceAmountCents <= 0) {
-    throw new Error('A valid approved finance amount is required.')
+    throw new Error('A valid approved principal loan amount is required.')
   }
   if (!Number.isSafeInteger(grossFunderSettlementAmountCents) || grossFunderSettlementAmountCents <= 0) {
     throw new Error('A valid gross funder settlement amount is required.')

@@ -774,7 +774,7 @@ export const saveMyOfficeApplicationDraft = createServerFn({ method: 'POST' })
     }
     const amount = Number(required(form, 'amount'))
     if (!Number.isFinite(amount) || amount < 10000 || amount > 2_000_000_000) {
-      throw new Error('Enter a valid finance amount of at least R10 000.')
+      throw new Error('Enter a valid principal loan amount of at least R10 000.')
     }
     const sensitiveKeys = [
       'idType', 'idNumber', 'dateOfBirth', 'address', 'employmentStatus', 'employer',

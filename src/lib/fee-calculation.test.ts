@@ -74,7 +74,7 @@ describe('partner-specific Oxford fee calculation', () => {
     expect(result).not.toHaveProperty('vat')
   })
 
-  it('calculates the 1% documentation deduction from approved finance even when the gross funder settlement differs', () => {
+  it('calculates the 1% documentation deduction from approved principal even when the gross funder settlement differs', () => {
     const result = calculateOxfordFees(100_000, 90_000, {
       termsVersion: 'partner-different-settlement-v1',
       facilitationRateBps: 0,

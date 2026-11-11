@@ -439,7 +439,7 @@ export const recordConfirmedSettlement = createServerFn({ method: 'POST' })
     }
     const approvedFinanceAmountCents = application.financeAmount * 100
     if (!Number.isSafeInteger(approvedFinanceAmountCents)) {
-      throw new Error('The approved finance amount exceeds the supported calculation range.')
+      throw new Error('The approved principal loan amount exceeds the supported calculation range.')
     }
     // This input is the gross funder settlement before the 1% documentation deduction.
     const grossFunderSettlementAmountCents = toCents(data.grossFunderSettlementAmount)

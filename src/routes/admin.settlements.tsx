@@ -200,7 +200,7 @@ function SettlementWorkspace() {
           <h2 className="font-serif text-2xl">Capture confirmed funder settlement</h2>
           <p className="mt-2 text-sm text-white/55">Only applications with provider approval, an approved active merchant partner and active Super Administrator-approved partner-specific terms are eligible. No payment is initiated by this action.</p>
           <form onSubmit={submit} className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm"><span className="text-white/70">Approved application and partner</span>
+            <label className="space-y-2 text-sm"><span className="text-white/70">Approved application and partner (principal loan amount)</span>
               <select required value={applicationId} onChange={(e) => setApplicationId(e.target.value)} className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-3 text-white">
                 <option value="">Select approved application</option>
                 {data.eligibleApplications.map((item) => <option key={item.id} value={item.id}>{item.reference} · {item.partnerBusinessName} · Principal {formatZAR(item.financeAmount ?? 0)}</option>)}
