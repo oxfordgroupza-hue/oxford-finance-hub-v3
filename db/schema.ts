@@ -432,6 +432,42 @@ export const partnerRegistrations = pgTable('partner_registrations', {
   ...timestamps(),
 }, (t) => [uniqueIndex('partner_registrations_referral_code_uq').on(t.referralCode), index('partner_registrations_status_idx').on(t.status)])
 
+/** Immutable, versioned fee terms configured and activated separately for each merchant partner. */
+export const partnerCommercialTerms = pgTable('partner_commercial_terms', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  partnerRegistrationId: uuid('partner_registration_id').notNull().references(() => partnerRegistrations.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull(),
+  status: text('status').notNull().default('draft'),
+  facilitationRateBps: integer('facilitation_rate_bps').notNull(),
+  adminFeeMode: text('admin_fee_mode').notNull(),
+  adminRateBps: integer('admin_rate_bps').notNull(),
+  adminFixedAmountCents: bigint('admin_fixed_amount_cents', { mode: 'number' }),
+  rationale: text('rationale').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('partner_commercial_terms_version_check', sql`${t.version} > 0`),
+  check('partner_commercial_terms_status_check', sql`${t.status} in ('draft', 'active', 'superseded')`),
+  check('partner_commercial_terms_rationale_check', sql`length(btrim(${t.rationale})) >= 10`),
+  check('partner_commercial_terms_facilitation_rate_check', sql`${t.facilitationRateBps} between 0 and 10000`),
+  check('partner_commercial_terms_admin_rate_check', sql`${t.adminRateBps} between 0 and 10000`),
+  check('partner_commercial_terms_admin_mode_check', sql`${t.adminFeeMode} in ('percentage', 'fixed')`),
+  check('partner_commercial_terms_admin_value_check', sql`
+    (${t.adminFeeMode} = 'percentage' and ${t.adminFixedAmountCents} is null and ${t.facilitationRateBps} + ${t.adminRateBps} <= 10000)
+    or (${t.adminFeeMode} = 'fixed' and ${t.adminRateBps} = 0 and ${t.adminFixedAmountCents} is not null and ${t.adminFixedAmountCents} >= 0)
+  `),
+  check('partner_commercial_terms_approval_check', sql`
+    (${t.status} = 'active' and ${t.approvedBy} is not null and ${t.approvedAt} is not null)
+    or (${t.status} = 'draft' and ${t.approvedBy} is null and ${t.approvedAt} is null)
+    or ${t.status} = 'superseded'
+  `),
+  uniqueIndex('partner_commercial_terms_partner_version_uq').on(t.partnerRegistrationId, t.version),
+  uniqueIndex('partner_commercial_terms_single_active_uq').on(t.partnerRegistrationId).where(sql`${t.status} = 'active'`),
+  index('partner_commercial_terms_partner_status_idx').on(t.partnerRegistrationId, t.status, t.version),
+])
+
 export const customerPreferences = pgTable('customer_preferences', {
   id: uuid('id').defaultRandom().primaryKey(),
   customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
@@ -557,14 +593,16 @@ export const enquiryAssessments = pgTable('enquiry_assessments', {
 })
 
 /**
- * Confirmed funder settlements are append-only. Every row stores the exact
- * approved amount, actual funder receipt, fee outputs and terms version used.
+ * Confirmed funder settlements are append-only. The funder settlement amount
+ * is stored gross, before the 1% documentation deduction. Each row snapshots
+ * the approved amount, fee outputs and partner-specific terms version used.
  * Partner-facing queries must project partnerNetPayableCents only.
  */
 export const settlementRecords = pgTable('settlement_records', {
   id: uuid('id').defaultRandom().primaryKey(),
   applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'restrict' }),
   partnerRegistrationId: uuid('partner_registration_id').notNull().references(() => partnerRegistrations.id, { onDelete: 'restrict' }),
+  partnerCommercialTermsId: uuid('partner_commercial_terms_id').references(() => partnerCommercialTerms.id, { onDelete: 'restrict' }),
   partnerUserId: uuid('partner_user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
   applicationReferenceSnapshot: text('application_reference_snapshot').notNull(),
   partnerBusinessNameSnapshot: text('partner_business_name_snapshot').notNull(),
@@ -572,9 +610,13 @@ export const settlementRecords = pgTable('settlement_records', {
   currency: text('currency').notNull().default('ZAR'),
   approvedFinanceAmountCents: bigint('approved_finance_amount_cents', { mode: 'number' }).notNull(),
   actualFunderSettlementAmountCents: bigint('actual_funder_settlement_amount_cents', { mode: 'number' }).notNull(),
+  documentationFeeRateBps: integer('documentation_fee_rate_bps').notNull().default(100),
   documentationFeeCents: bigint('documentation_fee_cents', { mode: 'number' }).notNull(),
   partnerGrossPayableCents: bigint('partner_gross_payable_cents', { mode: 'number' }).notNull(),
+  facilitationRateBps: integer('facilitation_rate_bps'),
   facilitationFeeCents: bigint('facilitation_fee_cents', { mode: 'number' }).notNull(),
+  adminFeeMode: text('admin_fee_mode'),
+  adminFixedAmountCents: bigint('admin_fixed_amount_cents', { mode: 'number' }),
   adminFeeCents: bigint('admin_fee_cents', { mode: 'number' }).notNull(),
   partnerNetPayableCents: bigint('partner_net_payable_cents', { mode: 'number' }).notNull(),
   oxfordTotalFeesCents: bigint('oxford_total_fees_cents', { mode: 'number' }).notNull(),
@@ -587,6 +629,16 @@ export const settlementRecords = pgTable('settlement_records', {
   uniqueIndex('settlement_records_reference_uq').on(t.settlementReference),
   uniqueIndex('settlement_records_application_uq').on(t.applicationId),
   index('settlement_records_partner_idx').on(t.partnerUserId, t.settledAt),
+  index('settlement_records_partner_terms_idx').on(t.partnerCommercialTermsId),
+  check('settlement_records_documentation_rate_check', sql`${t.documentationFeeRateBps} = 100`),
+  check('settlement_records_terms_snapshot_check', sql`
+    (${t.partnerCommercialTermsId} is null and ${t.facilitationRateBps} is null and ${t.adminFeeMode} is null and ${t.adminFixedAmountCents} is null)
+    or
+    (${t.partnerCommercialTermsId} is not null and ${t.facilitationRateBps} between 0 and 10000 and (
+      (${t.adminFeeMode} = 'percentage' and ${t.adminFixedAmountCents} is null and ${t.facilitationRateBps} + ${t.adminRateBps} <= 10000)
+      or (${t.adminFeeMode} = 'fixed' and ${t.adminRateBps} = 0 and ${t.adminFixedAmountCents} is not null and ${t.adminFixedAmountCents} >= 0)
+    ))
+  `),
   check('settlement_records_amounts_nonnegative_check', sql`${t.approvedFinanceAmountCents} > 0 and ${t.actualFunderSettlementAmountCents} > 0 and ${t.documentationFeeCents} >= 0 and ${t.partnerGrossPayableCents} >= 0 and ${t.facilitationFeeCents} >= 0 and ${t.adminFeeCents} >= 0 and ${t.partnerNetPayableCents} >= 0 and ${t.oxfordTotalFeesCents} >= 0`),
   check('settlement_records_reconciliation_check', sql`${t.partnerGrossPayableCents} = ${t.actualFunderSettlementAmountCents} - ${t.documentationFeeCents} and ${t.partnerNetPayableCents} = ${t.partnerGrossPayableCents} - ${t.facilitationFeeCents} - ${t.adminFeeCents} and ${t.oxfordTotalFeesCents} = ${t.facilitationFeeCents} + ${t.adminFeeCents}`),
   check('settlement_records_currency_check', sql`${t.currency} = 'ZAR'`),
