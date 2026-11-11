@@ -1,8 +1,8 @@
-import { acceptInvite, getSettings, getUser, handleAuthCallback, login, requestPasswordRecovery, signup, updateUser } from '@netlify/identity'
+import { acceptInvite, getUser, handleAuthCallback, requestPasswordRecovery, signup, updateUser } from '@netlify/identity'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { SiteLayout } from '@/components/site/SiteLayout'
-import { getAuthorizationSnapshot } from '@/lib/auth'
+import { getAuthorizationSnapshot, loginWithIdentity } from '@/lib/auth'
 
 type AuthMode = 'login' | 'signup' | 'recovery' | 'invite' | 'reset'
 
@@ -64,7 +64,6 @@ function LoginPage() {
       try {
         // Process Identity callback tokens before reading the reset query. A recovery
         // email may land directly on /login with its token in the URL fragment.
-        await getSettings()
         const callback = await handleAuthCallback()
         if (!active) return
         if (callback?.type === 'invite' && callback.token) {
@@ -82,8 +81,10 @@ function LoginPage() {
           await continueToWorkspace()
           return
         }
-        const currentUser = await getUser()
-        if (currentUser) await continueToWorkspace()
+        const shouldResolveSession = new URLSearchParams(window.location.search).get('resolve') === '1'
+        let currentUser = null
+        try { currentUser = await getUser() } catch { /* The server-side cookie check below is authoritative after login. */ }
+        if (currentUser || shouldResolveSession) await continueToWorkspace()
       } catch {
         if (active) setError('Netlify Identity is not available yet. The project must be connected to a Netlify site with Identity enabled.')
       }
@@ -116,11 +117,10 @@ function LoginPage() {
     setBusy(true)
     try {
       if (mode === 'login') {
-        // Establish the Identity session first, then perform a full document
-        // navigation. The client SDK can update its local user before the nf_jwt
-        // cookie is available to a TanStack server-function request. The login
-        // page boot sequence resolves the authoritative server-side role after reload.
-        await login(email.trim(), password)
+        // Establish the Identity session in the Netlify server runtime so its
+        // nf_jwt and refresh cookies are attached to the response. A full document
+        // navigation then resolves the authoritative server-side role from those cookies.
+        await loginWithIdentity({ data: { email: email.trim(), password } })
         window.location.assign('/login?resolve=1')
         return
       } else if (mode === 'signup') {

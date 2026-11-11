@@ -1,6 +1,24 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
+import { login as identityLogin, verifyRequestOrigin } from '@netlify/identity'
+import { z } from 'zod'
 import { isIdentityEmailConfirmed } from './identity-verification'
 
+/**
+ * Establish the Identity session inside the Netlify server runtime so the nf_jwt
+ * and nf_refresh cookies are attached to the Server Function response. This
+ * avoids relying on browser storage surviving a full navigation on Deploy Preview.
+ */
+export const loginWithIdentity = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({
+    email: z.string().trim().email().max(254),
+    password: z.string().min(8).max(1024),
+  }).parse(input))
+  .handler(async ({ data }) => {
+    verifyRequestOrigin(getRequest())
+    await identityLogin(data.email, data.password)
+    return { authenticated: true as const }
+  })
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
