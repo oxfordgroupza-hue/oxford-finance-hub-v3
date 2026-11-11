@@ -4,6 +4,9 @@
  */
 const imageSources: Record<string, string> = {
   'hero.png': '/images/oxford-hero.jpg',
+  // Verified browser-decodable free-to-use imagery for the two finance category cards.
+  'vehicle.png': 'https://images.unsplash.com/photo-1615394695852-da39a8df9bf1?auto=format&fit=crop&fm=jpg&q=60&w=1600',
+  'equipment.png': 'https://images.pexels.com/photos/8809464/pexels-photo-8809464.jpeg?cs=srgb&dl=pexels-construccion-total-2464540-8809464.jpg&fm=jpg&w=1600',
   'vehicle-g63.jpg': 'https://i.pinimg.com/736x/95/ea/d5/95ead5e194e218445342d91e103be04b.jpg',
   // Free-to-use Unsplash source: https://unsplash.com/photos/orange-mclaren-sports-car-parked-with-cityscape-background-ioUcNuE7RLk
   'vehicle-mclaren.jpg': 'https://images.unsplash.com/photo-1615394695852-da39a8df9bf1?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE3fHx8ZW58MHx8fHx8&ixlib=rb-4.1.0&q=60&w=3000',
