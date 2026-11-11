@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { login as identityLogin, verifyRequestOrigin } from '@netlify/identity'
 import { z } from 'zod'
-import { isIdentityEmailConfirmed } from './identity-verification'
+import { isIdentityEmailConfirmed, resolveIdentityEmailConfirmation } from './identity-verification'
 
 /**
  * Establish the Identity session inside the Netlify server runtime so the nf_jwt
@@ -63,8 +63,22 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
 
   if (!identityUser) return { authenticated: false as const }
 
-  // Do not provision an account or grant workspace access until Identity confirms the email.
-  if (!isIdentityEmailConfirmed(identityUser)) {
+  // A token-claims fallback from getUser() omits confirmedAt. Resolve the full
+  // authoritative Identity record with the Functions-only admin API before
+  // treating a missing timestamp as an unverified email.
+  const verification = await resolveIdentityEmailConfirmation(identityUser, async (userId) => {
+    const { admin } = await import('@netlify/identity')
+    return admin.getUser(userId)
+  })
+  if (verification === 'unavailable') {
+    return {
+      authenticated: true as const,
+      provisioned: false as const,
+      email: identityUser.email?.trim().toLowerCase() || null,
+      identityVerificationUnavailable: true as const,
+    }
+  }
+  if (verification === 'unconfirmed') {
     return {
       authenticated: true as const,
       provisioned: false as const,
