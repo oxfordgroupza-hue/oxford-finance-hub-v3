@@ -116,11 +116,12 @@ function LoginPage() {
     setBusy(true)
     try {
       if (mode === 'login') {
-        // Netlify Identity sets the nf_jwt session cookie in the browser.
-        // A full navigation ensures the next TanStack Start request carries it;
-        // the protected route then resolves the authoritative server-side role.
+        // Establish the Identity session first, then perform a full document
+        // navigation. The client SDK can update its local user before the nf_jwt
+        // cookie is available to a TanStack server-function request. The login
+        // page boot sequence resolves the authoritative server-side role after reload.
         await login(email.trim(), password)
-        await continueToWorkspace()
+        window.location.assign('/login?resolve=1')
         return
       } else if (mode === 'signup') {
         await signup(email.trim(), password, { full_name: fullName.trim() })
