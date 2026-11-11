@@ -18,8 +18,8 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M9 | Settlements and payouts | Gate remains closed |
 | M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
 | M11 | Private document storage | Supabase bucket exists and is private (10 MiB, PDF/JPEG/PNG); no anon/authenticated grants on sensitive tables; server secret key missing, so upload/download integration remains disabled |
-| M12 | Notifications and automation | Delivery disabled; tests pending |
-| M13 | Security and QA | Build, TypeScript, 122 tests across 22 files, ESLint and diff checks pass; API origin, Office invitation and Super Admin bootstrap are restricted to the exact V3 Deploy Preview; partner referral/linking permissions revalidate active partner accounts; demo application and event visibility is restricted by role and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
+| M12 | Notifications and automation | Email delivery remains disabled; the gate and applicant-invitation URL validation now accept only the exact V3 Deploy Preview with an explicit flag; automated gate tests pass |
+| M13 | Security and QA | Build, TypeScript, 123 tests across 22 files, ESLint and diff checks pass; API origin, Office invitation, email delivery and Super Admin bootstrap are restricted to the exact V3 Deploy Preview; partner referral/linking permissions revalidate active partner accounts; demo application and event visibility is restricted by role and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
 | M14 | Staging and acceptance | Deploy Preview public routes and role-play demo are testable; role-based demo visibility is automated-tested and `docs/PREVIEW-TEST-GUIDE.md` records the exact test path; Identity is not enabled (404), so authenticated acceptance remains blocked |
 | M15 | Production | Requires separate explicit approval |
 

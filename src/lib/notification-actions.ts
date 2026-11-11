@@ -5,6 +5,8 @@ import { auditEvents, customerPreferences, customers, notifications, users } fro
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
+import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
+import { isPreviewEmailDeliveryEnabled } from './netlify-preview'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -18,13 +20,13 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  // Feature flags may accidentally be scoped to all Netlify contexts. Require
-  // both the build context and the exact preview hostname before any email
-  // can be sent from this migration branch.
-  const previewUrl = process.env.DEPLOY_PRIME_URL ?? ''
-  const isExpectedDeployPreview = process.env.CONTEXT === 'deploy-preview' &&
-    /^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app\/?$/i.test(previewUrl)
-  return isExpectedDeployPreview && process.env.OXFORD_EMAIL_DELIVERY_ENABLED === 'true'
+  // Even an accidentally broad feature flag cannot enable delivery outside
+  // this exact V3 Deploy Preview.
+  return isPreviewEmailDeliveryEnabled(
+    process.env.CONTEXT,
+    process.env.DEPLOY_PRIME_URL,
+    process.env.OXFORD_EMAIL_DELIVERY_ENABLED,
+  )
 }
 
 function configured() {
@@ -122,13 +124,11 @@ function emailContent(template: string, payload: Record<string, unknown>) {
         throw new Error('The applicant invitation details could not be securely decrypted.')
       }
     })()
-    const expectedOrigin = (process.env.DEPLOY_PRIME_URL ?? '').replace(/\/$/, '')
     let actionUrl = ''
     try {
+      const expectedOrigin = getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
       const parsed = new URL(rawUrl)
-      if (process.env.CONTEXT === 'deploy-preview' &&
-          /^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app$/i.test(parsed.origin) &&
-          parsed.origin === expectedOrigin && parsed.pathname === '/invitation') actionUrl = parsed.toString()
+      if (parsed.origin === expectedOrigin && parsed.pathname === '/invitation') actionUrl = parsed.toString()
     } catch { actionUrl = '' }
     const expiresAt = typeof payload.expiresAt === 'string' ? new Date(payload.expiresAt) : null
     if (!actionUrl || !expiresAt || !Number.isFinite(expiresAt.getTime())) throw new Error('The applicant invitation details are invalid or expired.')

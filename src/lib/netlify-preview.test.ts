@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isApprovedV3DeployPreview, isInitialSuperAdminBootstrapEnabled } from './netlify-preview'
+import { isApprovedV3DeployPreview, isInitialSuperAdminBootstrapEnabled, isPreviewEmailDeliveryEnabled } from './netlify-preview'
 
 const approvedContext = 'deploy-preview'
 const approvedUrl = 'https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/'
@@ -20,5 +20,12 @@ describe('V3 Deploy Preview isolation', () => {
     expect(isInitialSuperAdminBootstrapEnabled(approvedContext, approvedUrl, 'false')).toBe(false)
     expect(isInitialSuperAdminBootstrapEnabled(approvedContext, approvedUrl, undefined)).toBe(false)
     expect(isInitialSuperAdminBootstrapEnabled('production', approvedUrl, 'true')).toBe(false)
+  })
+
+  it('requires the exact V3 preview and explicit flag before email delivery can be enabled', () => {
+    expect(isPreviewEmailDeliveryEnabled(approvedContext, approvedUrl, 'true')).toBe(true)
+    expect(isPreviewEmailDeliveryEnabled(approvedContext, approvedUrl, 'false')).toBe(false)
+    expect(isPreviewEmailDeliveryEnabled('production', approvedUrl, 'true')).toBe(false)
+    expect(isPreviewEmailDeliveryEnabled(approvedContext, 'https://deploy-preview-2--oxford-finance-hub-v2.netlify.app/', 'true')).toBe(false)
   })
 })

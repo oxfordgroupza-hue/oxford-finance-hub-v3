@@ -19,3 +19,11 @@ export function isInitialSuperAdminBootstrapEnabled(
 ): boolean {
   return isApprovedV3DeployPreview(context, deployPrimeUrl) && bootstrapFlag === 'true'
 }
+
+export function isPreviewEmailDeliveryEnabled(
+  context: string | undefined,
+  deployPrimeUrl: string | undefined,
+  emailDeliveryFlag: string | undefined,
+): boolean {
+  return isApprovedV3DeployPreview(context, deployPrimeUrl) && emailDeliveryFlag === 'true'
+}
