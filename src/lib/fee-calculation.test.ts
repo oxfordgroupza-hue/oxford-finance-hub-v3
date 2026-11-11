@@ -43,6 +43,18 @@ describe('finance amount calculation', () => {
     expect(result.partnerNetPayableCents).toBe(115_150_000)
   })
 
+  it('calculates illustrative partner-specific fees on VAT-inclusive partner gross without adding VAT again', () => {
+    const finance = calculateFinanceAmount(100_000_000)
+    const result = calculateOxfordFees(100_000_000, finance.totalFinanceAmountCents, partnerTerms)
+
+    expect(result.documentationFeeCents).toBe(1_000_000)
+    expect(result.partnerGrossPayableCents).toBe(115_150_000)
+    expect(result.facilitationFeeCents).toBe(2_303_000)
+    expect(result.adminFeeCents).toBe(7_484_750)
+    expect(result.oxfordTotalFeesCents).toBe(9_787_750)
+    expect(result.partnerNetPayableCents).toBe(105_362_250)
+  })
+
   it('rejects zero, negative and unsafe principal amounts', () => {
     expect(() => calculateFinanceAmount(0)).toThrow(/positive principal/)
     expect(() => calculateFinanceAmount(-100)).toThrow(/positive principal/)
