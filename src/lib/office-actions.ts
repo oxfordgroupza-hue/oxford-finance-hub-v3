@@ -16,7 +16,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { applicationStatuses } from './domain'
+import { applicationStatuses, canTransitionApplicationStatus } from './domain'
 import { decryptApplicantData } from './pii-crypto.server'
 import type { PermissionKey } from './access-control'
 
@@ -224,7 +224,8 @@ const statusInput = z.object({
 export const updateApplicationStatus = createServerFn({ method: 'POST' })
   .validator((input: unknown) => statusInput.parse(input))
   .handler(async ({ data }) => {
-    const session = await requireOffice(data.status === 'Provider decision received' ? 'applications.approve' : 'applications.edit')
+    const requiresApproval = data.status === 'Provider decision received' || data.status === 'Closed'
+    const session = await requireOffice(requiresApproval ? 'applications.approve' : 'applications.edit')
     if (data.status === 'Provider decision received' && !data.providerDecision) {
       throw new Error('Record the finance provider decision before moving this application to that status.')
     }
@@ -242,6 +243,9 @@ export const updateApplicationStatus = createServerFn({ method: 'POST' })
         .innerJoin(customers, eq(financeApplications.customerId, customers.id))
         .where(eq(financeApplications.id, data.applicationId)).limit(1)
       if (!application) throw new Error('Application not found.')
+      if (!canTransitionApplicationStatus(application.status, data.status)) {
+        throw new Error(`The application cannot move from ${application.status} to ${data.status}.`)
+      }
       if (!session.isSuperAdmin && !session.permissions.includes('applications.assign')) {
         const [activeAssignment] = await tx.select({ id: assignments.id })
           .from(assignments)
@@ -252,11 +256,15 @@ export const updateApplicationStatus = createServerFn({ method: 'POST' })
           )).limit(1)
         if (!activeAssignment) throw new Error('You can only update applications currently assigned to you.')
       }
-      await tx.update(financeApplications).set({
+      const [updated] = await tx.update(financeApplications).set({
         status: data.status,
         providerDecision: data.status === 'Provider decision received' ? data.providerDecision ?? null : null,
         updatedAt: new Date(),
-      }).where(eq(financeApplications.id, data.applicationId))
+      }).where(and(
+        eq(financeApplications.id, data.applicationId),
+        eq(financeApplications.status, application.status),
+      )).returning({ id: financeApplications.id })
+      if (!updated) throw new Error('The application changed while you were updating it. Refresh and try again.')
       await tx.insert(applicationStatusHistory).values({
         applicationId: data.applicationId,
         fromStatus: application.status,

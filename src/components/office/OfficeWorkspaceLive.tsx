@@ -133,7 +133,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
     }
   }
   const saveStatus = async (status: (typeof applicationStatuses)[number]) => {
-    if (!selected) return
+    if (!selected || status === selected.status) return
     if (status === 'Provider decision received' && (!can('applications.approve') || !providerDecision)) {
       toast.error('A staff member with provider-decision permission must select and record the provider outcome.')
       return
@@ -358,7 +358,7 @@ export function OfficeWorkspaceLive({ data }: { data: OfficeData }) {
                         )}
                         <Select value={selected.status} onValueChange={(status) => void saveStatus(status as (typeof applicationStatuses)[number])} disabled={busy}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>{applicationStatuses.filter((status) => status !== 'Draft' && (status !== 'Provider decision received' || can('applications.approve'))).map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent>
+                          <SelectContent>{applicationStatuses.filter((status) => status !== 'Draft' && (status !== 'Provider decision received' || can('applications.approve')) && (status !== 'Closed' || can('applications.approve'))).map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     )}
