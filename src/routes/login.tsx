@@ -23,6 +23,10 @@ function LoginPage() {
 
   const continueToWorkspace = useCallback(async () => {
     const session = await getAuthorizationSnapshot()
+    if ('identityUnavailable' in session && session.identityUnavailable) {
+      setError('Netlify Identity is not available yet. The project must be connected to a Netlify site with Identity enabled.')
+      return
+    }
     if (session.authenticated && 'emailVerificationRequired' in session && session.emailVerificationRequired) {
       setMessage('Please verify your email address using the confirmation link, then return here and sign in again.')
       return

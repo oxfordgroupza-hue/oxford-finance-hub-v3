@@ -9,7 +9,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M0 | Repository recovery, comparison, sanitised import | In progress |
 | M1 | Full audit, architecture and evidence register | Initial audit recorded; continue |
 | M2 | Database/core domain and migrations | Source imported; validation pending |
-| M3 | Identity provisioning and authentication | Preview-only Super Admin bootstrap now requires an explicit server-side flag and verified Identity email; Netlify Identity provider availability still requires live preview verification |
+| M3 | Identity provisioning and authentication | Preview-only Super Admin bootstrap requires an explicit server-side flag and verified Identity email; preview flag could not be set (Netlify environment update 403) and Identity endpoints return 404, so account provisioning remains externally blocked |
 | M4 | Roles, permissions and Super Admin | Seven role templates and account-type ceilings are in source; end-to-end account/permission verification pending |
 | M5 | Public site and customer application | Public pages and application route return 200 on Deploy Preview; application submission remains feature-gated pending auth and PII key configuration |
 | M6 | Customer and Office lifecycle | Source imported; verification pending |
@@ -30,9 +30,11 @@ Use these exact distinctions: implemented in source; automated tests passing; De
 No production deployment, live applications, document upload, email/WhatsApp delivery, settlement execution, payment or payout processing until separate approval and acceptance evidence are recorded. Legal and regulatory readiness requires qualified professional review.
 
 ## Latest verified checkpoint — 11 November 2026
-- Source commit `1409ae695dc3038b37759b6e8e89336e2d93d0f3` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open.
-- Netlify Deploy Preview `6af40d534210a5c82f39f195` is ready; M19 was already applied to this isolated database branch and this deploy had no pending migrations.
+- Source commit `6598d8cdce98356b05869cf7b89eaf05014b3d27` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
+- Netlify Deploy Preview `6af4100e1a5e131bc685bbce` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
 - Desktop Commander HTTP smoke tests returned 200 for `/`, `/login`, `/apply`, `/office`, `/office/credit-assessments`, `/demo`, `/privacy` and `/terms`. Protected workspace routes return the login page as expected.
-- Build, TypeScript, all 103 automated tests, ESLint and `git diff --check` passed on the committed source.
-- Netlify Identity endpoints return 404 on this preview; Identity is dashboard-only and must be enabled/configured at the project Identity settings page before any real account test.
-- Application, document-upload, email-delivery and settlement feature gates remain disabled. Required server secrets are not all configured. No live applicant data, uploads, email, WhatsApp, settlements or payouts were enabled.
+- The deployed document API returns 200 for the same preview origin and 403 for an unrelated Deploy Preview origin.
+- Build, TypeScript, all 110 automated tests across 19 files, ESLint and `git diff --check` pass. The login page now reports Identity unavailability explicitly.
+- Netlify Identity endpoints return 404 on this preview; Identity is dashboard-only. The preview bootstrap environment-variable update was rejected with HTTP 403, so real account provisioning remains blocked.
+- Supabase's private document bucket is verified, but the server secret and PII encryption key are absent. Application, document-upload, email-delivery and settlement gates remain disabled.
+- The primary Netlify site URL returns 404 (no production deploy is published). No production deploy, real applicant data, uploads, email, WhatsApp, settlements or payouts were enabled.
