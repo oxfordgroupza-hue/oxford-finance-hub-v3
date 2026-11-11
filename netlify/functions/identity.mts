@@ -115,7 +115,6 @@ async function bootstrapInitialAdministrator(userId: string, email: string, emai
     email,
     bootstrapEmail: configuredEmail,
     isDeployPreview,
-    productionBootstrapEnabled: false,
     emailConfirmed,
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(assignmentHistory),

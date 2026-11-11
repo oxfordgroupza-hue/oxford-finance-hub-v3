@@ -37,7 +37,6 @@ export function canBootstrapInitialSuperAdmin(input: {
   email: string | null | undefined
   bootstrapEmail: string | null | undefined
   isDeployPreview: boolean
-  productionBootstrapEnabled: boolean
   emailConfirmed: boolean
   accountStatus: AccountStatus
   hasSuperAdminAssignmentHistory: boolean
@@ -50,7 +49,7 @@ export function canBootstrapInitialSuperAdmin(input: {
   // Email confirmation is mandatory in every environment. Preview isolation is
   // not a substitute for proving control of the designated administrator email.
   if (!input.emailConfirmed) return false
-  return input.isDeployPreview || input.productionBootstrapEnabled
+  return input.isDeployPreview
 }
 
 export const permissionActions = [

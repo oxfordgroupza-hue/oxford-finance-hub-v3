@@ -292,7 +292,6 @@ describe('initial Super Administrator bootstrap gate', () => {
     email: 'admin@example.co.za',
     bootstrapEmail: 'ADMIN@example.co.za',
     isDeployPreview: false,
-    productionBootstrapEnabled: false,
     emailConfirmed: false,
     accountStatus: 'active' as const,
     hasSuperAdminAssignmentHistory: false,
@@ -310,23 +309,10 @@ describe('initial Super Administrator bootstrap gate', () => {
     expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, emailConfirmed: true, hasSuperAdminAssignmentHistory: true })).toBe(false)
   })
 
-  it('requires an explicit production flag and a confirmed email', () => {
-    expect(canBootstrapInitialSuperAdmin({
-      ...base,
-      productionBootstrapEnabled: true,
-      emailConfirmed: true,
-    })).toBe(true)
-    expect(canBootstrapInitialSuperAdmin({
-      ...base,
-      productionBootstrapEnabled: true,
-      emailConfirmed: false,
-    })).toBe(false)
-    expect(canBootstrapInitialSuperAdmin({
-      ...base,
-      productionBootstrapEnabled: false,
-      emailConfirmed: true,
-    })).toBe(false)
+  it('never enables production bootstrap', () => {
+    expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: false, emailConfirmed: true })).toBe(false)
   })
+
 
   it('rejects missing or mismatched configured email addresses', () => {
     expect(canBootstrapInitialSuperAdmin({ ...base, email: 'other@example.co.za', isDeployPreview: true, emailConfirmed: true })).toBe(false)

@@ -158,7 +158,6 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     email,
     bootstrapEmail,
     isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
-    productionBootstrapEnabled: false, // V3 bootstrap is Deploy Preview-only.
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),
