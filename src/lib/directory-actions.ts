@@ -252,21 +252,19 @@ export const searchRestrictedDirectory = createServerFn({ method: 'POST' })
 
     // Internal users and registered account contact details. Account roles and permissions are not returned.
     const canSearchInternalUsers = canSearchInternalDirectoryUsers(session.permissions, session.isSuperAdmin)
-    const visibleAccountTypes = [
-      ...(canSearchInternalUsers ? ['office', 'service'] : []),
-      ...(supportDirectoryOnly || session.permissions.includes('partners.view') ? ['partner'] : []),
-      ...(supportDirectoryOnly || (canViewAllApplicantDirectory && session.permissions.includes('customers.view')) ? ['customer'] : []),
-    ] as Array<'office' | 'partner' | 'customer' | 'service'>
-    const userRows = await db.select({
-      id: users.id, displayName: users.displayName, email: users.email,
-      accountType: users.accountType, status: users.status,
-    }).from(users)
-      .where(and(or(ilike(users.displayName, pattern), ilike(users.email, pattern)), inArray(users.accountType, visibleAccountTypes)))
-      .orderBy(users.displayName).limit(25)
+    const visibleAccountTypes = canSearchInternalUsers ? ['office', 'service'] as const : []
+    const userRows = visibleAccountTypes.length
+      ? await db.select({
+          id: users.id, displayName: users.displayName, email: users.email,
+          accountType: users.accountType, status: users.status,
+        }).from(users)
+          .where(and(or(ilike(users.displayName, pattern), ilike(users.email, pattern)), inArray(users.accountType, [...visibleAccountTypes])))
+          .orderBy(users.displayName).limit(25)
+      : []
     for (const row of userRows) {
       add({
         id: `user:${row.id}`,
-        group: row.accountType === 'office' ? 'Internal user' : row.accountType === 'partner' ? 'Partner' : 'Applicant / customer',
+        group: row.accountType === 'office' || row.accountType === 'service' ? 'Internal user' : 'Applicant / customer',
         name: row.displayName || row.email, email: row.email, phone: '',
         reference: '', status: row.status, identityNumber: '',
       })
