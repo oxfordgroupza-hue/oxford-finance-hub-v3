@@ -121,7 +121,7 @@ function DemoWorkspace() {
             const eventActor = demoActors.find((item) => item.id === event.actorId)
             return <div key={event.id} className="flex gap-3 border-l border-[#c7a45a]/40 pl-4">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#c7a45a]" />
-              <div className="min-w-0"><p className="text-sm">{event.action}</p><p className="mt-1 text-xs text-white/45">{eventActor?.name ?? 'Demo actor'} · {event.record} · {new Date(event.occurredAt).toLocaleString('en-ZA')}</p><p className="mt-1 text-xs leading-5 text-white/55">{event.outcome}</p></div>
+              <div className="min-w-0"><p className="text-sm">{event.action}</p><p className="mt-1 text-xs text-white/45">{eventActor?.name ?? 'Demo actor'} · {event.record} · {new Date(event.occurredAt).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' })}</p><p className="mt-1 text-xs leading-5 text-white/55">{event.outcome}</p></div>
             </div>
           })}</div>
         </section>
