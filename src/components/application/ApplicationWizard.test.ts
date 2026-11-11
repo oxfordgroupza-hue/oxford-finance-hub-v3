@@ -1,4 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// These tests exercise pure form validation and draft shaping. Keep server
+// actions (and their database drivers) outside this unit-test boundary.
+vi.mock('@/lib/application-actions', () => ({
+  submitFinanceApplication: vi.fn(),
+  saveFinanceDraft: vi.fn(),
+  loadMyFinanceDraft: vi.fn(),
+  deleteMyFinanceDraft: vi.fn(),
+  loadMyOfficeApplicationDraft: vi.fn(),
+  saveMyOfficeApplicationDraft: vi.fn(),
+}))
+vi.mock('@/lib/catalog-actions', () => ({ getPublicAssetCatalogue: vi.fn() }))
+
 import { getDocumentChecklist } from '@/lib/finance-config'
 import {
   createLocalDraftForm,
