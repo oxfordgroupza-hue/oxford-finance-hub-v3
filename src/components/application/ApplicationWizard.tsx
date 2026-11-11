@@ -495,6 +495,11 @@ export function ApplicationWizard({
       if (result.duplicate) {
         toast.info('Your application was already received. We have restored its reference.')
       }
+      if (!result.packGenerated) {
+        toast.info('Your application was received. The complete document pack is pending and Office can retry its generation.')
+      } else if (!result.duplicate) {
+        toast.success('Your application was received and its document pack was generated.')
+      }
       scrollTop()
     } catch (error) {
       toast.error('We could not complete the application. Your draft has been kept.', { description: error instanceof Error ? error.message : 'Please try again later.' })

@@ -25,6 +25,7 @@ import {
 import { createApplicationReference } from './application-reference'
 import { withoutApplicantPii } from './applicant-pii-sanitization'
 import { calculateFinanceAmount } from './fee-calculation'
+import { generateApplicationPack } from './pdf-pack-actions'
 import { decryptApplicantData, encryptApplicantData } from './pii-crypto.server'
 
 const submissionInput = z.object({
@@ -103,7 +104,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
   .validator((input: unknown) => submissionInput.parse(input))
   .handler(async ({ data }) => {
     assertApplicationProcessingEnabled()
-    await requireCustomerPermission('own_applications.create')
+    const submissionSession = await requireCustomerPermission('own_applications.create')
     const identity = await requireVerifiedIdentity()
 
     const form = data.form
@@ -255,7 +256,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
       piiEncryptionVersion: 'aes-256-gcm-v1',
     }
 
-    return db.transaction(async (tx) => {
+    const submission = await db.transaction(async (tx) => {
       const [account] = await tx.select().from(users)
         .where(and(eq(users.identityId, identity.id), eq(users.status, 'active')))
         .limit(1)
@@ -495,6 +496,20 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
 
       return { reference, applicationId: application.id, duplicate: false }
     })
+    let packGenerated = false
+    try {
+      await generateApplicationPack({ data: { applicationId: submission.applicationId } })
+      packGenerated = true
+    } catch {
+      await db.insert(auditEvents).values({
+        actorUserId: submissionSession.user.id,
+        event: 'application.pack_generation_pending',
+        resource: 'finance_application',
+        resourceId: submission.applicationId,
+        details: { reference: submission.reference, retryRequired: true },
+      }).catch(() => undefined)
+    }
+    return { ...submission, packGenerated }
   })
 
 /** Return only the authenticated customer's own application summaries. */

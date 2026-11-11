@@ -21,6 +21,8 @@ import { evaluateEffectivePermissions } from '../../src/lib/access-control'
 import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-permissions'
 import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
+import { applicationDocumentStoragePath } from '../../src/lib/application-document-storage'
+import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
 import { isApprovedDeployPreviewRequest, isStorageBucketVerified, type NetlifyRuntimeContext } from '../../src/lib/document-storage-security'
@@ -192,7 +194,13 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
     customerId: financeApplications.customerId,
     applicantType: financeApplications.applicantType,
     category: financeApplications.category,
-  }).from(financeApplications).where(eq(financeApplications.id, applicationId)).limit(1)
+    profile: customers.profile,
+    firstName: customers.firstName,
+    lastName: customers.lastName,
+    businessName: customers.businessName,
+  }).from(financeApplications)
+    .innerJoin(customers, eq(financeApplications.customerId, customers.id))
+    .where(eq(financeApplications.id, applicationId)).limit(1)
   if (!application) throw new HttpError('Application not found or access denied.', 404)
 
   if (account.account.accountType === 'customer') {
@@ -309,7 +317,12 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
           applicantType: financeApplications.applicantType,
           category: financeApplications.category,
           canUploadSupportingDocuments: partnerRegistrations.canUploadSupportingDocuments,
+          profile: customers.profile,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          businessName: customers.businessName,
         }).from(financeApplications)
+          .innerJoin(customers, eq(financeApplications.customerId, customers.id))
           .innerJoin(referrals, eq(referrals.applicationId, financeApplications.id))
           .innerJoin(partnerRegistrations, eq(partnerRegistrations.userId, referrals.partnerUserId))
           .where(and(
@@ -413,7 +426,16 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
       if (!activeOperationId) throw new HttpError('This document is already being processed. Please wait before retrying.', 409)
 
       const ext = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/jpeg' ? 'jpg' : 'png'
-      const path = `${application.customerId}/${application.reference}/${documentType}-${hash.slice(0, 24)}.${ext}`
+      const profile = application.profile ?? {}
+      const pii = typeof profile.piiCiphertext === 'string' ? decryptApplicantData(profile.piiCiphertext) : {}
+      const applicantName = [pii.firstName ?? application.firstName, pii.lastName ?? application.lastName].filter(Boolean).join(' ') || String(pii.contactName ?? application.businessName ?? 'Applicant')
+      const path = applicationDocumentStoragePath({
+        applicantType: application.applicantType,
+        applicantName,
+        applicationReference: application.reference,
+        documentType,
+        fileName: `${documentType}-${hash.slice(0, 24)}.${ext}`,
+      })
       try {
         await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, {
           method: 'POST',
