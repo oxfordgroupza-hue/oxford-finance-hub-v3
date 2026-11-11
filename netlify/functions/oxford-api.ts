@@ -20,6 +20,7 @@ import {
 import { evaluateEffectivePermissions } from '../../src/lib/access-control'
 import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-permissions'
+import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
 import { isApprovedDeployPreviewRequest, isStorageBucketVerified, type NetlifyRuntimeContext } from '../../src/lib/document-storage-security'
@@ -273,8 +274,9 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
       if (!isDeployPreviewRequest(request, context) || process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED !== 'true') {
         throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
       }
-      const requiredPermission = isApplicant ? 'own_documents.create' : 'documents.create'
-      if (!account.isSuperAdmin && !account.permissions.has(requiredPermission)) {
+      // Partners use a narrower referral-ownership and document-type policy below.
+      const requiredPermission = requiredDocumentUploadPermission(account.account.accountType as 'customer' | 'partner' | 'office')
+      if (requiredPermission && !account.isSuperAdmin && !account.permissions.has(requiredPermission)) {
         throw new HttpError('Your account does not have permission to upload application documents.', 403)
       }
 
