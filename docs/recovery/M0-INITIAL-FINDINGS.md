@@ -66,3 +66,20 @@ These are source-level corrections only; they are not yet validated by a full bu
 - Sanitised application source snapshot imported into `recovery/import-verified-baseline`.
 - V3-specific README, AGENTS, PLAN, architecture, environment and security documents added.
 - No production deployment, database migration, provider configuration change or feature activation performed.
+
+## Validation update — 11 November 2026
+
+This dated update records evidence obtained after the initial 10 November import audit. It does not change the historical statements above about the import step.
+
+- V3 working branch: `fix/v3-desktop-validation-baseline`. Latest tested application-code commit: `63f068c3f8ba785888bf8ce99dba23743709d40a`. The recovery plan, README, storage guide and environment evidence are updated in the current documentation revision. PR #2 remains open, draft and unmerged.
+- V2 and legacy repositories remain unchanged. V3 remains the only repository being modified.
+- High-confidence secret-pattern scan found no matches in the tracked working tree or reachable Git history; no tracked `.env` files were found. This is a focused static scan, not a complete security certification.
+- Local validation passed: TypeScript, 130 automated tests across 23 files, ESLint, Prettier, Vite client/SSR build and `git diff --check`.
+- V3 Deploy Preview `6af41e03be5840b641e7bbfc` is ready with three server functions. M20 migration `20261111150000_m20_configurable_credit_assessment_rules` is confirmed applied to the isolated `fix/v3-desktop-validation-baseline` database branch. No production migration was run.
+- Eight public routes returned HTTP 200. The deployed credit-assessment route bundle returned HTTP 200 and contains the separate Individual/Business financial assessment and Super Administrator rules interface.
+- The document API health endpoint returned HTTP 200 for the exact preview origin and HTTP 403 for an unrelated Deploy Preview origin.
+- Current preview health reports the bucket is configured but not verified, encryption is not configured, document uploads are disabled and live applications are disabled. The existing bucket's private configuration was previously inspected read-only on 9 November; the current V3 server cannot verify storage without the missing Supabase server secret.
+- Netlify Identity settings return HTTP 404 because Identity is not enabled for the V3 site. The Netlify environment-variable write returned HTTP 403, so the preview bootstrap flag and required server secrets remain externally blocked.
+- The PII encryption key and Supabase server secret are absent. Brevo credentials are absent. Email and WhatsApp delivery, application submission, document upload/download, settlements and payouts remain disabled.
+- The 100-point assessment rules are versioned and Super Administrator-configurable, but no active ruleset is seeded. The initial template weights are not Oxford policy and must be reviewed and explicitly approved before reviewers can save assessment reports.
+- No real applicant data was used. No production deployment, live provider notification, customer document upload, settlement or payout was performed. Legal and regulatory readiness requires qualified professional review.
