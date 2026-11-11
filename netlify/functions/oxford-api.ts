@@ -21,6 +21,7 @@ import { evaluateEffectivePermissions } from '../../src/lib/access-control'
 import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-permissions'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
+import { isSameOriginRequest } from '../../src/lib/origin-validation'
 
 const SITE_URL = process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? 'http://localhost:8888'
 const SITE_ID = process.env.SITE_ID ?? ''
@@ -250,12 +251,7 @@ function isDeployPreviewRequest(request: Request, context?: NetlifyRuntimeContex
 export default async (request: Request, context?: NetlifyRuntimeContext) => {
   try {
     const origin = request.headers.get('origin')
-    if (origin) {
-      const originHost = new URL(origin).hostname
-      const productionHost = new URL(SITE_URL).hostname
-      const isThisSitePreview = /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(originHost)
-      if (originHost !== productionHost && !isThisSitePreview) throw new HttpError('Origin not allowed.', 403)
-    }
+    if (!isSameOriginRequest(origin, request.url)) throw new HttpError('Origin not allowed.', 403)
 
     const url = new URL(request.url)
     const action = url.searchParams.get('action')
