@@ -7,6 +7,7 @@ import {
   assignments,
   auditEvents,
   creditAssessmentReports,
+  creditAssessmentRules,
   creditAssessmentReportVersions,
   creditAssessmentTransactionEvidence,
   creditAssessmentTransactionEvidenceReviews,
@@ -23,6 +24,7 @@ import {
   assessDebitOrderReversals,
   CREDIT_ASSESSMENT_WEIGHTS,
   type CreditAssessmentDimension,
+  type CreditAssessmentWeights,
   type DebitOrderReversalEvidence,
 } from "./credit-assessment";
 import {
@@ -118,6 +120,33 @@ async function assertApplicationScope(
   return application;
 }
 
+function mapCreditAssessmentRuleWeights(
+  rule: typeof creditAssessmentRules.$inferSelect,
+): CreditAssessmentWeights {
+  return {
+    verifiedIncomeAndStability: rule.verifiedIncomeAndStability,
+    affordabilityAndDisposableIncome: rule.affordabilityAndDisposableIncome,
+    existingFinancialCommitments: rule.existingFinancialCommitments,
+    bankStatementBehaviour: rule.bankStatementBehaviour,
+    employmentOrBusinessStability: rule.employmentOrBusinessStability,
+    documentConsistencyAndVerification: rule.documentConsistencyAndVerification,
+  };
+}
+
+function mapCreditAssessmentRule(
+  rule: typeof creditAssessmentRules.$inferSelect,
+) {
+  return {
+    id: rule.id,
+    version: rule.version,
+    status: rule.status,
+    weights: mapCreditAssessmentRuleWeights(rule),
+    rationale: rule.rationale,
+    createdAt: rule.createdAt.toISOString(),
+    approvedAt: rule.approvedAt?.toISOString() ?? null,
+  };
+}
+
 export const getCreditAssessmentQueue = createServerFn({
   method: "GET",
 }).handler(async () => {
@@ -157,6 +186,161 @@ export const getCreditAssessmentQueue = createServerFn({
       session.permissions.includes("credit_assessments.edit"),
   };
 });
+
+export const getCreditAssessmentRules = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const session = await requireCreditAssessment("credit_assessments.view");
+  const [activeRows, draftRows] = await Promise.all([
+    db
+      .select()
+      .from(creditAssessmentRules)
+      .where(eq(creditAssessmentRules.status, "active"))
+      .orderBy(desc(creditAssessmentRules.version))
+      .limit(1),
+    session.isSuperAdmin
+      ? db
+          .select()
+          .from(creditAssessmentRules)
+          .where(eq(creditAssessmentRules.status, "draft"))
+          .orderBy(desc(creditAssessmentRules.version))
+          .limit(1)
+      : Promise.resolve([]),
+  ]);
+  return {
+    active: activeRows[0] ? mapCreditAssessmentRule(activeRows[0]) : null,
+    latestDraft: draftRows[0] ? mapCreditAssessmentRule(draftRows[0]) : null,
+    canConfigure: session.isSuperAdmin,
+  };
+});
+
+const creditAssessmentWeightsInput = z
+  .object({
+    verifiedIncomeAndStability: z.number().int().min(0).max(100),
+    affordabilityAndDisposableIncome: z.number().int().min(0).max(100),
+    existingFinancialCommitments: z.number().int().min(0).max(100),
+    bankStatementBehaviour: z.number().int().min(0).max(100),
+    employmentOrBusinessStability: z.number().int().min(0).max(100),
+    documentConsistencyAndVerification: z.number().int().min(0).max(100),
+  })
+  .strict();
+const saveCreditAssessmentRulesInput = z
+  .object({
+    weights: creditAssessmentWeightsInput,
+    rationale: z.string().trim().min(10).max(2000),
+  })
+  .strict();
+
+export const saveCreditAssessmentRules = createServerFn({ method: "POST" })
+  .validator((input: unknown) => saveCreditAssessmentRulesInput.parse(input))
+  .handler(async ({ data }) => {
+    const session = await requireCreditAssessment("credit_assessments.edit");
+    if (!session.isSuperAdmin)
+      throw new Error(
+        "Only the Super Administrator can configure assessment weights.",
+      );
+    const total = Object.values(data.weights).reduce(
+      (sum, weight) => sum + weight,
+      0,
+    );
+    if (total !== 100)
+      throw new Error("Assessment weights must total exactly 100 points.");
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('credit_assessment_rules_version'))`,
+      );
+      const [latest] = await tx
+        .select({ version: creditAssessmentRules.version })
+        .from(creditAssessmentRules)
+        .orderBy(desc(creditAssessmentRules.version))
+        .limit(1);
+      const version = (latest?.version ?? 0) + 1;
+      const [draft] = await tx
+        .insert(creditAssessmentRules)
+        .values({
+          version,
+          status: "draft",
+          verifiedIncomeAndStability: data.weights.verifiedIncomeAndStability,
+          affordabilityAndDisposableIncome:
+            data.weights.affordabilityAndDisposableIncome,
+          existingFinancialCommitments:
+            data.weights.existingFinancialCommitments,
+          bankStatementBehaviour: data.weights.bankStatementBehaviour,
+          employmentOrBusinessStability:
+            data.weights.employmentOrBusinessStability,
+          documentConsistencyAndVerification:
+            data.weights.documentConsistencyAndVerification,
+          rationale: data.rationale,
+          createdBy: session.user.id,
+        })
+        .returning();
+      await tx.insert(auditEvents).values({
+        actorUserId: session.user.id,
+        event: "credit_assessment.rules_drafted",
+        resource: "credit_assessment_rules",
+        resourceId: draft.id,
+        details: { version, weights: data.weights, rationale: data.rationale },
+      });
+      return { success: true as const, rule: mapCreditAssessmentRule(draft) };
+    });
+  });
+
+const activateCreditAssessmentRulesInput = z
+  .object({ id: z.string().uuid() })
+  .strict();
+export const activateCreditAssessmentRules = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    activateCreditAssessmentRulesInput.parse(input),
+  )
+  .handler(async ({ data }) => {
+    const session = await requireCreditAssessment("credit_assessments.edit");
+    if (!session.isSuperAdmin)
+      throw new Error(
+        "Only the Super Administrator can approve assessment weights.",
+      );
+    return db.transaction(async (tx) => {
+      const [draft] = await tx
+        .select()
+        .from(creditAssessmentRules)
+        .where(
+          and(
+            eq(creditAssessmentRules.id, data.id),
+            eq(creditAssessmentRules.status, "draft"),
+          ),
+        )
+        .for("update")
+        .limit(1);
+      if (!draft)
+        throw new Error(
+          "The requested draft ruleset is unavailable or already approved.",
+        );
+      await tx
+        .update(creditAssessmentRules)
+        .set({ status: "superseded" })
+        .where(inArray(creditAssessmentRules.status, ["active", "draft"]));
+      const [active] = await tx
+        .update(creditAssessmentRules)
+        .set({
+          status: "active",
+          approvedBy: session.user.id,
+          approvedAt: new Date(),
+        })
+        .where(eq(creditAssessmentRules.id, draft.id))
+        .returning();
+      await tx.insert(auditEvents).values({
+        actorUserId: session.user.id,
+        event: "credit_assessment.rules_activated",
+        resource: "credit_assessment_rules",
+        resourceId: active.id,
+        details: {
+          version: active.version,
+          weights: mapCreditAssessmentRuleWeights(active),
+          rationale: active.rationale,
+        },
+      });
+      return { success: true as const, rule: mapCreditAssessmentRule(active) };
+    });
+  });
 
 const dimensionReviewInput = z.object({
   dimension: z.string(),
@@ -261,6 +445,20 @@ export const saveCreditAssessmentReport = createServerFn({ method: "POST" })
           `Your account does not have the ${permission} permission.`,
         );
       }
+      const [activeRules] = await tx
+        .select()
+        .from(creditAssessmentRules)
+        .where(eq(creditAssessmentRules.status, "active"))
+        .orderBy(desc(creditAssessmentRules.version))
+        .for("share")
+        .limit(1);
+      if (!activeRules) {
+        throw new Error(
+          "No approved credit assessment ruleset is active. A Super Administrator must configure and approve the 100-point weighting first.",
+        );
+      }
+      const scoringWeights = mapCreditAssessmentRuleWeights(activeRules);
+      const scoringRulesVersion = `OBG-CR-${activeRules.version}`;
 
       // Derive reversal counts from persisted, reviewer-classified evidence while
       // the application row is locked. Browser-supplied counts are never trusted.
@@ -432,6 +630,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: "POST" })
         assessmentDate: data.assessmentDate,
         reviewerName: session.user.displayName || session.user.email,
         financialAssessment,
+        scoringRulesVersion,
+        scoringWeights,
         dimensions: data.dimensions as {
           dimension: CreditAssessmentDimension;
           score: number | null;
@@ -508,6 +708,7 @@ export const saveCreditAssessmentReport = createServerFn({ method: "POST" })
           preliminaryOutcome: report.outcome,
           applicantType: report.applicantType,
           completedDimensions: report.completedDimensions,
+          scoringRulesVersion: report.scoringRulesVersion,
         },
       });
       return {
@@ -948,6 +1149,7 @@ export const getCreditAssessmentReport = createServerFn({ method: "GET" })
           outcome: rawReport.outcome,
           financialAssessment: rawReport.financialAssessment,
           scoringRulesVersion: rawReport.scoringRulesVersion,
+          scoringWeights: rawReport.scoringWeights,
           applicationReference: rawReport.applicationReference,
           assessmentDate: rawReport.assessmentDate,
           reviewerName: rawReport.reviewerName,

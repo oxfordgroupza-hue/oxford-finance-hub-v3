@@ -29,7 +29,8 @@ The Office credit-assessment worksheet now captures separate Individual and Busi
 - Individual disposable income is calculated as verified net income less verified living expenses and existing commitments. Proposed-instalment headroom is shown separately.
 - Business available cash flow is an interim reviewer calculation from verified monthly income less verified operating expenses and existing business obligations. It is not an approved lender formula or automated lending decision.
 - Financial amounts in saved assessment report/version snapshots are encrypted. The scoring rules version is recorded.
-- The current 100-point weighting is a draft baseline, not an approved Oxford ruleset. Configurable weighting and formal Oxford approval remain outstanding.
+- The 100-point weighting is configurable by the Super Administrator in the assessment rules panel. Saving creates an immutable draft version; activating it records the approver and makes it effective for new reports. Reports preserve the exact rules version and weights used.
+- M20 creates the versioned rules table. No active ruleset is seeded; the initial template weights are not Oxford policy. A Super Administrator must review, save and explicitly approve the first ruleset before reviewers can save reports.
 - Bank-statement reversals are still derived server-side from encrypted transaction candidates and the latest append-only human classifications. More than two verified reversals in the latest three calendar months triggers manual review, never automatic decline.
 
 These features are implemented in source and covered by automated tests. They have not yet been accepted end-to-end because Netlify Identity and the preview bootstrap are not available. Do not enter real applicant information in this preview.

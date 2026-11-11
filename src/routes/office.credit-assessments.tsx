@@ -8,13 +8,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { WorkspaceSignOutButton } from "@/components/site/WorkspaceSignOutButton";
 import { getAuthorizationSnapshot } from "@/lib/auth";
 import {
+  activateCreditAssessmentRules,
   getCreditAssessmentQueue,
   getCreditAssessmentReport,
+  getCreditAssessmentRules,
   recordDebitOrderTransactionEvidence,
   reviewDebitOrderTransactionEvidence,
   saveCreditAssessmentReport,
+  saveCreditAssessmentRules,
 } from "@/lib/credit-assessment-actions";
-import type { CreditAssessmentDimension } from "@/lib/credit-assessment";
+import {
+  CREDIT_ASSESSMENT_WEIGHTS,
+  type CreditAssessmentDimension,
+  type CreditAssessmentWeights,
+} from "@/lib/credit-assessment";
 import type { CreditAssessmentOutcome } from "@/lib/credit-assessment-report";
 import {
   formatCentsAsZarInput,
@@ -23,40 +30,24 @@ import {
   type FinancialEvidenceStatus,
 } from "@/lib/credit-assessment-financials";
 
-const dimensions: Array<{
-  key: CreditAssessmentDimension;
-  label: string;
-  maximum: number;
-}> = [
-  {
-    key: "verifiedIncomeAndStability",
-    label: "Verified income and stability",
-    maximum: 20,
-  },
+const dimensions: Array<{ key: CreditAssessmentDimension; label: string }> = [
+  { key: "verifiedIncomeAndStability", label: "Verified income and stability" },
   {
     key: "affordabilityAndDisposableIncome",
     label: "Affordability and disposable income",
-    maximum: 30,
   },
   {
     key: "existingFinancialCommitments",
     label: "Existing financial commitments",
-    maximum: 15,
   },
-  {
-    key: "bankStatementBehaviour",
-    label: "Bank statement behaviour",
-    maximum: 15,
-  },
+  { key: "bankStatementBehaviour", label: "Bank statement behaviour" },
   {
     key: "employmentOrBusinessStability",
     label: "Employment or business stability",
-    maximum: 10,
   },
   {
     key: "documentConsistencyAndVerification",
     label: "Document consistency and verification",
-    maximum: 10,
   },
 ];
 
@@ -268,7 +259,13 @@ export const Route = createFileRoute("/office/credit-assessments")({
     )
       throw redirect({ to: "/office" });
   },
-  loader: async () => getCreditAssessmentQueue(),
+  loader: async () => {
+    const [queue, rules] = await Promise.all([
+      getCreditAssessmentQueue(),
+      getCreditAssessmentRules(),
+    ]);
+    return { ...queue, rules };
+  },
   head: () => ({
     meta: [
       { title: "Credit assessment review | Oxford Finance Hub" },
@@ -283,12 +280,15 @@ function CreditAssessmentsPage() {
   const queue = queueData.applications;
   const canCreate = queueData.canCreate;
   const canEdit = queueData.canEdit;
+  const scoringWeights: CreditAssessmentWeights =
+    queueData.rules.active?.weights ??
+    queueData.rules.latestDraft?.weights ??
+    CREDIT_ASSESSMENT_WEIGHTS;
   const router = useRouter();
   const [selected, setSelected] = useState<(typeof queue)[number] | null>(null);
   const canSave = selected
-    ? selected.reportStatus
-      ? canEdit
-      : canCreate
+    ? Boolean(queueData.rules.active) &&
+      (selected.reportStatus ? canEdit : canCreate)
     : false;
   const [rows, setRows] = useState<ReviewRow[]>(blankRows);
   const [financialAssessment, setFinancialAssessment] =
@@ -319,6 +319,15 @@ function CreditAssessmentsPage() {
   const [evidenceDescription, setEvidenceDescription] = useState("");
   const [reviewerNote, setReviewerNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ruleWeights, setRuleWeights] = useState<CreditAssessmentWeights>(
+    () =>
+      queueData.rules.latestDraft?.weights ??
+      queueData.rules.active?.weights ??
+      CREDIT_ASSESSMENT_WEIGHTS,
+  );
+  const [ruleRationale, setRuleRationale] = useState(
+    () => queueData.rules.latestDraft?.rationale ?? "",
+  );
 
   const openApplication = async (application: (typeof queue)[number]) => {
     setBusy(true);
@@ -525,6 +534,80 @@ function CreditAssessmentsPage() {
     }
   };
 
+  const ruleTotal = Object.values(ruleWeights).reduce(
+    (sum, weight) => sum + weight,
+    0,
+  );
+  const draftMatchesEditor =
+    Boolean(queueData.rules.latestDraft) &&
+    Object.keys(ruleWeights).every(
+      (key) =>
+        ruleWeights[key as CreditAssessmentDimension] ===
+        queueData.rules.latestDraft?.weights[key as CreditAssessmentDimension],
+    ) &&
+    ruleRationale.trim() === queueData.rules.latestDraft?.rationale;
+
+  const saveRulesDraft = async () => {
+    if (!queueData.rules.canConfigure || busy) return;
+    if (ruleTotal !== 100) {
+      toast.error("The six assessment weights must total exactly 100 points.");
+      return;
+    }
+    if (ruleRationale.trim().length < 10) {
+      toast.error("Enter a meaningful rationale of at least 10 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await saveCreditAssessmentRules({
+        data: { weights: ruleWeights, rationale: ruleRationale },
+      });
+      setRuleWeights(result.rule.weights);
+      setRuleRationale(result.rule.rationale);
+      toast.success(`Draft ruleset version ${result.rule.version} saved.`);
+      await router.invalidate();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "The scoring rules could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const activateRules = async () => {
+    const draft = queueData.rules.latestDraft;
+    if (!queueData.rules.canConfigure || busy || !draft || !draftMatchesEditor)
+      return;
+    setBusy(true);
+    try {
+      const result = await activateCreditAssessmentRules({
+        data: { id: draft.id },
+      });
+      setRuleWeights(result.rule.weights);
+      setRuleRationale(result.rule.rationale);
+      setSelected(null);
+      setRows(blankRows());
+      setFinancialAssessment(blankFinancialAssessment("individual"));
+      setFinancialAssessmentResult(null);
+      setReversalSummary(null);
+      toast.success(
+        `Ruleset version ${result.rule.version} is now active for new assessments.`,
+      );
+      await router.invalidate();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "The scoring rules could not be activated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card px-5 py-5 sm:px-8">
@@ -548,6 +631,123 @@ function CreditAssessmentsPage() {
         </div>
       </header>
       <main className="mx-auto grid max-w-7xl gap-7 px-5 py-8 lg:grid-cols-[minmax(260px,0.75fr)_minmax(0,1.5fr)] sm:px-8">
+        {queueData.rules.canConfigure ? (
+          <section className="lg:col-span-2 space-y-4 rounded-sm border border-border bg-card p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl">100-point assessment rules</h2>
+                <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                  Super Administrator control. The initial numbers are an
+                  unapproved draft template, not Oxford policy. Each saved draft
+                  is versioned and audited. Only an explicitly activated ruleset
+                  is used for new reports; each report stores its exact rules
+                  version and weight snapshot.
+                </p>
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <p>
+                  Active:{" "}
+                  {queueData.rules.active
+                    ? `Version ${queueData.rules.active.version}`
+                    : "None approved"}
+                </p>
+                <p>
+                  Latest draft:{" "}
+                  {queueData.rules.latestDraft
+                    ? `Version ${queueData.rules.latestDraft.version}`
+                    : "None"}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {dimensions.map((dimension) => (
+                <div
+                  key={dimension.key}
+                  className="space-y-2 rounded-sm border border-border p-3"
+                >
+                  <Label htmlFor={`rule-weight-${dimension.key}`}>
+                    {dimension.label}
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`rule-weight-${dimension.key}`}
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={ruleWeights[dimension.key]}
+                      onChange={(event) =>
+                        setRuleWeights((current) => ({
+                          ...current,
+                          [dimension.key]:
+                            event.target.value === ""
+                              ? 0
+                              : Number(event.target.value),
+                        }))
+                      }
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      points
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p
+                className={`text-sm font-semibold ${ruleTotal === 100 ? "text-foreground" : "text-destructive"}`}
+              >
+                Total weighting: {ruleTotal} / 100 points
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Changes do not affect existing report snapshots.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rules-rationale">
+                Reason for this ruleset version
+              </Label>
+              <Textarea
+                id="rules-rationale"
+                value={ruleRationale}
+                onChange={(event) => setRuleRationale(event.target.value)}
+                placeholder="Explain why this weighting is appropriate and what has changed."
+                rows={3}
+              />
+            </div>
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button
+                type="button"
+                variant="outlineGold"
+                onClick={saveRulesDraft}
+                disabled={
+                  busy || ruleTotal !== 100 || ruleRationale.trim().length < 10
+                }
+              >
+                Save new draft version
+              </Button>
+              <Button
+                type="button"
+                variant="gold"
+                onClick={activateRules}
+                disabled={busy || !draftMatchesEditor}
+              >
+                Approve and activate draft
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Approval activates the selected 100-point weights for future
+              assessments. This internal model is not a credit-bureau score and
+              does not itself approve or decline finance.
+            </p>
+          </section>
+        ) : !queueData.rules.active ? (
+          <div className="lg:col-span-2 rounded-sm border border-border bg-card p-4 text-sm text-muted-foreground">
+            No approved 100-point assessment ruleset is active. A Super
+            Administrator must configure and approve one before reviewers can
+            save assessment reports.
+          </div>
+        ) : null}
         <section className="space-y-3">
           <div>
             <h2 className="text-xl">Assigned applications</h2>
@@ -916,7 +1116,7 @@ function CreditAssessmentsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label>{dimension.label}</Label>
                       <span className="text-xs text-muted-foreground">
-                        Maximum {dimension.maximum} points
+                        Maximum {scoringWeights[dimension.key]} points
                       </span>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-[120px_1fr]">
@@ -928,7 +1128,7 @@ function CreditAssessmentsPage() {
                           id={`score-${dimension.key}`}
                           type="number"
                           min={0}
-                          max={dimension.maximum}
+                          max={scoringWeights[dimension.key]}
                           step={1}
                           placeholder="Not scored"
                           value={rows[index].score ?? ""}

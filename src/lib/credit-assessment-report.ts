@@ -1,11 +1,9 @@
 import {
   CREDIT_ASSESSMENT_WEIGHTS,
   type CreditAssessmentDimension,
+  type CreditAssessmentWeights,
 } from "./credit-assessment";
 import type { FinancialAssessmentSnapshot } from "./credit-assessment-financials";
-
-export const CREDIT_ASSESSMENT_RULES_VERSION =
-  "draft-2026-11-10-weighting-pending-approval";
 
 export type CreditAssessmentReviewStatus =
   "not_started" | "in_progress" | "ready_for_human_decision";
@@ -49,6 +47,8 @@ export interface CreditAssessmentReportInput {
   assessmentDate: string;
   reviewerName: string;
   financialAssessment: FinancialAssessmentSnapshot;
+  scoringRulesVersion: string;
+  scoringWeights: CreditAssessmentWeights;
   dimensions: CreditAssessmentDimensionReview[];
   reversalReview: {
     periodStart: string;
@@ -69,6 +69,7 @@ export interface CreditAssessmentReport {
   reviewerName: string;
   financialAssessment: FinancialAssessmentSnapshot;
   scoringRulesVersion: string;
+  scoringWeights: CreditAssessmentWeights;
   dimensions: CreditAssessmentDimensionReview[];
   totalScore: number | null;
   maximumScore: 100;
@@ -135,6 +136,26 @@ export function buildCreditAssessmentReport(
   const dimensions = Object.keys(
     CREDIT_ASSESSMENT_WEIGHTS,
   ) as CreditAssessmentDimension[];
+  const configuredDimensions = Object.keys(
+    input.scoringWeights,
+  ) as CreditAssessmentDimension[];
+  const configuredTotal = Object.values(input.scoringWeights).reduce(
+    (total, weight) => total + weight,
+    0,
+  );
+  if (
+    configuredDimensions.length !== dimensions.length ||
+    dimensions.some((key) => !configuredDimensions.includes(key)) ||
+    configuredDimensions.some(
+      (key) =>
+        !Number.isInteger(input.scoringWeights[key]) ||
+        input.scoringWeights[key] < 0,
+    ) ||
+    configuredTotal !== 100 ||
+    !input.scoringRulesVersion.trim()
+  ) {
+    throw new Error("An approved 100-point scoring ruleset is required.");
+  }
   const byDimension = new Map(
     input.dimensions.map((item) => [item.dimension, item]),
   );
@@ -150,7 +171,7 @@ export function buildCreditAssessmentReport(
 
   const reviewed = dimensions.map((dimension) => {
     const item = byDimension.get(dimension)!;
-    const maximum = CREDIT_ASSESSMENT_WEIGHTS[dimension];
+    const maximum = input.scoringWeights[dimension];
     if (
       item.score !== null &&
       (!Number.isInteger(item.score) || item.score < 0 || item.score > maximum)
@@ -203,7 +224,8 @@ export function buildCreditAssessmentReport(
     assessmentDate: input.assessmentDate,
     reviewerName: input.reviewerName.trim(),
     financialAssessment: input.financialAssessment,
-    scoringRulesVersion: CREDIT_ASSESSMENT_RULES_VERSION,
+    scoringRulesVersion: input.scoringRulesVersion,
+    scoringWeights: input.scoringWeights,
     dimensions: reviewed,
     totalScore: scoreComplete
       ? reviewed.reduce((total, item) => total + (item.score ?? 0), 0)

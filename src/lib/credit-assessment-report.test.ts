@@ -29,6 +29,8 @@ const reportInput = (
   applicationReference: "OBG-APP-20261110-ABC123",
   assessmentDate: "2026-11-10",
   reviewerName: "Assigned reviewer",
+  scoringRulesVersion: "OBG-CR-1",
+  scoringWeights: CREDIT_ASSESSMENT_WEIGHTS,
   financialAssessment: buildFinancialAssessmentSnapshot({
     applicantType: "individual",
     netMonthlyIncome: "30000",
@@ -108,6 +110,43 @@ describe("human-reviewed credit assessment report", () => {
     );
     expect(result.evidenceSnapshot).toEqual(evidenceSnapshot);
   });
+  it("uses the approved versioned scoring weights and rejects non-100-point rules", () => {
+    const configuredWeights = {
+      ...CREDIT_ASSESSMENT_WEIGHTS,
+      verifiedIncomeAndStability: 25,
+      affordabilityAndDisposableIncome: 25,
+    };
+    const result = buildCreditAssessmentReport(
+      reportInput({
+        scoringRulesVersion: "OBG-CR-2",
+        scoringWeights: configuredWeights,
+      }),
+    );
+    expect(result.scoringRulesVersion).toBe("OBG-CR-2");
+    expect(result.scoringWeights).toEqual(configuredWeights);
+    expect(result.maximumScore).toBe(100);
+    const overLimitRows = dimensions();
+    overLimitRows[1] = { ...overLimitRows[1], score: 26 };
+    expect(() =>
+      buildCreditAssessmentReport(
+        reportInput({
+          scoringWeights: configuredWeights,
+          dimensions: overLimitRows,
+        }),
+      ),
+    ).toThrow("between 0 and 25");
+    expect(() =>
+      buildCreditAssessmentReport(
+        reportInput({
+          scoringWeights: {
+            ...CREDIT_ASSESSMENT_WEIGHTS,
+            documentConsistencyAndVerification: 9,
+          },
+        }),
+      ),
+    ).toThrow("approved 100-point scoring ruleset");
+  });
+
   it("blocks readiness when individual affordability inputs are not verified", () => {
     const financialAssessment = buildFinancialAssessmentSnapshot({
       applicantType: "individual",
@@ -132,7 +171,7 @@ describe("human-reviewed credit assessment report", () => {
     } else {
       throw new Error("Expected individual financial assessment");
     }
-    expect(result.scoringRulesVersion).toContain("draft-");
+    expect(result.scoringRulesVersion).toBe("OBG-CR-1");
   });
 
   it("does not invent a score when reviewer scoring is incomplete", () => {

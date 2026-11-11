@@ -280,6 +280,47 @@ export const applicationStatusHistory = pgTable('application_status_history', {
 }, (t) => [index('application_status_history_application_idx').on(t.applicationId, t.createdAt)])
 
 
+/** Versioned Super Administrator-controlled internal credit scoring rules. */
+export const creditAssessmentRules = pgTable('credit_assessment_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  version: integer('version').notNull(),
+  status: text('status').notNull().default('draft'),
+  verifiedIncomeAndStability: integer('verified_income_and_stability').notNull(),
+  affordabilityAndDisposableIncome: integer('affordability_and_disposable_income').notNull(),
+  existingFinancialCommitments: integer('existing_financial_commitments').notNull(),
+  bankStatementBehaviour: integer('bank_statement_behaviour').notNull(),
+  employmentOrBusinessStability: integer('employment_or_business_stability').notNull(),
+  documentConsistencyAndVerification: integer('document_consistency_and_verification').notNull(),
+  rationale: text('rationale').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('credit_assessment_rules_version_positive_check', sql`${t.version} > 0`),
+  check('credit_assessment_rules_status_check', sql`${t.status} in ('draft', 'active', 'superseded')`),
+  check('credit_assessment_rules_rationale_check', sql`length(btrim(${t.rationale})) >= 10`),
+  check('credit_assessment_rules_approval_check', sql`
+    (${t.status} = 'active' and ${t.approvedBy} is not null and ${t.approvedAt} is not null)
+    or (${t.status} = 'draft' and ${t.approvedBy} is null and ${t.approvedAt} is null)
+    or ${t.status} = 'superseded'
+  `),
+  check('credit_assessment_rules_weights_check', sql`
+    ${t.verifiedIncomeAndStability} >= 0 and
+    ${t.affordabilityAndDisposableIncome} >= 0 and
+    ${t.existingFinancialCommitments} >= 0 and
+    ${t.bankStatementBehaviour} >= 0 and
+    ${t.employmentOrBusinessStability} >= 0 and
+    ${t.documentConsistencyAndVerification} >= 0 and
+    ${t.verifiedIncomeAndStability} + ${t.affordabilityAndDisposableIncome} +
+    ${t.existingFinancialCommitments} + ${t.bankStatementBehaviour} +
+    ${t.employmentOrBusinessStability} + ${t.documentConsistencyAndVerification} = 100
+  `),
+  uniqueIndex('credit_assessment_rules_version_uq').on(t.version),
+  uniqueIndex('credit_assessment_rules_single_active_uq').on(t.status).where(sql`${t.status} = 'active'`),
+  index('credit_assessment_rules_status_idx').on(t.status, t.version),
+])
+
 /** Latest private human-reviewed credit assessment worksheet per application. */
 export const creditAssessmentReports = pgTable('credit_assessment_reports', {
   id: uuid('id').defaultRandom().primaryKey(),
