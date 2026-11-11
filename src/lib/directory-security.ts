@@ -1,6 +1,7 @@
 export function maskIdentityNumber(value: string): string {
   const normalized = value.replace(/[\s-]/g, '')
-  return normalized.length > 4 ? `********${normalized.slice(-4)}` : '********'
+  const mask = '\u2022'.repeat(8)
+  return normalized.length > 4 ? `${mask}${normalized.slice(-4)}` : mask
 }
 
 export function isSupportDirectoryOnly(permissions: readonly string[]): boolean {

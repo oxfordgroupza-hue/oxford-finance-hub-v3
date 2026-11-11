@@ -3,9 +3,9 @@ import { canSearchInternalDirectoryUsers, identityNumberFromQuery, isSupportDire
 
 describe('restricted directory identity handling', () => {
   it('masks every identity character except the last four', () => {
-    expect(maskIdentityNumber('800101 5009-087')).toBe('********9087')
-    expect(maskIdentityNumber('AB123456')).toBe('********3456')
-    expect(maskIdentityNumber('1234')).toBe('********')
+    expect(maskIdentityNumber('800101 5009-087')).toBe('\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u20229087')
+    expect(maskIdentityNumber('AB123456')).toBe('\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u20223456')
+    expect(maskIdentityNumber('1234')).toBe('\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022')
   })
 
   it('does not let a directory-only custom role inherit the broad Support directory scope', () => {
