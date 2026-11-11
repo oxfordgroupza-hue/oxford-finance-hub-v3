@@ -1,6 +1,6 @@
 [build]
-  # Fail closed until the dedicated V3 Netlify site ID is verified and this guard is updated.
-  ignore = "echo 'Oxford Business Group V3 site identity is not configured; skipping deployment'; exit 0"
+  # Allow isolated PR previews for validation; keep the production deploy disabled until release approval.
+  ignore = 'if [ "$CONTEXT" = "deploy-preview" ]; then exit 1; fi; echo "Oxford Business Group V3 production deployment remains disabled until release approval"; exit 0'
   command = "pnpm build && pnpm typecheck && pnpm test && pnpm lint"
   publish = "dist/client"
 
