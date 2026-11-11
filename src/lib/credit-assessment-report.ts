@@ -10,12 +10,27 @@ export interface CreditAssessmentDimensionReview {
   reviewerNote: string
 }
 
+export interface CreditAssessmentEvidenceSnapshot {
+  evidenceId: string
+  sourceDocumentId: string
+  statementPeriodStart: string | null
+  statementPeriodEnd: string | null
+  transactionDate: string
+  classification: 'needs_review' | 'debit_order_reversal' | 'not_a_debit_order_reversal'
+  reviewVersion: number
+  reviewerId: string | null
+  reviewedAt: string | null
+}
+
 export interface CreditAssessmentReportInput {
+  evidenceSnapshot?: CreditAssessmentEvidenceSnapshot[]
   applicationReference: string
   assessmentDate: string
   reviewerName: string
   dimensions: CreditAssessmentDimensionReview[]
   reversalReview: {
+    periodStart: string
+    periodEnd: string
     verifiedReversalCount: number
     unverifiedCandidateCount: number
     requiresManualReview: boolean
@@ -35,6 +50,7 @@ export interface CreditAssessmentReport {
   missingInformation: string[]
   status: CreditAssessmentReviewStatus
   reversalReview: CreditAssessmentReportInput['reversalReview']
+  evidenceSnapshot: CreditAssessmentEvidenceSnapshot[]
   overallReviewerSummary: string
   decisionNotice: string
 }
@@ -119,6 +135,7 @@ export function buildCreditAssessmentReport(
       ...input.reversalReview,
       explanation: input.reversalReview.explanation?.trim() || null,
     },
+    evidenceSnapshot: input.evidenceSnapshot ?? [],
     overallReviewerSummary: input.overallReviewerSummary.trim(),
     decisionNotice: 'This is an internal evidence summary only. It does not approve, decline, pre-approve or guarantee finance. A separately authorised human decision is required.',
   }

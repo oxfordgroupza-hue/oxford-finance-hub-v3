@@ -143,6 +143,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
         sourceDocumentApplicationId: applicationDocuments.applicationId,
         sourceDocumentType: applicationDocuments.documentType,
         sourceDocumentStatus: applicationDocuments.status,
+        statementPeriodStart: creditAssessmentTransactionEvidence.statementPeriodStart,
+        statementPeriodEnd: creditAssessmentTransactionEvidence.statementPeriodEnd,
         transactionDetailsCiphertext: creditAssessmentTransactionEvidence.transactionDetailsCiphertext,
       }).from(creditAssessmentTransactionEvidence)
         .innerJoin(applicationDocuments, eq(applicationDocuments.id, creditAssessmentTransactionEvidence.sourceDocumentId))
@@ -154,6 +156,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
             evidenceId: creditAssessmentTransactionEvidenceReviews.evidenceId,
             version: creditAssessmentTransactionEvidenceReviews.version,
             classification: creditAssessmentTransactionEvidenceReviews.classification,
+            reviewedBy: creditAssessmentTransactionEvidenceReviews.reviewedBy,
+            createdAt: creditAssessmentTransactionEvidenceReviews.createdAt,
           }).from(creditAssessmentTransactionEvidenceReviews)
             .where(inArray(creditAssessmentTransactionEvidenceReviews.evidenceId, evidenceIds))
             .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
@@ -171,21 +175,45 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
         if (!isValidDateOnly(transactionDate) || !Number.isSafeInteger(amountCents) || amountCents <= 0 || !description) {
           throw new Error('Stored bank transaction evidence failed integrity validation.')
         }
+        const statementStart = item.statementPeriodStart?.toISOString().slice(0, 10) ?? null
+        const statementEnd = item.statementPeriodEnd?.toISOString().slice(0, 10) ?? null
+        const statementPeriodValid = Boolean(statementStart && statementEnd && statementStart <= statementEnd && transactionDate >= statementStart && transactionDate <= statementEnd)
         return {
           transactionDate,
           amountCents,
           description,
           sourceDocumentId: item.sourceDocumentId,
           classification: item.sourceDocumentApplicationId === application.id &&
-            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && review
+            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && statementPeriodValid && review
             ? review.classification as DebitOrderReversalEvidence['classification']
             : 'needs_review',
           verified: item.sourceDocumentApplicationId === application.id &&
-            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && Boolean(review),
+            item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && statementPeriodValid && Boolean(review),
         }
       })
       const reversalAssessment = assessDebitOrderReversals(reversalEvidence, data.assessmentDate)
+      const evidenceSnapshot = evidenceRows.map((item) => {
+        const review = latestReviewByEvidence.get(item.id)
+        const details = decryptApplicantData(item.transactionDetailsCiphertext)
+        const transactionDate = typeof details.transactionDate === 'string' ? details.transactionDate : ''
+        const statementStart = item.statementPeriodStart?.toISOString().slice(0, 10) ?? null
+        const statementEnd = item.statementPeriodEnd?.toISOString().slice(0, 10) ?? null
+        const periodValid = Boolean(statementStart && statementEnd && statementStart <= statementEnd && transactionDate >= statementStart && transactionDate <= statementEnd)
+        const sourceVerified = item.sourceDocumentApplicationId === application.id && item.sourceDocumentType === 'bank' && item.sourceDocumentStatus === 'Verified' && periodValid
+        return {
+          evidenceId: item.id,
+          sourceDocumentId: item.sourceDocumentId,
+          statementPeriodStart: statementStart,
+          statementPeriodEnd: statementEnd,
+          transactionDate,
+          classification: sourceVerified && review ? review.classification as DebitOrderReversalEvidence['classification'] : 'needs_review' as const,
+          reviewVersion: review?.version ?? 0,
+          reviewerId: sourceVerified ? review?.reviewedBy ?? null : null,
+          reviewedAt: sourceVerified ? review?.createdAt.toISOString() ?? null : null,
+        }
+      })
       const report = buildCreditAssessmentReport({
+        evidenceSnapshot,
         applicationReference: application.reference,
         assessmentDate: data.assessmentDate,
         reviewerName: session.user.displayName || session.user.email,
@@ -197,6 +225,8 @@ export const saveCreditAssessmentReport = createServerFn({ method: 'POST' })
           reviewerNote: string
         }[],
         reversalReview: {
+          periodStart: reversalAssessment.periodStart,
+          periodEnd: reversalAssessment.periodEnd,
           verifiedReversalCount: reversalAssessment.verifiedReversalCount,
           unverifiedCandidateCount: reversalAssessment.unverifiedCandidates.length,
           requiresManualReview: reversalAssessment.requiresManualReview,
@@ -265,6 +295,8 @@ function isValidDateOnly(value: string): boolean {
 const transactionEvidenceInput = z.object({
   applicationId: z.string().uuid(),
   sourceDocumentId: z.string().uuid(),
+  statementPeriodStart: z.string().refine(isValidDateOnly, 'Enter a valid statement start date.'),
+  statementPeriodEnd: z.string().refine(isValidDateOnly, 'Enter a valid statement end date.'),
   transactionDate: z.string().refine(isValidDateOnly, 'Enter a valid transaction date.'),
   amount: z.string().trim().regex(/^\d{1,10}(\.\d{1,2})?$/, 'Enter a valid ZAR amount with up to two decimal places.'),
   description: z.string().trim().min(3).max(1000),
@@ -277,6 +309,9 @@ export const recordDebitOrderTransactionEvidence = createServerFn({ method: 'POS
     const session = await requireCreditAssessment('credit_assessments.create')
     const application = await assertApplicationScope(data.applicationId, session)
     const amountCents = parsePositiveZarCents(data.amount)
+    if (data.statementPeriodStart > data.statementPeriodEnd || data.transactionDate < data.statementPeriodStart || data.transactionDate > data.statementPeriodEnd) {
+      throw new Error('The transaction date must fall within the statement period, and the period start must not follow its end.')
+    }
     const [sourceDocument] = await db.select({
       id: applicationDocuments.id,
     }).from(applicationDocuments).where(and(
@@ -304,6 +339,9 @@ export const recordDebitOrderTransactionEvidence = createServerFn({ method: 'POS
       const [saved] = await tx.insert(creditAssessmentTransactionEvidence).values({
         applicationId: application.id,
         sourceDocumentId: sourceDocument.id,
+        statementPeriodStart: new Date(`${data.statementPeriodStart}T00:00:00.000Z`),
+        statementPeriodEnd: new Date(`${data.statementPeriodEnd}T00:00:00.000Z`),
+        initialClassification: 'needs_review',
         transactionDetailsCiphertext,
         evidenceFingerprint,
         createdBy: session.user.id,
@@ -317,6 +355,9 @@ export const recordDebitOrderTransactionEvidence = createServerFn({ method: 'POS
         details: {
           applicationReference: application.reference,
           sourceDocumentId: sourceDocument.id,
+          statementPeriodStart: data.statementPeriodStart,
+          statementPeriodEnd: data.statementPeriodEnd,
+          initialClassification: 'needs_review',
         },
       })
       return saved.id
@@ -328,7 +369,7 @@ const reviewTransactionEvidenceInput = z.object({
   applicationId: z.string().uuid(),
   evidenceId: z.string().uuid(),
   classification: z.enum(['debit_order_reversal', 'not_a_debit_order_reversal']),
-  reviewerNote: z.string().trim().max(1000).default(''),
+  reviewerNote: z.string().trim().min(5, 'Record the reason for this classification.').max(1000),
 })
 
 /** A human reviewer adds an immutable classification version; no client count is accepted. */
@@ -353,6 +394,7 @@ export const reviewDebitOrderTransactionEvidence = createServerFn({ method: 'POS
 
       const [latest] = await tx.select({
         version: creditAssessmentTransactionEvidenceReviews.version,
+        classification: creditAssessmentTransactionEvidenceReviews.classification,
       }).from(creditAssessmentTransactionEvidenceReviews)
         .where(eq(creditAssessmentTransactionEvidenceReviews.evidenceId, evidence.id))
         .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
@@ -373,7 +415,9 @@ export const reviewDebitOrderTransactionEvidence = createServerFn({ method: 'POS
         details: {
           applicationReference: application.reference,
           evidenceId: evidence.id,
+          previousClassification: latest?.classification ?? 'needs_review',
           classification: data.classification,
+          reviewerRationale: data.reviewerNote,
           version,
         },
       })
@@ -422,6 +466,8 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
         sourceDocumentId: creditAssessmentTransactionEvidence.sourceDocumentId,
         sourceDocumentName: applicationDocuments.originalName,
         sourceDocumentStatus: applicationDocuments.status,
+        statementPeriodStart: creditAssessmentTransactionEvidence.statementPeriodStart,
+        statementPeriodEnd: creditAssessmentTransactionEvidence.statementPeriodEnd,
         transactionDetailsCiphertext: creditAssessmentTransactionEvidence.transactionDetailsCiphertext,
         createdAt: creditAssessmentTransactionEvidence.createdAt,
       }).from(creditAssessmentTransactionEvidence)
@@ -442,6 +488,14 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
           .where(inArray(creditAssessmentTransactionEvidenceReviews.evidenceId, evidenceIds))
           .orderBy(desc(creditAssessmentTransactionEvidenceReviews.version))
       : []
+    const reviewerIds = [...new Set(reviewRows.map((review) => review.reviewedBy))]
+    const reviewerAccounts = reviewerIds.length
+      ? await db.select({ id: users.id, displayName: users.displayName, email: users.email })
+          .from(users).where(inArray(users.id, reviewerIds))
+      : []
+    const reviewerNameById = new Map(reviewerAccounts.map((reviewer) => [
+      reviewer.id, reviewer.displayName?.trim() || reviewer.email,
+    ]))
     const latestReviewByEvidence = new Map<string, (typeof reviewRows)[number]>()
     for (const review of reviewRows) {
       if (!latestReviewByEvidence.has(review.evidenceId)) latestReviewByEvidence.set(review.evidenceId, review)
@@ -460,13 +514,15 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
         sourceDocumentId: item.sourceDocumentId,
         sourceDocumentName: item.sourceDocumentName,
         sourceDocumentStatus: item.sourceDocumentStatus,
+        statementPeriodStart: item.statementPeriodStart?.toISOString().slice(0, 10) ?? null,
+        statementPeriodEnd: item.statementPeriodEnd?.toISOString().slice(0, 10) ?? null,
         transactionDate,
         amountCents,
         description,
         classification: review?.classification ?? 'needs_review',
         latestReviewVersion: review?.version ?? 0,
         reviewerNote: review?.reviewerNote ?? '',
-        reviewedBy: review?.reviewedBy ?? null,
+        reviewedBy: review ? (reviewerNameById.get(review.reviewedBy) ?? review.reviewedBy) : null,
         reviewedAt: review?.createdAt.toISOString() ?? null,
         createdAt: item.createdAt.toISOString(),
       }
@@ -478,6 +534,7 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
       applicationReference: rawReport.applicationReference,
       assessmentDate: rawReport.assessmentDate,
       reviewerName: rawReport.reviewerName,
+      evidenceSnapshot: rawReport.evidenceSnapshot,
       dimensions: rawReport.dimensions.map((item) => ({
         dimension: item.dimension,
         score: item.score,
@@ -491,6 +548,8 @@ export const getCreditAssessmentReport = createServerFn({ method: 'GET' })
       missingInformation: [...rawReport.missingInformation],
       status: rawReport.status,
       reversalReview: {
+        periodStart: rawReport.reversalReview.periodStart,
+        periodEnd: rawReport.reversalReview.periodEnd,
         verifiedReversalCount: rawReport.reversalReview.verifiedReversalCount,
         unverifiedCandidateCount: rawReport.reversalReview.unverifiedCandidateCount,
         requiresManualReview: rawReport.reversalReview.requiresManualReview,

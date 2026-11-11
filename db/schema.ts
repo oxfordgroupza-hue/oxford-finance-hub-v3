@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
+  bigint, boolean, check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from 'drizzle-orm/pg-core'
 import {
   accountStatuses, accountTypes, applicationStatuses, applicantTypeIds, consentTypes,
@@ -316,11 +316,16 @@ export const creditAssessmentTransactionEvidence = pgTable('credit_assessment_tr
   id: uuid('id').defaultRandom().primaryKey(),
   applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'restrict' }),
   sourceDocumentId: uuid('source_document_id').notNull().references(() => applicationDocuments.id, { onDelete: 'restrict' }),
+  statementPeriodStart: date('statement_period_start', { mode: 'date' }),
+  statementPeriodEnd: date('statement_period_end', { mode: 'date' }),
+  initialClassification: text('initial_classification').notNull().default('needs_review'),
   transactionDetailsCiphertext: text('transaction_details_ciphertext').notNull(),
   evidenceFingerprint: text('evidence_fingerprint').notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
+  check('credit_assessment_transaction_evidence_initial_classification_check', sql`${t.initialClassification} = 'needs_review'`),
+  check('credit_assessment_transaction_evidence_statement_period_check', sql`(${t.statementPeriodStart} is null and ${t.statementPeriodEnd} is null) or (${t.statementPeriodStart} is not null and ${t.statementPeriodEnd} is not null and ${t.statementPeriodStart} <= ${t.statementPeriodEnd})`),
   uniqueIndex('credit_assessment_transaction_evidence_dedup_uq').on(t.applicationId, t.sourceDocumentId, t.evidenceFingerprint),
   index('credit_assessment_transaction_evidence_application_idx').on(t.applicationId, t.createdAt),
   index('credit_assessment_transaction_evidence_source_document_idx').on(t.sourceDocumentId),
@@ -337,7 +342,7 @@ export const creditAssessmentTransactionEvidenceReviews = pgTable('credit_assess
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   check('credit_assessment_transaction_evidence_reviews_version_check', sql`${t.version} > 0`),
-  check('credit_assessment_transaction_evidence_reviews_classification_check', sql`${t.classification} in ('debit_order_reversal', 'not_a_debit_order_reversal')`),
+  check('credit_assessment_transaction_evidence_reviews_classification_check', sql`${t.classification} in ('needs_review', 'debit_order_reversal', 'not_a_debit_order_reversal')`),
   uniqueIndex('credit_assessment_transaction_evidence_reviews_version_uq').on(t.evidenceId, t.version),
   index('credit_assessment_transaction_evidence_reviews_latest_idx').on(t.evidenceId, t.version),
 ])

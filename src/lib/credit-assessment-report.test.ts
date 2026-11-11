@@ -17,6 +17,8 @@ const reportInput = (overrides: Partial<CreditAssessmentReportInput> = {}): Cred
   reviewerName: 'Assigned reviewer',
   dimensions: dimensions(),
   reversalReview: {
+    periodStart: '2026-08-10',
+    periodEnd: '2026-11-10',
     verifiedReversalCount: 0,
     unverifiedCandidateCount: 0,
     requiresManualReview: false,
@@ -27,6 +29,11 @@ const reportInput = (overrides: Partial<CreditAssessmentReportInput> = {}): Cred
 })
 
 describe('human-reviewed credit assessment report', () => {
+  it('preserves evidence references and reviewer verification in the report snapshot', () => {
+    const evidenceSnapshot = [{ evidenceId: 'e1', sourceDocumentId: 's1', statementPeriodStart: '2026-08-01', statementPeriodEnd: '2026-10-31', transactionDate: '2026-10-15', classification: 'debit_order_reversal' as const, reviewVersion: 2, reviewerId: 'r1', reviewedAt: '2026-11-10T10:00:00.000Z' }]
+    const result = buildCreditAssessmentReport(reportInput({ evidenceSnapshot }))
+    expect(result.evidenceSnapshot).toEqual(evidenceSnapshot)
+  })
   it('does not invent a score when reviewer scoring is incomplete', () => {
     const result = buildCreditAssessmentReport(reportInput())
     expect(result.totalScore).toBeNull()
@@ -54,6 +61,8 @@ describe('human-reviewed credit assessment report', () => {
     const result = buildCreditAssessmentReport(reportInput({
       dimensions: dimensions(5),
       reversalReview: {
+    periodStart: '2026-08-10',
+    periodEnd: '2026-11-10',
         verifiedReversalCount: 0,
         unverifiedCandidateCount: 1,
         requiresManualReview: true,
@@ -80,6 +89,8 @@ describe('human-reviewed credit assessment report', () => {
     const result = buildCreditAssessmentReport(reportInput({
       dimensions: dimensions(5),
       reversalReview: {
+    periodStart: '2026-08-10',
+    periodEnd: '2026-11-10',
         verifiedReversalCount: 3,
         unverifiedCandidateCount: 0,
         requiresManualReview: false,
@@ -92,6 +103,8 @@ describe('human-reviewed credit assessment report', () => {
   it('rejects negative or fractional reversal counts', () => {
     expect(() => buildCreditAssessmentReport(reportInput({
       reversalReview: {
+    periodStart: '2026-08-10',
+    periodEnd: '2026-11-10',
         verifiedReversalCount: -1,
         unverifiedCandidateCount: 0,
         requiresManualReview: false,
@@ -100,6 +113,8 @@ describe('human-reviewed credit assessment report', () => {
     }))).toThrow('non-negative whole number')
     expect(() => buildCreditAssessmentReport(reportInput({
       reversalReview: {
+    periodStart: '2026-08-10',
+    periodEnd: '2026-11-10',
         verifiedReversalCount: 0,
         unverifiedCandidateCount: 0.5,
         requiresManualReview: false,

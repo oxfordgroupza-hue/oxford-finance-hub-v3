@@ -38,6 +38,8 @@ type TransactionEvidence = {
   sourceDocumentId: string
   sourceDocumentName: string
   sourceDocumentStatus: string
+  statementPeriodStart: string | null
+  statementPeriodEnd: string | null
   transactionDate: string
   amountCents: number
   description: string
@@ -49,6 +51,8 @@ type TransactionEvidence = {
   createdAt: string
 }
 type ReversalSummary = {
+  periodStart?: string
+  periodEnd?: string
   verifiedReversalCount: number
   unverifiedCandidateCount: number
   requiresManualReview: boolean
@@ -86,6 +90,8 @@ function CreditAssessmentsPage() {
   const [transactionEvidence, setTransactionEvidence] = useState<TransactionEvidence[]>([])
   const [reversalSummary, setReversalSummary] = useState<ReversalSummary | null>(null)
   const [evidenceDocumentId, setEvidenceDocumentId] = useState('')
+  const [statementPeriodStart, setStatementPeriodStart] = useState('')
+  const [statementPeriodEnd, setStatementPeriodEnd] = useState('')
   const [evidenceDate, setEvidenceDate] = useState('')
   const [evidenceAmount, setEvidenceAmount] = useState('')
   const [evidenceDescription, setEvidenceDescription] = useState('')
@@ -101,6 +107,8 @@ function CreditAssessmentsPage() {
       setBankStatementDocuments(result.bankStatementDocuments)
       setTransactionEvidence(result.transactionEvidence)
       setEvidenceDocumentId(result.bankStatementDocuments[0]?.id ?? '')
+      setStatementPeriodStart('')
+      setStatementPeriodEnd('')
       setEvidenceDate('')
       setEvidenceAmount('')
       setEvidenceDescription('')
@@ -163,12 +171,14 @@ function CreditAssessmentsPage() {
   }
 
   const addTransactionEvidence = async () => {
-    if (!selected || busy || !evidenceDocumentId || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()) return
+    if (!selected || busy || !evidenceDocumentId || !statementPeriodStart || !statementPeriodEnd || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()) return
     setBusy(true)
     try {
       await recordDebitOrderTransactionEvidence({ data: {
         applicationId: selected.id,
         sourceDocumentId: evidenceDocumentId,
+        statementPeriodStart,
+        statementPeriodEnd,
         transactionDate: evidenceDate,
         amount: evidenceAmount,
         description: evidenceDescription,
@@ -239,6 +249,7 @@ function CreditAssessmentsPage() {
               <p className="text-xs text-muted-foreground">Transactions must be transcribed from a verified bank statement. A reviewer must classify each candidate; the server calculates the latest three-month reversal count from the stored review history.</p>
             </div>
             {reversalSummary && <div className="rounded-sm border border-border bg-background p-3 text-sm">
+              <p>Assessment window: <strong>{reversalSummary.periodStart ?? 'Not recorded'} to {reversalSummary.periodEnd ?? 'Not recorded'}</strong></p>
               <p>Verified debit-order reversals in the saved three-month window: <strong>{reversalSummary.verifiedReversalCount}</strong></p>
               <p>Unverified candidates: <strong>{reversalSummary.unverifiedCandidateCount}</strong></p>
               <p>Additional manual review: <strong>{reversalSummary.requiresManualReview ? 'Required' : 'Not currently triggered'}</strong></p>
@@ -253,28 +264,30 @@ function CreditAssessmentsPage() {
                       {bankStatementDocuments.map((document) => <option key={document.id} value={document.id}>{document.filename}</option>)}
                     </select>
                   </label>
-                  <div className="space-y-1"><Label htmlFor="transaction-date">Transaction date</Label><Input id="transaction-date" type="date" value={evidenceDate} onChange={(event) => setEvidenceDate(event.target.value)} /></div>
+                  <div className="space-y-1"><Label htmlFor="statement-period-start">Statement period start</Label><Input id="statement-period-start" type="date" value={statementPeriodStart} onChange={(event) => setStatementPeriodStart(event.target.value)} /></div>
+                  <div className="space-y-1"><Label htmlFor="statement-period-end">Statement period end</Label><Input id="statement-period-end" type="date" value={statementPeriodEnd} onChange={(event) => setStatementPeriodEnd(event.target.value)} /></div>
+                  <div className="space-y-1"><Label htmlFor="transaction-date">Transaction date</Label><Input id="transaction-date" type="date" min={statementPeriodStart || undefined} max={statementPeriodEnd || undefined} value={evidenceDate} onChange={(event) => setEvidenceDate(event.target.value)} /></div>
                   <div className="space-y-1"><Label htmlFor="transaction-amount">Transaction amount (ZAR)</Label><Input id="transaction-amount" type="number" min="0.01" step="0.01" value={evidenceAmount} onChange={(event) => setEvidenceAmount(event.target.value)} placeholder="0.00" /></div>
                   <div className="space-y-1"><Label htmlFor="transaction-description">Statement narrative</Label><Input id="transaction-description" value={evidenceDescription} onChange={(event) => setEvidenceDescription(event.target.value)} maxLength={1000} placeholder="Transcribe the bank statement narrative" /></div>
                 </div>
-                {canCreate && <Button type="button" variant="outlineGold" onClick={() => void addTransactionEvidence()} disabled={busy || !evidenceDocumentId || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()}>{busy ? 'Working…' : 'Add unverified candidate'}</Button>}
+                {canCreate && <Button type="button" variant="outlineGold" onClick={() => void addTransactionEvidence()} disabled={busy || !evidenceDocumentId || !statementPeriodStart || !statementPeriodEnd || !evidenceDate || !evidenceAmount || !evidenceDescription.trim()}>{busy ? 'Working…' : 'Add unverified candidate'}</Button>}
               </> : <p className="text-sm text-muted-foreground">No verified bank statements are available for this application. A bank statement must first be received and verified in the document workspace. Secure applicant uploads remain disabled in this preview.</p>}
             </div>
             {transactionEvidence.length > 0 && canEdit && <div className="space-y-1">
-              <Label htmlFor="transaction-review-note">Reviewer note for the next classification</Label>
+              <Label htmlFor="transaction-review-note">Reviewer rationale (required, at least 5 characters)</Label>
               <Textarea id="transaction-review-note" value={reviewerNote} onChange={(event) => setReviewerNote(event.target.value)} maxLength={1000} />
             </div>}
             <div className="space-y-3">
               <h4 className="text-sm font-semibold">Recorded transaction evidence</h4>
               {transactionEvidence.length ? transactionEvidence.map((item) => <div key={item.id} className="space-y-3 rounded-sm border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div><p className="font-medium">{item.transactionDate} · {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(item.amountCents / 100)}</p><p className="mt-1 text-sm">{item.description}</p><p className="mt-1 text-xs text-muted-foreground">Source: {item.sourceDocumentName} · {item.sourceDocumentStatus}</p></div>
+                  <div><p className="font-medium">{item.transactionDate} · {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(item.amountCents / 100)}</p><p className="mt-1 text-sm">{item.description}</p><p className="mt-1 text-xs text-muted-foreground">Source: {item.sourceDocumentName} · {item.sourceDocumentStatus}</p><p className="mt-1 text-xs text-muted-foreground">Statement period: {item.statementPeriodStart ?? 'Not captured'} to {item.statementPeriodEnd ?? 'Not captured'}</p><p className="mt-1 text-xs text-muted-foreground">Review: {item.classification.replaceAll('_', ' ')} · Version {item.latestReviewVersion}{item.reviewedAt ? ` · ${new Date(item.reviewedAt).toLocaleString()} · Reviewed by ${item.reviewedBy}` : ' · Awaiting reviewer verification'}</p></div>
                   <span className="rounded-sm border border-border px-2 py-1 text-xs">{item.sourceDocumentStatus !== 'Verified' ? 'Source statement no longer verified' : item.classification === 'debit_order_reversal' ? 'Verified reversal' : item.classification === 'not_a_debit_order_reversal' ? 'Verified — not a reversal' : 'Pending human review'}</span>
                 </div>
                 {item.reviewerNote && <p className="text-xs text-muted-foreground">Reviewer note: {item.reviewerNote}</p>}
                 {canEdit && item.sourceDocumentStatus === 'Verified' && <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outlineGold" onClick={() => void reviewTransactionEvidence(item.id, 'debit_order_reversal')} disabled={busy}>Confirm debit-order reversal</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void reviewTransactionEvidence(item.id, 'not_a_debit_order_reversal')} disabled={busy}>Not a reversal</Button>
+                  <Button type="button" size="sm" variant="outlineGold" onClick={() => void reviewTransactionEvidence(item.id, 'debit_order_reversal')} disabled={busy || reviewerNote.trim().length < 5}>Confirm debit-order reversal</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void reviewTransactionEvidence(item.id, 'not_a_debit_order_reversal')} disabled={busy || reviewerNote.trim().length < 5}>Not a reversal</Button>
                 </div>}
               </div>) : <p className="text-sm text-muted-foreground">No transaction evidence has been recorded for this application.</p>}
             </div>
