@@ -18,7 +18,7 @@ The controlling reference is the V3 master project specification dated 10 Novemb
 | M9 | Settlements and payouts | Gate remains closed |
 | M10 | Internal credit assessment | Verified transaction evidence, statement periods, append-only reviewer classifications and versioned report snapshots are in source; five explicit reviewer outcomes and Individual/Business path capture added; end-to-end workflow verification pending |
 | M11 | Private document storage | Supabase bucket exists and is private (10 MiB, PDF/JPEG/PNG); no anon/authenticated grants on sensitive tables; server secret key missing, so upload/download integration remains disabled |
-| M12 | Notifications and automation | Email delivery remains disabled; the gate and applicant-invitation URL validation now accept only the exact V3 Deploy Preview with an explicit flag; automated gate tests pass |
+| M12 | Notifications and automation | Email delivery gate and invitation URL validation are restricted to the exact V3 Deploy Preview and explicit flag; no Brevo credentials are configured, so email remains disabled; WhatsApp/CallMeBot delivery is not yet implemented or enabled; end-to-end delivery tests pending |
 | M13 | Security and QA | Build, TypeScript, 123 tests across 22 files, ESLint and diff checks pass; API origin, Office invitation, email delivery and Super Admin bootstrap are restricted to the exact V3 Deploy Preview; partner referral/linking permissions revalidate active partner accounts; demo application and event visibility is restricted by role and tested; Supabase RLS is fail-closed; remaining configuration and performance findings tracked |
 | M14 | Staging and acceptance | Deploy Preview public routes and role-play demo are testable; role-based demo visibility is automated-tested and `docs/PREVIEW-TEST-GUIDE.md` records the exact test path; Identity is not enabled (404), so authenticated acceptance remains blocked |
 | M15 | Production | Requires separate explicit approval |
@@ -30,11 +30,11 @@ Use these exact distinctions: implemented in source; automated tests passing; De
 No production deployment, live applications, document upload, email/WhatsApp delivery, settlement execution, payment or payout processing until separate approval and acceptance evidence are recorded. Legal and regulatory readiness requires qualified professional review.
 
 ## Latest verified checkpoint — 11 November 2026
-- Latest tested code commit `3543f844b5b6d6dd6577ab95a21ae1c8a5d48f3d` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
-- Netlify Deploy Preview `6af413a6c8288547678a3946` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
+- Latest tested code commit `016c1f248f554cc12f77d38a8ba5c2737f1fe1ff` pushed to `fix/v3-desktop-validation-baseline`; PR #2 remains open and unmerged.
+- Netlify Deploy Preview `6af4157f7a95d347948b0074` is ready with three functions deployed and no pending database migrations. M19 is already applied to this isolated branch.
 - Desktop Commander HTTP smoke tests returned 200 for `/`, `/login`, `/apply`, `/office`, `/office/credit-assessments`, `/demo`, `/privacy` and `/terms`. Protected workspace routes return the login page as expected.
 - The deployed document API returns 200 for the same preview origin and 403 for an unrelated Deploy Preview origin.
-- Build, TypeScript, all 120 automated tests across 21 files, ESLint and `git diff --check` pass. The login page reports Identity unavailability explicitly; Office invitation origin and partner account checks are tested.
+- Build, TypeScript, all 123 automated tests across 22 files, ESLint and `git diff --check` pass. The login page reports Identity unavailability explicitly; Office invitation, email delivery, bootstrap-host and partner account checks are tested.
 - Netlify Identity endpoints return 404 on this preview; Identity is dashboard-only. The preview bootstrap environment-variable update was rejected with HTTP 403, so real account provisioning remains blocked.
 - Supabase's private document bucket is verified, but the server secret and PII encryption key are absent. Application, document-upload, email-delivery and settlement gates remain disabled.
 - The primary Netlify site URL returns 404 (no production deploy is published). No production deploy, real applicant data, uploads, email, WhatsApp, settlements or payouts were enabled.
