@@ -6,16 +6,16 @@
 
 - Repository: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3`
 - Branch: `fix/v3-desktop-validation-baseline`
-- Commit: `e591bd1701b7fc303fb357eb9f6b26edd138854f`
+- Commit: `64a7d529f6c54ca2da0500187f025b59f6886600` (latest tested source; header regression test now adds one test)
 - Deploy Preview: `https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/`
 - Pull request: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/2` (open, draft, unmerged)
-- Netlify deploy: `6af5596762c42a8ec0c23492` (`ready`, Deploy Preview only)
+- Netlify deploy: `6af55c5ce391f5bf04370f18` (`ready`, Deploy Preview only)
 
 ## Evidence captured 12 November 2026 (updated after sign-out correction)
 
 | Check | Result |
 | --- | --- |
-| Vitest | 35 files, 188 tests passed |
+| Vitest | 36 files, 195 tests passed |
 | TypeScript | Passed |
 | ESLint | Passed |
 | Drizzle migration check | Passed |
@@ -66,7 +66,7 @@ The current preview database has no customer/partner application or referral rec
 
 ### Latest sign-out correction (commit `e591bd1`)
 
-The application maintains its own `nf_jwt` and `nf_refresh` cookies in addition to the browser Netlify Identity session. A same-origin server action now expires both application cookies; the public header and authenticated workspace sign-out controls call it before browser Identity logout. Local typecheck, ESLint, all 188 tests, Drizzle check, client/SSR build and diff check passed. Deploy Preview `6af5596762c42a8ec0c23492` is ready, includes all three functions, has no pending migrations, and its secret scan found no matches across 228 files. Post-deploy smoke checks returned HTTP 200 for public routes, 307 to `/login` for eight protected routes, HTTP 200 for health with live applications/uploads disabled, and HTTP 401 for the unauthenticated private application API. Authenticated sign-out itself remains unverified without a synthetic account.
+The application maintains its own `nf_jwt` and `nf_refresh` cookies in addition to the browser Netlify Identity session. A same-origin server action expires both cookies; both sign-out controls invoke it before browser Identity logout. Both session cookies are now HttpOnly. Invitation claims, partner registrations and enquiry account-linking now use the same authoritative TanStack server session; the public header also reads that server session rather than depending on a separate browser SDK token. The new verified-session helper has six regression tests. Full local validation at commit `64a7d52` plus authenticated-header regression test: 36 test files, 195 tests passed; TypeScript, full ESLint, Drizzle check, client/SSR build and diff check passed. Deploy Preview `6af55c5ce391f5bf04370f18` is ready with three functions, no pending migrations and a clean secret scan (230 files scanned, no matches). Post-deploy smoke: 12 public routes returned HTTP 200; `/apply` pause notice and `/demo` noindex marker present; eight protected routes redirected to `/login`; health returned HTTP 200 with uploads/applications disabled; unauthenticated private application API returned HTTP 401. Existing authenticated Super Administrator browser session still resolves the reserved role and 76 effective permissions. Previous ready preview `6af5596762c42a8ec0c23492` included all three functions, no pending migrations and a clean secret scan across 228 files. Post-deploy smoke checks on the preceding code preview returned HTTP 200 for public routes, 307 to `/login` for eight protected routes, HTTP 200 for health with live applications/uploads disabled, and HTTP 401 for the unauthenticated private application API. Authenticated sign-out and customer/partner workflows still await synthetic-account acceptance.
 
 ### Awaiting business / professional approval
 

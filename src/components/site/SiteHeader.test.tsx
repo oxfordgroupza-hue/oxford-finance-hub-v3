@@ -21,6 +21,7 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
+import { getAuthorizationSnapshot } from '@/lib/auth'
 import { SiteHeader } from './SiteHeader'
 
 describe('mobile site navigation', () => {
@@ -66,5 +67,27 @@ describe('mobile site navigation', () => {
     await user.click(screen.getByRole('link', { name: 'Finance solutions' }))
     expect(await screen.findByRole('heading', { name: 'Solutions page' })).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('uses the server-managed session to show authenticated workspace controls', async () => {
+    vi.mocked(getAuthorizationSnapshot).mockResolvedValue({
+      authenticated: true,
+      provisioned: true,
+      blocked: null,
+      user: { id: 'office-user-1', email: 'admin@example.com', displayName: 'Oxford Admin', accountType: 'office', status: 'active' },
+      permissions: ['office.view'],
+      isSuperAdmin: true,
+    })
+    const root = createRootRoute({ component: () => <SiteHeader /> })
+    const router = createRouter({
+      routeTree: root,
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+      scrollRestoration: false,
+    })
+    await router.load()
+    render(<RouterProvider router={router} />)
+
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Administration' })).toBeVisible()
   })
 })
