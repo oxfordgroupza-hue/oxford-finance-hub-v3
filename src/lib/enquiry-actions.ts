@@ -1,10 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getUser } from '@netlify/identity'
-import { isIdentityEmailConfirmed } from './identity-verification'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import { auditEvents, notifications, partnerRegistrations, supportRequests, users } from '../../db/schema'
+import { getAuthorizationSnapshot } from './auth'
+import { getVerifiedSessionIdentity } from './verified-session'
 
 const enquiryInput = z.object({
   kind: z.enum(['contact', 'support', 'complaint', 'partner']),
@@ -23,16 +23,16 @@ export const submitEnquiry = createServerFn({ method: 'POST' })
     let linkedEmail: string | null = null
     let linkedEmailVerified = false
     try {
-      const identity = await getUser()
-      if (identity?.id) {
-        linkedEmail = identity.email?.trim().toLowerCase() ?? null
-        linkedEmailVerified = isIdentityEmailConfirmed(identity)
+      const identity = getVerifiedSessionIdentity(await getAuthorizationSnapshot())
+      if (identity) {
+        linkedEmail = identity.email
+        linkedEmailVerified = true
         const [account] = await db.select({ id: users.id, status: users.status })
-          .from(users).where(eq(users.identityId, identity.id)).limit(1)
+          .from(users).where(eq(users.id, identity.userId)).limit(1)
         if (account?.status === 'active') linkedUserId = account.id
       }
     } catch {
-      // Public enquiries remain available when no Identity session exists.
+      // Public enquiries remain available when no active verified Oxford session exists.
     }
 
     if (data.kind === 'partner') {

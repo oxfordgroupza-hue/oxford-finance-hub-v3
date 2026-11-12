@@ -11,11 +11,11 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@netlify/identity', () => ({
-  getUser: vi.fn(async () => null),
   logout: vi.fn(),
 }))
 vi.mock('@/lib/auth', () => ({
   getAuthorizationSnapshot: vi.fn(),
+  logoutWithIdentity: vi.fn(),
 }))
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn() },

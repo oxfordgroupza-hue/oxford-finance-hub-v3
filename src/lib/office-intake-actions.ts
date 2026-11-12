@@ -1,6 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getUser } from '@netlify/identity'
-import { isIdentityEmailConfirmed } from './identity-verification'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -20,6 +18,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { getVerifiedSessionIdentity } from './verified-session'
 import { createApplicationReference } from './application-reference'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
 import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
@@ -526,19 +525,12 @@ const claimInput = z.object({ token: z.string().min(32).max(128) })
 export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
   .validator((input: unknown) => claimInput.parse(input))
   .handler(async ({ data }) => {
-    const identity = await getUser()
-    const identityEmail = identity?.email?.trim().toLowerCase() ?? ''
-    if (!identity?.id || !identityEmail ||
-        !isIdentityEmailConfirmed(identity)) {
-      throw new Error('Sign in and verify your email address before continuing with this invitation.')
+    // Use the TanStack-managed server session; the Netlify Identity browser SDK is unavailable here.
+    const identity = getVerifiedSessionIdentity(await getAuthorizationSnapshot())
+    if (!identity || identity.accountType !== 'customer') {
+      throw new Error('Sign in with a verified customer account before continuing with this invitation.')
     }
-
-    const session = await getAuthorizationSnapshot()
-    if (!session.authenticated || !session.provisioned || session.blocked ||
-        session.user.accountType !== 'customer' || session.user.email.trim().toLowerCase() !== identityEmail) {
-      throw new Error('This invitation can only be claimed by its verified applicant customer account.')
-    }
-
+    const identityEmail = identity.email
     const tokenHash = hashOfficeInvitationToken(data.token)
     return db.transaction(async (tx) => {
       await tx.execute(sql`select id from application_intakes where token_hash = ${tokenHash} for update`)
@@ -565,7 +557,7 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
       }
 
       const [account] = await tx.select({ id: users.id, status: users.status, accountType: users.accountType })
-        .from(users).where(eq(users.identityId, identity.id)).limit(1)
+        .from(users).where(eq(users.id, identity.userId)).limit(1)
       if (!account || account.status !== 'active' || account.accountType !== 'customer') {
         throw new Error('Your customer account is not active. Contact Oxford Business Group for assistance.')
       }

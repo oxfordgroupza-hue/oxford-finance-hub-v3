@@ -1,4 +1,4 @@
-import { getUser, logout } from '@netlify/identity'
+import { logout } from '@netlify/identity'
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -28,18 +28,16 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
     let active = true
     void (async () => {
       try {
-        const user = await getUser()
+        // The server-managed HttpOnly cookie is authoritative; do not depend on
+        // a separate browser Identity SDK token being present in local storage.
+        const session = await getAuthorizationSnapshot()
         if (!active) return
-        setAuthenticated(Boolean(user))
-        if (!user) {
+        setAuthenticated(session.authenticated)
+        if (!session.authenticated || !session.provisioned || session.blocked) {
           setWorkspace(null)
           return
         }
-        const session = await getAuthorizationSnapshot()
-        if (!active) return
-        if (!session.authenticated || !session.provisioned || session.blocked) {
-          setWorkspace(null)
-        } else if (session.isSuperAdmin) {
+        if (session.isSuperAdmin) {
           setWorkspace({ to: '/admin', label: 'Administration' })
         } else if (session.user.accountType === 'office' && session.permissions.includes('office.view')) {
           setWorkspace({ to: '/office', label: 'Office workspace' })
