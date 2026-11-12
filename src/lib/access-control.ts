@@ -30,13 +30,15 @@ import type { AccountStatus, AccountType } from './domain'
 /**
  * One-time Super Administrator bootstrap for the explicitly configured identity.
  * It must never override a disabled/suspended account or silently restore a role
- * that an administrator previously revoked. V3 production bootstrap is disabled;
- * the approved Deploy Preview requires the exact configured identity and a confirmed email.
+ * that an administrator previously revoked. The approved Deploy Preview or production context
+ * requires the exact configured identity and a confirmed email.
  */
 export function canBootstrapInitialSuperAdmin(input: {
   email: string | null | undefined
   bootstrapEmail: string | null | undefined
   isDeployPreview: boolean
+  isProduction: boolean
+  hasActiveSuperAdminElsewhere: boolean
   emailConfirmed: boolean
   accountStatus: AccountStatus
   hasSuperAdminAssignmentHistory: boolean
@@ -49,7 +51,8 @@ export function canBootstrapInitialSuperAdmin(input: {
   // Email confirmation is mandatory in every environment. Preview isolation is
   // not a substitute for proving control of the designated administrator email.
   if (!input.emailConfirmed) return false
-  return input.isDeployPreview
+  if (input.hasActiveSuperAdminElsewhere) return false
+  return input.isDeployPreview || input.isProduction
 }
 
 export const permissionActions = [

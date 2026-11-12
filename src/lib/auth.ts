@@ -48,12 +48,12 @@ export const logoutWithIdentity = createServerFn({ method: 'POST' }).handler(asy
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
- * Administrator role only in the approved V3 Deploy Preview after email verification
- * and a confirmed Identity email. Production bootstrap is disabled.
+ * Administrator role in the approved V3 Deploy Preview or production after the
+ * exact configured Identity email is confirmed and no prior administrator exists.
  */
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
-    { and, eq, isNull },
+    { and, eq, isNull, ne },
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
@@ -208,10 +208,20 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
       eq(staffRoles.roleId, superRole.id),
     )).limit(1)
 
+  const [activeSuperAdminAssignment] = await db.select({ userId: staffRoles.userId })
+    .from(staffRoles)
+    .where(and(
+      eq(staffRoles.roleId, superRole.id),
+      isNull(staffRoles.revokedAt),
+      ne(staffRoles.userId, account.id),
+    ))
+    .limit(1)
   const mayBootstrap = canBootstrapInitialSuperAdmin({
     email,
     bootstrapEmail,
     isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
+    isProduction: process.env.CONTEXT === 'production',
+    hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),

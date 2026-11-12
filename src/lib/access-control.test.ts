@@ -303,6 +303,8 @@ describe('initial Super Administrator bootstrap gate', () => {
     email: 'admin@example.co.za',
     bootstrapEmail: 'ADMIN@example.co.za',
     isDeployPreview: false,
+    isProduction: false,
+    hasActiveSuperAdminElsewhere: false,
     emailConfirmed: false,
     accountStatus: 'active' as const,
     hasSuperAdminAssignmentHistory: false,
@@ -320,8 +322,13 @@ describe('initial Super Administrator bootstrap gate', () => {
     expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, emailConfirmed: true, hasSuperAdminAssignmentHistory: true })).toBe(false)
   })
 
-  it('never enables production bootstrap', () => {
-    expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: false, emailConfirmed: true })).toBe(false)
+  it('allows the designated identity in production only after email confirmation', () => {
+    expect(canBootstrapInitialSuperAdmin({ ...base, isProduction: true, emailConfirmed: false })).toBe(false)
+    expect(canBootstrapInitialSuperAdmin({ ...base, isProduction: true, emailConfirmed: true })).toBe(true)
+  })
+
+  it('never replaces another active Super Administrator', () => {
+    expect(canBootstrapInitialSuperAdmin({ ...base, isProduction: true, emailConfirmed: true, hasActiveSuperAdminElsewhere: true })).toBe(false)
   })
 
 

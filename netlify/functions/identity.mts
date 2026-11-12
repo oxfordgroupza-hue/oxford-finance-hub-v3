@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { db } from '../../db/index'
 import {
@@ -79,17 +79,18 @@ async function assignBaselineRole(userId: string, roleKey: string) {
 
 /**
  * One-time bootstrap of the explicitly designated administrator on the approved
- * V3 Deploy Preview only. Never reactivate a disabled/suspended account or restore
- * a Super Administrator assignment that has previously been revoked.
+ * V3 Deploy Preview or production. Never reactivate a disabled/suspended account
+ * or restore a Super Administrator assignment that has previously been revoked.
  */
 async function bootstrapInitialAdministrator(userId: string, email: string, emailConfirmed: boolean) {
   const configuredEmail = Netlify.env.get('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
-  // Defence in depth: only the approved V3 Deploy Preview can bootstrap the
-  // designated, email-verified administrator. Production is never eligible.
+  // Defence in depth: only the approved preview or production
+  // context can bootstrap the exact, email-confirmed administrator identity.
   const context = Netlify.env.get('CONTEXT')
   const deployPrimeUrl = Netlify.env.get('DEPLOY_PRIME_URL')
   const isDeployPreview = isApprovedV3DeployPreview(context, deployPrimeUrl)
-  if (!isDeployPreview || !configuredEmail || email !== configuredEmail) return false
+  const isProduction = context === 'production'
+  if ((!isDeployPreview && !isProduction) || !configuredEmail || email !== configuredEmail) return false
 
   const [account] = await db.select({ status: users.status })
     .from(users).where(eq(users.id, userId)).limit(1)
@@ -111,10 +112,20 @@ async function bootstrapInitialAdministrator(userId: string, email: string, emai
     endsAt: userSuspensions.endsAt,
     liftedAt: userSuspensions.liftedAt,
   }).from(userSuspensions).where(eq(userSuspensions.userId, userId))
+  const [activeSuperAdminAssignment] = await db.select({ userId: staffRoles.userId })
+    .from(staffRoles)
+    .where(and(
+      eq(staffRoles.roleId, role.id),
+      isNull(staffRoles.revokedAt),
+      ne(staffRoles.userId, userId),
+    ))
+    .limit(1)
   const mayBootstrap = canBootstrapInitialSuperAdmin({
     email,
     bootstrapEmail: configuredEmail,
     isDeployPreview,
+    isProduction,
+    hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
     emailConfirmed,
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(assignmentHistory),
