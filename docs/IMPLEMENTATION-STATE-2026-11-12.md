@@ -6,7 +6,7 @@
 
 - Repository: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3`
 - Branch: `fix/v3-desktop-validation-baseline`
-- Commit: `3ee536d344551b9d8fa68e488d4524ea6966ebc6`
+- Commit: `ab52837d1ee7f11146e02985f26d5c323f092329`
 - Deploy Preview: `https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/`
 - Pull request: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/2` (open, draft, unmerged)
 - Netlify deploy: `6af4e016768a376d0cfbfeb9` (`ready`, Deploy Preview only)
@@ -15,7 +15,7 @@
 
 | Check | Result |
 | --- | --- |
-| Vitest | 34 files, 186 tests passed |
+| Vitest | 35 files, 188 tests passed |
 | TypeScript | Passed |
 | ESLint | Passed |
 | Drizzle migration check | Passed |
@@ -35,7 +35,7 @@
 
 - Seven-role permission model, account-type caps, Super Admin permission derivation and access-control tests.
 - Customer/partner self-service scope and restricted people directory with masked identity values, permission-gated full identity lookup, HMAC fingerprint search, rate limiting and audit events.
-- Office applicant intake create/list/revoke/resend/claim workflow; invitation tokens are high-entropy, hashed at rest, expire after 72 hours and are bound to a verified matching applicant email.
+- Office applicant intake create/list/revoke/resend/claim workflow; invitation tokens are high-entropy, hashed at rest, expire after 72 hours and are bound to a verified matching applicant email. Token hashing and claim-state validation now have dedicated unit tests, including explicit rejection of an `expired` state.
 - Partner-originated starter intake; active partner and asset-catalogue validation; referral ownership is assigned to the customer after claim; partner notification is registration-only.
 - Partner referral/linking rules and server-side supplier upload permission checks.
 - Individual/Business credit-assessment evidence model, verified-only calculations, append-only reviewer evidence and versioned 100-point rules workflow.
