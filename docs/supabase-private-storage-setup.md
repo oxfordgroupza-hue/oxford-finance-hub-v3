@@ -1,6 +1,6 @@
 # Supabase private document storage — V3 implementation
 
-Last reviewed: 11 November 2026
+Last reviewed: 12 November 2026
 
 ## Provider decision
 

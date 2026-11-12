@@ -69,8 +69,8 @@ This addendum supersedes the older checkpoint above where dates or states confli
 - Deploy health reports the authoritative database as Netlify; Supabase bucket configured and verified; PII encryption configured; live applications disabled; document uploads disabled.
 - Netlify Identity settings endpoint responds HTTP 200 and unauthenticated Identity user endpoint responds HTTP 401, as expected. This confirms the Identity service is responding; it does not by itself prove every signup, confirmation, recovery and sign-out journey.
 - Public route smoke checks returned HTTP 200 for `/`, `/login`, `/apply`, `/office`, `/partner`, `/office/credit-assessments` and `/partner-payouts`.
-- Latest local validation: 34 test files / 186 tests passed; TypeScript passed; ESLint passed; Drizzle migration check passed; Vite client and SSR production build passed; `git diff --check` passed.
-- Latest deploy secret validation scanned 225 files and reported no secret matches.
+- Latest local validation: 34 test files / 188 tests passed; TypeScript passed; ESLint passed; Drizzle migration check passed; Vite client and SSR production build passed; `git diff --check` passed.
+- Latest deploy secret validation scanned 228 files and reported no secret matches.
 - Migration M26 `20261111233000_m26_support_request_phone_directory_search` is applied to the isolated preview database branch. M24/M25 were applied by preceding preview deployments.
 - The restricted directory implementation is deployed. Backfill found zero existing finance applications in the preview database. Customer/Partner live-record search acceptance remains unavailable because the preview has no customer/partner records to exercise.
 
@@ -92,7 +92,7 @@ This addendum supersedes the older checkpoint above where dates or states confli
 | Private document storage | Health confirms private storage verification and encryption configured | Uploads remain disabled. Complete the full synthetic storage matrix before considering enablement. |
 | Notifications and automation | Queue/template/retry code present | Controlled Oxford-owned preview inbox delivery and failure/retry tests remain. WhatsApp and AI provider delivery are not verified or enabled. |
 | Restricted people directory | Implemented, migrated, deployed and preview-smoke-tested | Customer/Partner live-record paths await synthetic records; no raw ID values in ordinary results. |
-| Security and QA | 186 tests, typecheck, lint, Drizzle check, build, diff check and deploy secret scan pass | Complete authenticated cross-role, storage, notification, retention and recovery acceptance. |
+| Security and QA | 188 tests, typecheck, lint, Drizzle check, build, diff check and deploy secret scan pass | Complete authenticated cross-role, storage, notification, retention and recovery acceptance. |
 | Staging / release readiness | Deploy Preview ready; public routes and health verified | Preview is public and may contain copied data; complete full acceptance, privacy review, backup/recovery documentation and go/no-go record. |
 | Production | Not deployed or authorised | Requires separate explicit approval. |
 
