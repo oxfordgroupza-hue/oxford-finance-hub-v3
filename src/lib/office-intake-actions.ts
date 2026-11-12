@@ -24,6 +24,9 @@ import { createApplicationReference } from './application-reference'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
 import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
 import { partnerApplicantIntakeInput } from './partner-intake-validation'
+import { createOfficeInvitationToken } from './office-intake-security'
+import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
+import { hashOfficeInvitationToken } from './office-intake-security'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -50,11 +53,6 @@ async function requireIntakeOffice() {
 
 function previewOrigin() {
   return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
-}
-
-function createInvitationToken() {
-  const token = randomBytes(32).toString('base64url')
-  return { token, hash: createHash('sha256').update(token).digest('hex') }
 }
 
 function invitationUrl(token: string) {
@@ -166,7 +164,7 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
     // Validate the encryption key before any applicant identity data is inserted.
     const applicantEmailFingerprint = fingerprintApplicantData({ email })
     const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
-    const { token, hash } = createInvitationToken()
+    const { token, hash } = createOfficeInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
     const [intake] = await db.insert(applicationIntakes).values({
@@ -279,7 +277,7 @@ export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
     const email = data.applicantEmail.toLowerCase()
     const applicantEmailFingerprint = fingerprintApplicantData({ email })
     const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
-    const { token, hash } = createInvitationToken()
+    const { token, hash } = createOfficeInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
     const [intake] = await db.insert(applicationIntakes).values({
@@ -478,7 +476,7 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
           eq(users.status, 'active'),
         )).limit(1)
       : [undefined]
-    const { token, hash } = createInvitationToken()
+    const { token, hash } = createOfficeInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     await db.transaction(async (tx) => {
       const [updated] = await tx.update(applicationIntakes).set({
@@ -541,7 +539,7 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
       throw new Error('This invitation can only be claimed by its verified applicant customer account.')
     }
 
-    const tokenHash = createHash('sha256').update(data.token).digest('hex')
+    const tokenHash = hashOfficeInvitationToken(data.token)
     return db.transaction(async (tx) => {
       await tx.execute(sql`select id from application_intakes where token_hash = ${tokenHash} for update`)
       const [intake] = await tx.select().from(applicationIntakes)
@@ -554,12 +552,16 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
       if (!emailMatches || applicant.email !== identityEmail) {
         throw new Error('The signed-in email address does not match the invited applicant.')
       }
-      if (intake.status === 'claimed' || intake.claimedAt) throw new Error('This invitation has already been claimed.')
-      if (intake.status === 'revoked' || intake.revokedAt) {
+      const claimBlockReason = getOfficeInvitationClaimBlockReason(intake)
+      if (claimBlockReason === 'claimed') throw new Error('This invitation has already been claimed.')
+      if (claimBlockReason === 'revoked') {
         throw new Error('This invitation has been revoked. Contact Oxford Business Group for assistance.')
       }
-      if (intake.tokenExpiresAt.getTime() <= Date.now()) {
+      if (claimBlockReason === 'expired') {
         throw new Error('This invitation has expired. Ask Oxford Business Group to send a new invitation.')
+      }
+      if (claimBlockReason === 'invalid_state') {
+        throw new Error('This invitation is invalid or is no longer available.')
       }
 
       const [account] = await tx.select({ id: users.id, status: users.status, accountType: users.accountType })
