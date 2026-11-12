@@ -28,9 +28,9 @@ export const loginWithIdentity = createServerFn({ method: 'POST' })
     }
     const tokens = await response.json() as { access_token?: string; refresh_token?: string }
     if (!tokens.access_token) throw new Error('Identity did not return a valid sign-in session.')
-    setCookie('nf_jwt', tokens.access_token, { path: '/', secure: true, sameSite: 'lax' })
+    setCookie('nf_jwt', tokens.access_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
     if (tokens.refresh_token) {
-      setCookie('nf_refresh', tokens.refresh_token, { path: '/', secure: true, sameSite: 'lax' })
+      setCookie('nf_refresh', tokens.refresh_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
     }
     return { authenticated: true as const }
   })
@@ -39,7 +39,7 @@ export const loginWithIdentity = createServerFn({ method: 'POST' })
 export const logoutWithIdentity = createServerFn({ method: 'POST' }).handler(async () => {
   const request = getRequest()
   verifyRequestOrigin(request)
-  const expiredCookie = { path: '/', secure: true, sameSite: 'lax' as const, maxAge: 0 }
+  const expiredCookie = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const, maxAge: 0 }
   setCookie('nf_jwt', '', expiredCookie)
   setCookie('nf_refresh', '', expiredCookie)
   return { authenticated: false as const }
