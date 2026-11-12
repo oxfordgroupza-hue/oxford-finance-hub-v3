@@ -89,3 +89,12 @@ No production deployment, production migration, live applicant processing, live 
 - Email provider configuration is not equivalent to a verified delivery test. No controlled recipient delivery is claimed here.
 - Private storage health verification is not equivalent to successful upload/download acceptance. Uploads remain disabled.
 - The user-visible product remains in Deploy Preview; the production site has not been published.
+
+
+### Production launch gate - 12 November 2026
+
+- Production Netlify hostname https://oxford-finance-hub-v3-c28z.netlify.app currently returns HTTP 404; no production deploy exists for this V3 site.
+- netlify.toml intentionally skips production-context deploys and permits isolated Deploy Previews only. This guard remains in place.
+- The privacy policy, POPIA notice, terms and complaints process are visibly marked as drafts. The Information Officer contact is not yet confirmed, and the external complaint escalation details are explicitly pending. These cannot be replaced with invented legal details.
+- Online application submissions and document uploads remain disabled. No real applicant intake, personal/financial document collection, live provider delivery or settlement execution is available.
+- The ready Deploy Preview is suitable for controlled review/demo only; it is not a production launch.
