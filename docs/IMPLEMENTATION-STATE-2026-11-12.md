@@ -98,3 +98,7 @@ No production deployment, production migration, live applicant processing, live 
 - The privacy policy, POPIA notice, terms and complaints process are visibly marked as drafts. The Information Officer contact is not yet confirmed, and the external complaint escalation details are explicitly pending. These cannot be replaced with invented legal details.
 - Online application submissions and document uploads remain disabled. No real applicant intake, personal/financial document collection, live provider delivery or settlement execution is available.
 - The ready Deploy Preview is suitable for controlled review/demo only; it is not a production launch.
+
+## Public website publication scope
+
+The approved publication is limited to the public informational website and controlled demonstration. Finance application submissions, document uploads, outbound email delivery, super-administrator bootstrap and settlement execution remain disabled by production-safe flags. This publication does not represent authorization to accept live applications, collect applicant documents, deliver finance decisions, or execute partner settlements. Production database migrations are not part of this release.
