@@ -52,3 +52,55 @@ No production deployment, live applications, document upload, email/WhatsApp del
 - Netlify Identity settings return 404 because Identity has not been enabled in the dashboard. Identity configuration is dashboard-only with no public API; enable it at `https://app.netlify.com/projects/oxford-finance-hub-v3-c28z/identity`. The preview bootstrap environment-variable write returned HTTP 403, so real account provisioning remains blocked. Site environment inspection also found a stale `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`; current code expects `OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED`, which is absent and must be added in Deploy Preview context when dashboard access is available.
 - The Supabase document bucket is configured, but server-side storage verification is false because the server secret is absent; the PII encryption key is also absent. Application, document-upload and email-delivery gates remain disabled. Settlement recording is preview-only and requires active partner-specific terms; no payment or payout is initiated.
 - The primary Netlify site URL returns 404 (no production deploy is published). No production deploy, real applicant data, document uploads, email, WhatsApp, fund transfers or production payouts were enabled. Preview settlement recording remains conditional on an active partner-specific terms version and non-production data.
+
+## Current V3 checkpoint — 12 November 2026
+
+This addendum supersedes the older checkpoint above where dates or states conflict. It records the latest checked-out V3 branch and Deploy Preview; it does not authorise production release.
+
+- Repository: `oxfordgroupza-hue/oxford-finance-hub-v3`.
+- Branch: `fix/v3-desktop-validation-baseline`.
+- Latest commit: `3ee536d344551b9d8fa68e488d4524ea6966ebc6`.
+- Deploy Preview: `https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/`.
+- Latest deploy: `6af4e016768a376d0cfbfeb9`, state `ready`, context `deploy-preview`, database branch `fix/v3-desktop-validation-baseline`.
+- Working tree was clean at checkpoint start.
+
+### Verified in this checkpoint
+
+- Deploy health reports the authoritative database as Netlify; Supabase bucket configured and verified; PII encryption configured; live applications disabled; document uploads disabled.
+- Netlify Identity settings endpoint responds HTTP 200 and unauthenticated Identity user endpoint responds HTTP 401, as expected. This confirms the Identity service is responding; it does not by itself prove every signup, confirmation, recovery and sign-out journey.
+- Public route smoke checks returned HTTP 200 for `/`, `/login`, `/apply`, `/office`, `/partner`, `/office/credit-assessments` and `/partner-payouts`.
+- Latest local validation: 34 test files / 186 tests passed; TypeScript passed; ESLint passed; Drizzle migration check passed; Vite client and SSR production build passed; `git diff --check` passed.
+- Latest deploy secret validation scanned 225 files and reported no secret matches.
+- Migration M26 `20261111233000_m26_support_request_phone_directory_search` is applied to the isolated preview database branch. M24/M25 were applied by preceding preview deployments.
+- The restricted directory implementation is deployed. Backfill found zero existing finance applications in the preview database. Customer/Partner live-record search acceptance remains unavailable because the preview has no customer/partner records to exercise.
+
+### Milestone evidence register
+
+| Area | Current evidence state | Remaining acceptance / dependency |
+| --- | --- | --- |
+| Repository recovery and source import | Implemented in source; Deploy Preview verified | Finish full source-to-requirements traceability and historical branch comparison. |
+| Core database and migrations | Implemented in source; preview migrations applied through M26; Drizzle check passing | Complete authenticated relational-data and backup/restore verification. |
+| Identity and account provisioning | Identity endpoint responding; Super Admin preview session previously used for authenticated workspace checks | Test customer and partner signup, email confirmation, login, recovery, invitation callback, redirects and sign-out end to end with synthetic accounts. |
+| Seven roles and Super Admin | Permission model and tests implemented; Super Admin office workspace verified | Complete direct server-function and per-role acceptance with synthetic accounts, including reviewer assignment and support restrictions. |
+| Public site and finance wizard | Routes verified; wizard, catalogue cascade and secure draft code implemented | Complete eight Individual/Business × finance-category journeys. Final submission remains disabled. |
+| Office applicant intake | Create/list/revoke/resend/claim code and UI implemented; token hashing, expiry and ownership logic present | Test verified-email claim, token rotation, wrong-email/expired/revoked/replay and concurrent-claim cases with synthetic accounts. Email delivery is not declared provider-verified. |
+| Partner-originated intake and referral | Starter intake, own-referral scoping, active-partner validation and registration-only notification code implemented | End-to-end test with a synthetic approved partner and customer; verify attribution, one-partner conflict and no private document access. |
+| Merchant linking and supplier upload rules | Implemented in source with server-side revalidation and permission tests | Exercise linked/referral conflict and permitted/denied file categories using synthetic records and dummy files. |
+| Commercial terms | Versioned partner-specific draft/approve/activate workflow implemented | No commercial terms are approved by this checkpoint. Keep `OXFORD_SETTLEMENT_TERMS_APPROVED=false`; do not invent rates or activate terms. |
+| Settlement and partner payout | Immutable settlement/adjustment logic and own-net payout scoping implemented | Synthetic reconciliation and role-isolation acceptance remains; no payment execution. |
+| Internal credit assessment | Individual/Business inputs, evidence classification, six scoring dimensions and versioned report code implemented; 186 tests pass | No active ruleset is seeded. Super Admin approval is required; end-to-end reviewer/assignment acceptance with synthetic cases remains. No bureau lookup or automated lending decision. |
+| Private document storage | Health confirms private storage verification and encryption configured | Uploads remain disabled. Complete the full synthetic storage matrix before considering enablement. |
+| Notifications and automation | Queue/template/retry code present | Controlled Oxford-owned preview inbox delivery and failure/retry tests remain. WhatsApp and AI provider delivery are not verified or enabled. |
+| Restricted people directory | Implemented, migrated, deployed and preview-smoke-tested | Customer/Partner live-record paths await synthetic records; no raw ID values in ordinary results. |
+| Security and QA | 186 tests, typecheck, lint, Drizzle check, build, diff check and deploy secret scan pass | Complete authenticated cross-role, storage, notification, retention and recovery acceptance. |
+| Staging / release readiness | Deploy Preview ready; public routes and health verified | Preview is public and may contain copied data; complete full acceptance, privacy review, backup/recovery documentation and go/no-go record. |
+| Production | Not deployed or authorised | Requires separate explicit approval. |
+
+### Non-negotiable release state
+
+- `OXFORD_APPLICATIONS_ENABLED=false`.
+- `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`.
+- `OXFORD_SETTLEMENT_TERMS_APPROVED=false` until Oxford approves written commercial terms.
+- No production deployment or production migration.
+- No real applicant processing, private document uploads, outbound live email/WhatsApp, settlement transfer or partner payout execution.
+- Use synthetic accounts and dummy files only for further acceptance. Do not share the public Deploy Preview externally without considering its data exposure.
