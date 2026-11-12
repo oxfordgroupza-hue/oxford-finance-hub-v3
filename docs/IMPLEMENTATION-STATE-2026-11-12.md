@@ -6,10 +6,10 @@
 
 - Repository: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3`
 - Branch: `fix/v3-desktop-validation-baseline`
-- Commit: `ab52837d1ee7f11146e02985f26d5c323f092329`
+- Commit: `a5a02e757942d59af455ba842a031c9589526a37`
 - Deploy Preview: `https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/`
 - Pull request: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/2` (open, draft, unmerged)
-- Netlify deploy: `6af4e016768a376d0cfbfeb9` (`ready`, Deploy Preview only)
+- Netlify deploy: `6af53950349284bbb719ec74` (`ready`, Deploy Preview only)
 
 ## Evidence captured 12 November 2026
 
@@ -22,11 +22,11 @@
 | Vite client build | Passed |
 | Vite SSR build | Passed |
 | `git diff --check` | Passed |
-| Netlify secret scan | 225 files scanned; no matches |
+| Netlify secret scan | 228 files scanned; no matches |
 | Preview health | Netlify authoritative database; private bucket configured and verified; PII encryption configured |
 | Release flags | Live applications disabled; document uploads disabled |
-| Identity service | Settings endpoint HTTP 200; unauthenticated user endpoint HTTP 401 |
-| Route smoke test | `/`, `/login`, `/apply`, `/office`, `/partner`, `/office/credit-assessments`, `/partner-payouts` all HTTP 200 |
+| Identity service | Email authentication enabled with confirmation required; settings HTTP 200; unauthenticated user endpoint HTTP 401 |
+| Route smoke test | 20 public and protected route paths returned HTTP 200, including `/`, `/login`, `/apply`, `/office`, `/office/intakes`, `/partner`, `/office/credit-assessments`, `/partner-payouts`, policy and support pages |
 | Preview migrations | M26 applied; M24/M25 applied in preceding deployments |
 
 ## Implementation-state distinctions

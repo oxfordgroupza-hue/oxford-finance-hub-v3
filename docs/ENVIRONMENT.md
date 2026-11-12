@@ -30,15 +30,18 @@ This document lists variable names only. Never commit values.
 
 Use separate credentials and contexts for local development, Deploy Preview and production. Never prefix secrets with `VITE_`. Verify provider-specific secret formats from current provider documentation. Do not enable live integrations without separate approval and acceptance evidence.
 
-## V3 Deploy Preview configuration status — 11 November 2026
+## V3 Deploy Preview configuration status — 12 November 2026
 
-The latest preview health endpoint reports:
+The latest verified Deploy Preview health endpoint reports:
 
 - Netlify Database is the authoritative relational database.
-- The Supabase bucket is configured, but server-side storage verification is false.
-- PII encryption is not configured.
-- Document uploads and live application submission are disabled.
-- Netlify Identity settings return HTTP 404 because Identity has not been enabled for the V3 site.
-- A Netlify environment-variable write returned HTTP 403; the preview bootstrap flag and server-only credentials therefore remain externally blocked.
+- The private Supabase bucket is configured and server-side storage verification is true.
+- PII encryption is configured.
+- Document uploads and live application submission remain disabled.
+- Netlify Identity settings return HTTP 200; email authentication is enabled and email confirmation is required.
+- The unauthenticated Identity user endpoint returns HTTP 401, as expected.
+- Super Administrator Office directory access has been exercised in the preview browser.
 
-No secret values belong in this document or in chat. An authorised Netlify dashboard operator must configure the preview-only variables. Keep all production variables and feature gates separate and disabled until the synthetic acceptance matrix and qualified review are complete.
+These checks verify configuration and limited authenticated access, not complete applicant, partner, document, email or finance workflows. Do not infer successful email delivery or document upload from configuration/health checks. Keep production variables and feature gates separate and disabled until synthetic acceptance and qualified review are complete.
+
+No secret values belong in this document or in chat.

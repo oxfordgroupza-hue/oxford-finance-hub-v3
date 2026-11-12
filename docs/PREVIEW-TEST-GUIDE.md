@@ -33,28 +33,31 @@ The Office credit-assessment worksheet now captures separate Individual and Busi
 - M20 creates the versioned rules table. No active ruleset is seeded; the initial template weights are not Oxford policy. A Super Administrator must review, save and explicitly approve the first ruleset before reviewers can save reports.
 - Bank-statement reversals are still derived server-side from encrypted transaction candidates and the latest append-only human classifications. More than two verified reversals in the latest three calendar months triggers manual review, never automatic decline.
 
-These features are implemented in source and covered by automated tests. They have not yet been accepted end-to-end because Netlify Identity and the preview bootstrap are not available. Do not enter real applicant information in this preview.
+These features are implemented in source and covered by automated tests. Netlify Identity, private-storage verification and PII encryption are now configured in Deploy Preview, and Super Administrator Office directory access has been exercised. Full customer, partner, invitation, document, notification and financial-workflow acceptance remains outstanding. Do not enter real applicant information in this preview.
 
-## Intentionally unavailable
+## Intentionally unavailable / not yet accepted
 
 - `/apply` displays a pause notice. Do not enter or submit real personal, identity, banking or financial information.
-- `/login` cannot complete authentication because Netlify Identity is not enabled for this site (Identity endpoints return 404).
-- Protected Office, Admin, Partner and reviewer workflows cannot be accepted end-to-end until Identity and the preview Super Administrator bootstrap are configured.
-- Real application submission and document upload are disabled.
-- Email, WhatsApp and finance-provider delivery are disabled.
+- Netlify Identity is now configured: its settings endpoint returns HTTP 200, email authentication is enabled and email confirmation is required. The unauthenticated user endpoint returns HTTP 401.
+- Super Administrator Office directory access has been exercised in the preview browser. This is not acceptance of all seven role workflows or all direct-function authorization boundaries.
+- Real application submission and document upload remain disabled.
+- Email, WhatsApp and finance-provider delivery have not completed controlled recipient acceptance; do not assume delivery works from configuration alone.
 - Fee calculations, settlement execution and payouts remain gated pending approved commercial/remittance terms and separate release approval.
 
-## Required configuration before authenticated acceptance
+## Remaining configuration and acceptance work
 
-Configure these only in the **Deploy Preview** context unless a separate production release is formally approved:
+The current preview health endpoint confirms the authoritative Netlify database, configured and verified private storage, and configured PII encryption. Do not rotate or replace these working secrets as part of routine testing. Continue only with isolated synthetic accounts and dummy documents:
 
-1. Enable/configure Netlify Identity in the [V3 site's Identity settings](https://app.netlify.com/projects/oxford-finance-hub-v3-c28z/identity), including email confirmation and the intended administrator identity.
-2. Add `OXFORD_INITIAL_SUPER_ADMIN_PREVIEW_BOOTSTRAP_ENABLED=true` as a Deploy Preview-only server/function environment variable. The automated environment-variable update was rejected with HTTP 403, so this remains a dashboard action.
-3. Add a stable, high-entropy `OXFORD_PII_ENCRYPTION_KEY` as a server-only secret. Do not commit or share its value.
-4. Add `SUPABASE_SECRET_KEY` as a server-only secret for the existing private `oxford-customer-documents` bucket. Do not expose it to browser code.
-5. Only after Identity and PII encryption are verified, enable `OXFORD_APPLICATIONS_ENABLED=true` for Deploy Preview and test with synthetic records only.
-6. Enable `OXFORD_DOCUMENT_UPLOADS_ENABLED=true` only after the private bucket access path, authorization, file validation, encryption and download controls pass end-to-end tests.
-7. Configure email delivery separately and keep WhatsApp/provider delivery off until their credentials and test workflows are verified.
+1. Complete Customer and Partner signup, email confirmation, login, recovery and sign-out journeys.
+2. Complete invitation create, resend/token rotation, wrong-email, expiry, revocation, one-time claim and concurrent-claim tests.
+3. Complete partner-originated intake, claim, referral ownership and partner-isolation tests.
+4. Complete all eight Individual/Business × finance-category application combinations after a separately approved Deploy Preview-only application flag change.
+5. Complete role-by-role direct-route and direct-function authorization tests.
+6. Complete private document upload/download, cross-customer and cross-partner denial, concurrency and interrupted-operation recovery after a separately approved Deploy Preview-only upload flag change.
+7. Complete controlled notification delivery to an Oxford-owned preview inbox and provider failure/retry tests.
+8. Complete synthetic credit-assessment and settlement-reconciliation tests without executing payments.
+
+Do not enable any feature gate merely to make a test pass. Confirm the test plan and rollback conditions before changing a Deploy Preview flag.
 
 ## Release safeguards
 
