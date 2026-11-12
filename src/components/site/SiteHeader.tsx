@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import { getAuthorizationSnapshot } from '@/lib/auth'
+import { getAuthorizationSnapshot, logoutWithIdentity } from '@/lib/auth'
 import { BrandLogo } from './BrandLogo'
 
 export const primaryNav = [
@@ -65,7 +65,9 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
     setMobileMenuOpen(false)
     setSigningOut(true)
     try {
-      await logout()
+      // Remove the app's server-side cookies before clearing browser Identity state.
+      await logoutWithIdentity()
+      await logout().catch(() => undefined)
       setAuthenticated(false)
       setWorkspace(null)
       window.location.assign('/')

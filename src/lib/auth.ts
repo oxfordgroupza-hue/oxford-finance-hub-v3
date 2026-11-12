@@ -35,6 +35,16 @@ export const loginWithIdentity = createServerFn({ method: 'POST' })
     return { authenticated: true as const }
   })
 
+/** Clear the server-side session cookies as well as the browser Identity session. */
+export const logoutWithIdentity = createServerFn({ method: 'POST' }).handler(async () => {
+  const request = getRequest()
+  verifyRequestOrigin(request)
+  const expiredCookie = { path: '/', secure: true, sameSite: 'lax' as const, maxAge: 0 }
+  setCookie('nf_jwt', '', expiredCookie)
+  setCookie('nf_refresh', '', expiredCookie)
+  return { authenticated: false as const }
+})
+
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super

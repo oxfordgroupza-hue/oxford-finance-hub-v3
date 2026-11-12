@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { logout } from '@netlify/identity'
+import { logoutWithIdentity } from '@/lib/auth'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
@@ -11,7 +12,9 @@ export function WorkspaceSignOutButton() {
     if (busy) return
     setBusy(true)
     try {
-      await logout()
+      // Clear the application session cookies before ending the browser Identity session.
+      await logoutWithIdentity()
+      await logout().catch(() => undefined)
       window.location.assign('/')
     } catch {
       toast.error('We could not sign you out. Please try again.')
