@@ -6,10 +6,10 @@
 
 - Repository: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3`
 - Branch: `fix/v3-desktop-validation-baseline`
-- Commit: `a5a02e757942d59af455ba842a031c9589526a37`
+- Commit: `2158ea5d74b9c209e88c01710ff8ecd87a53af3d`
 - Deploy Preview: `https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app/`
 - Pull request: `https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/2` (open, draft, unmerged)
-- Netlify deploy: `6af53950349284bbb719ec74` (`ready`, Deploy Preview only)
+- Netlify deploy: `6af53cb2bcb551631c46d144` (`ready`, Deploy Preview only)
 
 ## Evidence captured 12 November 2026
 
