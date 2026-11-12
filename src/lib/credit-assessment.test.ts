@@ -17,7 +17,15 @@ const reversal = (transactionDate: string, overrides: Partial<DebitOrderReversal
 })
 
 describe('Oxford credit assessment foundations', () => {
-  it('uses assessment weights that total 100 points', () => {
+  it('uses the exact six-dimension 100-point framework in the 10 November master specification', () => {
+    expect(CREDIT_ASSESSMENT_WEIGHTS).toEqual({
+      verifiedIncomeAndStability: 20,
+      affordabilityAndDisposableIncome: 30,
+      existingFinancialCommitments: 15,
+      bankStatementBehaviour: 15,
+      employmentOrBusinessStability: 10,
+      documentConsistencyAndVerification: 10,
+    })
     expect(Object.values(CREDIT_ASSESSMENT_WEIGHTS).reduce((total, weight) => total + weight, 0)).toBe(100)
   })
 

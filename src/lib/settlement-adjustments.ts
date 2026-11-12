@@ -1,4 +1,4 @@
-import { calculateOxfordFees } from './fee-calculation'
+import { calculateOxfordFees, type PartnerCommercialFeeTerms } from './fee-calculation'
 
 export interface SettlementTotals {
   actual: number
@@ -27,10 +27,13 @@ export function assertSettlementAdjustmentSequence(
 }
 
 export function calculateSettlementAdjustmentDelta(input: {
-  original: SettlementTotals & { approvedFinanceAmountCents: number }
+  original: SettlementTotals & {
+    approvedFinanceAmountCents: number
+    feeTerms?: PartnerCommercialFeeTerms
+  }
   priorCorrection?: SettlementAdjustmentDelta | null
   adjustmentType: SettlementAdjustmentType
-  correctedActualFunderSettlementAmountCents?: number
+  correctedGrossFunderSettlementAmountCents?: number
 }): SettlementAdjustmentDelta {
   const { original, priorCorrection, adjustmentType } = input
   const current: SettlementTotals = {
@@ -55,11 +58,14 @@ export function calculateSettlementAdjustmentDelta(input: {
     }
   }
 
-  const correctedAmount = input.correctedActualFunderSettlementAmountCents
-  if (!Number.isSafeInteger(correctedAmount) || (correctedAmount ?? 0) <= 0) {
-    throw new Error('A valid corrected actual funder settlement amount is required.')
+  const correctedGrossAmount = input.correctedGrossFunderSettlementAmountCents
+  if (!Number.isSafeInteger(correctedGrossAmount) || (correctedGrossAmount ?? 0) <= 0) {
+    throw new Error('A valid corrected gross funder settlement amount is required.')
   }
-  const fees = calculateOxfordFees(original.approvedFinanceAmountCents, correctedAmount!)
+  if (!original.feeTerms) {
+    throw new Error('This settlement has no partner-specific terms snapshot and cannot be recalculated.')
+  }
+  const fees = calculateOxfordFees(original.approvedFinanceAmountCents, correctedGrossAmount!, original.feeTerms)
   return {
     actual: fees.actualFunderSettlementAmountCents - current.actual,
     documentation: fees.documentationFeeCents - current.documentation,

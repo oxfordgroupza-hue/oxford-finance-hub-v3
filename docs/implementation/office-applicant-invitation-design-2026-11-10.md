@@ -1,7 +1,7 @@
 # Office-created applicant intake and invitation — implementation design
 
-**Status:** design approved for implementation; not yet implemented  
-**Working branch:** `feat/oxford-application-workflows`  
+**Status:** implemented in V3 source; automated validation passing; full authenticated claim/resend/revoke acceptance remains pending synthetic customer-account testing
+**Working branch:** `fix/v3-desktop-validation-baseline`
 **Release restriction:** preview-only until security and end-to-end acceptance tests pass
 
 ## Objective

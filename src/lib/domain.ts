@@ -24,6 +24,25 @@ export const applicationStatuses = [
 export type ApplicationStatus = (typeof applicationStatuses)[number]
 
 /**
+ * Valid operational status changes. Drafts are customer-owned and are never
+ * changed through the Office status control. Closed is terminal; reopening
+ * requires a separately audited administrative correction process.
+ */
+const applicationStatusTransitions: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
+  Draft: [],
+  Submitted: ['Under review', 'Awaiting documents', 'Closed'],
+  'Under review': ['Awaiting documents', 'With finance provider', 'Closed'],
+  'Awaiting documents': ['Under review', 'With finance provider', 'Closed'],
+  'With finance provider': ['Awaiting documents', 'Provider decision received', 'Closed'],
+  'Provider decision received': ['Closed'],
+  Closed: [],
+}
+
+export function canTransitionApplicationStatus(from: ApplicationStatus, to: ApplicationStatus): boolean {
+  return applicationStatusTransitions[from].includes(to)
+}
+
+/**
  * The outcome a *finance provider* communicated. Oxford is an intermediary: a person
  * in the office records the provider's decision. AI and automation never set this.
  */

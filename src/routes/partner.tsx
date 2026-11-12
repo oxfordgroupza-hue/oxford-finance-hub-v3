@@ -5,11 +5,15 @@ import { Copy, ExternalLink, Handshake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteLayout } from '@/components/site/SiteLayout'
 import { PartnerReferralDocumentUpload } from '@/components/application/PartnerReferralDocumentUpload'
+import { PartnerReferralStarter } from '@/components/partner/PartnerReferralStarter'
 import { StatusBadge } from '@/components/site/StatusBadge'
 import { getAuthorizationSnapshot } from '@/lib/auth'
 import { getPartnerWorkspaceData } from '@/lib/partner-actions'
+import { getPartnerIntakeOptions } from '@/lib/office-intake-actions'
 import { getMySupportRequests } from '@/lib/support-actions'
+import { searchMyRecords } from '@/lib/directory-actions'
 import { formatDateTime } from '@/lib/format'
+import { applicationStatuses } from '@/lib/finance-config'
 
 export const Route = createFileRoute('/partner')({
   beforeLoad: async () => {
@@ -24,16 +28,37 @@ export const Route = createFileRoute('/partner')({
       getPartnerWorkspaceData(),
       getMySupportRequests(),
     ])
-    return { workspace, supportRequests }
+    const intakeOptions = workspace.partner.status === 'Approved'
+      ? await getPartnerIntakeOptions()
+      : { assets: [] }
+    return { workspace, supportRequests, assets: intakeOptions.assets }
   },
   head: () => ({ meta: [{ title: 'Partner portal | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
   component: PartnerWorkspace,
 })
 
 function PartnerWorkspace() {
-  const { workspace, supportRequests } = Route.useLoaderData()
+  const { workspace, supportRequests, assets } = Route.useLoaderData()
   const [copyBusy, setCopyBusy] = useState(false)
+  const [recordQuery, setRecordQuery] = useState('')
+  const [recordResults, setRecordResults] = useState<Array<{ reference: string; category: string; status: (typeof applicationStatuses)[number]; identityNumber: string }>>([])
+  const [recordSearchBusy, setRecordSearchBusy] = useState(false)
   const referralUrl = workspace.referralUrl ?? ''
+
+  const runRecordSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (recordQuery.trim().length < 2 || recordSearchBusy) return
+    setRecordSearchBusy(true)
+    try {
+      const result = await searchMyRecords({ data: { query: recordQuery.trim() } })
+      setRecordResults(result.entries)
+      if (!result.entries.length) toast.info('No matching applications were found among your own referrals.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not search your referrals.')
+    } finally {
+      setRecordSearchBusy(false)
+    }
+  }
 
   const copyReferralLink = async () => {
     if (copyBusy) return
@@ -67,6 +92,12 @@ function PartnerWorkspace() {
           <Metric label="Support requests" value={supportRequests.length} />
         </section>
 
+        <PartnerReferralStarter
+          assets={assets}
+          intakes={workspace.intakes}
+          approved={workspace.partner.status === 'Approved'}
+        />
+
         {workspace.referralUrl ? (
         <section className="rounded-sm border border-gold/30 bg-card p-6 sm:p-8">
           <div className="flex items-center gap-3"><Handshake className="size-5 text-gold" /><h2 className="text-2xl">Your referral link</h2></div>
@@ -90,6 +121,16 @@ function PartnerWorkspace() {
             <div><h2 className="text-2xl">My confirmed payouts</h2><p className="mt-1 text-sm text-muted-foreground">View your own net payout amounts for confirmed funder settlements. Oxford's internal fee breakdown is not shown.</p></div>
             <Button asChild variant="outlineGold" className="rounded-sm"><Link to="/partner-payouts">View payouts</Link></Button>
           </div>
+        </section>
+
+        <section className="rounded-sm border border-border bg-card p-6">
+          <h2 className="text-2xl">Find my referred applications</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Search only applications referred by your own partner account, using applicant name, email, phone or application reference. For an exact ID/passport lookup, prefix the number with ID: or PASSPORT:. Applicant contact details and financial/private documents are not displayed; identity numbers remain masked.</p>
+          <form onSubmit={runRecordSearch} className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input value={recordQuery} onChange={(event) => setRecordQuery(event.target.value)} maxLength={100} minLength={2} placeholder="Applicant name, email, phone, reference or ID: number" className="min-w-0 flex-1 rounded-sm border border-border bg-background px-3 py-2 text-sm" />
+            <Button type="submit" variant="outlineGold" className="rounded-sm" disabled={recordSearchBusy || recordQuery.trim().length < 2}>{recordSearchBusy ? 'Searching…' : 'Search my referrals'}</Button>
+          </form>
+          {recordResults.length > 0 && <ul className="mt-4 divide-y divide-border">{recordResults.map((entry) => <li key={entry.reference} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"><div><p className="font-mono text-gold">{entry.reference}</p><p className="mt-1 text-xs text-muted-foreground">{entry.category}{entry.identityNumber ? ` · ID/passport ${entry.identityNumber}` : ''}</p></div><StatusBadge status={entry.status} /></li>)}</ul>}
         </section>
 
         <section className="rounded-sm border border-border bg-card p-6">

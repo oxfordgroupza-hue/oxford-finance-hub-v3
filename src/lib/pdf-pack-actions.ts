@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { randomUUID } from 'node:crypto'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
@@ -14,8 +13,12 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { decryptApplicantData } from './pii-crypto'
+import { decryptApplicantData } from './pii-crypto.server'
 import { formatZAR } from './format'
+import { calculateFinanceAmount } from './fee-calculation'
+import { mergeSupportingDocumentsIntoPdf } from './application-pack-pdf'
+import { applicantStoragePrefix, documentStorageCategory } from './application-document-storage'
+import { isStorageBucketVerified } from './document-storage-security'
 
 function pdfText(value: unknown) {
   const text = String(value ?? '—').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
@@ -63,51 +66,20 @@ function renderPdf(lines: string[]) {
  * Store generated application packs in the private Supabase bucket.
  * This is server-only: the secret key is never returned to the browser.
  */
-async function persistPrivatePdf(applicationId: string, fileName: string, base64: string) {
+async function persistPrivatePdf(objectKey: string, bytes: Uint8Array) {
   const url = process.env.SUPABASE_URL?.replace(/\/+$/, '')
   const key = process.env.SUPABASE_SECRET_KEY
   const bucket = process.env.SUPABASE_BUCKET
-  if (!url || !key || bucket !== 'oxford-customer-documents') {
-    throw new Error('Private application-pack storage is not configured.')
-  }
-
-  const bucketResponse = await fetch(`${url}/storage/v1/bucket/${encodeURIComponent(bucket)}`, {
-    headers: { apikey: key },
-    cache: 'no-store',
-  })
-  if (!bucketResponse.ok) throw new Error('The private document bucket could not be verified.')
-  const details = await bucketResponse.json() as {
-    id?: string
-    public?: boolean
-    file_size_limit?: number
-    allowed_mime_types?: string[]
-  }
-  if (details.id !== bucket || details.public !== false ||
-      !Array.isArray(details.allowed_mime_types) ||
-      !details.allowed_mime_types.includes('application/pdf')) {
-    throw new Error('The configured document bucket is not private or does not accept PDF files.')
-  }
-
-  const bytes = Buffer.from(base64, 'base64')
-  const limit = Number(details.file_size_limit)
-  if (!Number.isFinite(limit) || bytes.length < 1 || bytes.length > limit) {
-    throw new Error('The generated application pack exceeds the private storage limit.')
-  }
-
-  const objectKey = `application-packs/${applicationId}/${randomUUID()}-${fileName}`
+  if (!url || !key || bucket !== 'oxford-customer-documents') throw new Error('Private application-pack storage is not configured.')
+  const bucketResponse = await fetch(`${url}/storage/v1/bucket/${encodeURIComponent(bucket)}`, { headers: { apikey: key }, cache: 'no-store' })
+  if (!bucketResponse.ok || !isStorageBucketVerified(await bucketResponse.json())) throw new Error('The configured document bucket does not match the approved private-storage security settings.')
+  if (bytes.byteLength < 1 || bytes.byteLength > 10 * 1024 * 1024) throw new Error('The completed application pack exceeds the private storage limit. Office must review the original documents.')
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
   const upload = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedKey}`, {
-    method: 'POST',
-    headers: {
-      apikey: key,
-      'content-type': 'application/pdf',
-      'x-upsert': 'false',
-    },
-    body: bytes,
-    cache: 'no-store',
+    method: 'POST', headers: { apikey: key, 'content-type': 'application/pdf', 'x-upsert': 'true' }, body: Buffer.from(bytes), cache: 'no-store',
   })
   if (!upload.ok) throw new Error('The generated application pack could not be saved to private storage.')
-  return { objectKey, bytes: bytes.length, url }
+  return { objectKey, bytes: bytes.byteLength, url }
 }
 
 async function removePrivatePdf(storageUrl: string, objectKey: string) {
@@ -126,9 +98,10 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({ applicationId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const session = await getAuthorizationSnapshot()
-    if (!session.authenticated || !session.provisioned || session.blocked ||
-        session.user.accountType !== 'office' ||
-        (!session.isSuperAdmin && (!session.permissions.includes('pdf_packs.create') || !session.permissions.includes('pdf_packs.download')))) {
+    if (!session.authenticated || !session.provisioned || session.blocked || !session.user) throw new Error('Please sign in to generate an application pack.')
+    const isOffice = session.user.accountType === 'office'
+    const isApplicant = session.user.accountType === 'customer' && session.permissions?.includes('own_applications.view') === true
+    if ((!isOffice && !isApplicant) || (isOffice && !session.isSuperAdmin && (!session.permissions?.includes('pdf_packs.create') || !session.permissions?.includes('pdf_packs.download')))) {
       throw new Error('You do not have permission to generate and download application packs.')
     }
 
@@ -144,6 +117,8 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       createdAt: financeApplications.createdAt,
       applicationData: financeApplications.applicationData,
       customerId: customers.id,
+      customerUserId: customers.userId,
+      profile: customers.profile,
       firstName: customers.firstName,
       lastName: customers.lastName,
       businessName: customers.businessName,
@@ -155,11 +130,12 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       .where(eq(financeApplications.id, data.applicationId))
       .limit(1)
     if (!application) throw new Error('Application not found.')
+    if (isApplicant && application.customerUserId !== session.user.id) throw new Error('You can only generate a pack for your own application.')
     if (application.status === 'Draft' || !application.submittedAt) {
       throw new Error('An application pack can only be generated after the applicant has submitted the application.')
     }
 
-    if (!session.isSuperAdmin && !session.permissions.includes('applications.assign')) {
+    if (isOffice && !session.isSuperAdmin && !session.permissions.includes('applications.assign')) {
       const [assigned] = await db.select({ id: assignments.id }).from(assignments)
         .where(and(
           eq(assignments.applicationId, application.id),
@@ -172,6 +148,12 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     const safe = application.applicationData ?? {}
     const encrypted = typeof safe.piiCiphertext === 'string' ? safe.piiCiphertext : null
     const sensitive = encrypted ? decryptApplicantData(encrypted) : {}
+    const storedProfile = application.profile ?? {}
+    const customerPii = typeof storedProfile.piiCiphertext === 'string'
+      ? decryptApplicantData(storedProfile.piiCiphertext)
+      : {}
+    const applicantEmail = typeof sensitive.email === 'string' ? sensitive.email : typeof customerPii.email === 'string' ? customerPii.email : typeof safe.email === 'string' ? safe.email : application.email
+    const applicantPhone = typeof sensitive.phone === 'string' ? sensitive.phone : typeof customerPii.phone === 'string' ? customerPii.phone : typeof safe.phone === 'string' ? safe.phone : application.phone ?? ''
     const [consents, documents] = await Promise.all([
       db.select({
         consentType: consentRecords.consentType,
@@ -180,9 +162,11 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
         recordedAt: consentRecords.recordedAt,
       }).from(consentRecords).where(eq(consentRecords.applicationId, application.id)).orderBy(desc(consentRecords.recordedAt)),
       db.select({
+        id: applicationDocuments.id,
         documentType: applicationDocuments.documentType,
         originalName: applicationDocuments.originalName,
         mimeType: applicationDocuments.mimeType,
+        storagePath: applicationDocuments.storagePath,
         sizeBytes: applicationDocuments.sizeBytes,
         status: applicationDocuments.status,
         uploadedAt: applicationDocuments.uploadedAt,
@@ -190,8 +174,23 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     ])
 
     const applicant = application.applicantType === 'business'
-      ? application.businessName || safe.businessName || 'Business applicant'
-      : [application.firstName || safe.firstName, application.lastName || safe.lastName].filter(Boolean).join(' ') || 'Individual applicant'
+      ? String(sensitive.businessName ?? customerPii.businessName ?? safe.businessName ?? application.businessName ?? 'Business applicant')
+      : [sensitive.firstName ?? customerPii.firstName ?? safe.firstName ?? application.firstName, sensitive.lastName ?? customerPii.lastName ?? safe.lastName ?? application.lastName].filter(Boolean).join(' ') || 'Individual applicant'
+    if (documents.some((document) => ['Received', 'Verified'].includes(document.status) && !document.storagePath)) throw new Error('A received supporting document has no private storage location. Office must resolve it before the pack can be completed.')
+    const currentDocumentIds = documents.filter((item) => ['Received', 'Verified'].includes(item.status) && item.storagePath).map((item) => item.id).sort()
+    const [existingPack] = await db.select({ fileName: applicationPacks.fileName, storageKey: applicationPacks.storageKey, metadata: applicationPacks.metadata })
+      .from(applicationPacks).where(eq(applicationPacks.applicationId, application.id))
+      .orderBy(desc(applicationPacks.generatedAt)).limit(1)
+    const existingDocumentIds = Array.isArray(existingPack?.metadata?.supportingDocumentIds)
+      ? (existingPack.metadata.supportingDocumentIds as string[]).slice().sort()
+      : []
+    const validExistingPack = typeof existingPack?.storageKey === 'string' && /^(Individual|Business)\/[^/]+\/application-pdf\/[^/]+-Application-Pack\.pdf$/.test(existingPack.storageKey) && !existingPack.storageKey.includes('..')
+    if (validExistingPack && existingPack?.metadata?.completePackVersion === 2 && JSON.stringify(existingDocumentIds) === JSON.stringify(currentDocumentIds)) {
+      return { fileName: existingPack.fileName, contentType: 'application/pdf', bytes: Number(existingPack.metadata.bytes ?? 0), alreadyGenerated: true }
+    }
+    const financeCalculation = application.financeAmount && application.financeAmount > 0
+      ? calculateFinanceAmount(application.financeAmount * 100)
+      : null
     const lines = [
       'OXFORD FINANCE HUB - CONFIDENTIAL APPLICATION PACK',
       `Application reference: ${application.reference}`,
@@ -200,8 +199,8 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       'APPLICANT',
       `Applicant type: ${application.applicantType}`,
       `Applicant / business: ${applicant}`,
-      `Email: ${application.email}`,
-      `Telephone: ${application.phone ?? safe.phone ?? '—'}`,
+      `Email: ${applicantEmail}`,
+      `Telephone: ${applicantPhone || '—'}`,
       `Identity type: ${sensitive.idType ?? 'Not recorded'}`,
       `Identity number: ${sensitive.idNumber ?? 'Not recorded'}`,
       `Date of birth: ${sensitive.dateOfBirth ?? 'Not recorded'}`,
@@ -214,11 +213,15 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
       ' ',
       'FINANCE REQUIREMENT',
       `Category: ${application.category}`,
-      `Finance amount: ${application.financeAmount == null ? 'Not recorded' : formatZAR(application.financeAmount)}`,
+      `Principal loan amount: ${application.financeAmount == null ? 'Not recorded' : formatZAR(application.financeAmount)}`,
+      `Documentation fee (1%): ${financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : 'Not calculated'}`,
+      `VAT base (principal + documentation): ${financeCalculation ? formatZAR(financeCalculation.vatBaseCents / 100) : 'Not calculated'}`,
+      `VAT (15%): ${financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : 'Not calculated'}`,
+      `Total finance amount: ${financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : 'Not calculated'}`,
       `Term: ${safe.term ?? '—'} months`,
       `Deposit: ${safe.deposit ?? '—'}`,
       `Asset / requirement: ${application.assetDescription ?? '—'}`,
-      `Supplier: ${safe.supplier ?? '—'}`,
+      `Supplier: ${sensitive.supplier ?? safe.supplier ?? '—'}`,
       `Timing: ${safe.timing ?? '—'}`,
       `Referral code: ${safe.referralCode ?? '—'}`,
       ' ',
@@ -239,9 +242,28 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
     ]
 
     const fileName = `OBG-APP-${application.reference}.pdf`
-    const base64 = renderPdf(lines)
+    const summaryBytes = Buffer.from(renderPdf(lines), 'base64')
+    const storageApplicantName = [sensitive.firstName ?? customerPii.firstName ?? safe.firstName ?? application.firstName, sensitive.lastName ?? customerPii.lastName ?? safe.lastName ?? application.lastName].filter(Boolean).join(' ') || String(sensitive.contactName ?? customerPii.contactName ?? safe.contactName ?? applicant)
+    const storagePrefix = applicantStoragePrefix({ applicantType: application.applicantType, applicantName: storageApplicantName, applicationReference: application.reference })
+    const supportingDocuments: { name: string; mimeType: string; category?: string; bytes: Uint8Array }[] = []
+    const storageUrl = process.env.SUPABASE_URL?.replace(/\/+$/, '')
+    const storageSecret = process.env.SUPABASE_SECRET_KEY
+    const storageBucket = process.env.SUPABASE_BUCKET
+    const categoryOrder = ['identity', 'proof-of-address', 'income-bank-statements', 'business-documents', 'quotations', 'additional-documents']
+    const sortedDocuments = documents.filter((item) => ['Received', 'Verified'].includes(item.status) && item.storagePath).sort((a, b) => categoryOrder.indexOf(documentStorageCategory(a.documentType)) - categoryOrder.indexOf(documentStorageCategory(b.documentType)))
+    for (const document of sortedDocuments) {
+      if (!storageUrl || !storageSecret || storageBucket !== 'oxford-customer-documents') throw new Error('Private supporting-document storage is not configured.')
+      const encodedPath = document.storagePath!.split('/').map(encodeURIComponent).join('/')
+      const response = await fetch(`${storageUrl}/storage/v1/object/${encodeURIComponent(storageBucket)}/${encodedPath}`, { headers: { apikey: storageSecret }, cache: 'no-store' })
+      if (!response.ok) throw new Error(`The supporting file "${document.originalName}" could not be retrieved from private storage.`)
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      if (bytes.byteLength !== document.sizeBytes || bytes.byteLength > 4 * 1024 * 1024) throw new Error(`The supporting file "${document.originalName}" failed its stored-size verification.`)
+      supportingDocuments.push({ name: document.originalName, mimeType: document.mimeType, category: documentStorageCategory(document.documentType), bytes })
+    }
+    const completePdf = await mergeSupportingDocumentsIntoPdf(summaryBytes, supportingDocuments)
+    const objectKey = `${storagePrefix}/application-pdf/${application.reference}-Application-Pack.pdf`
     const generatedAt = new Date()
-    const stored = await persistPrivatePdf(application.id, fileName, base64)
+    const stored = await persistPrivatePdf(objectKey, completePdf)
     try {
       await db.transaction(async (tx) => {
         await tx.insert(applicationPacks).values({
@@ -256,6 +278,11 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
             format: 'application/pdf',
             storageProvider: 'supabase-storage',
             storageBucket: 'oxford-customer-documents',
+            completePackVersion: 2,
+            supportingDocumentIds: currentDocumentIds,
+            supportingDocumentCount: supportingDocuments.length,
+            supportingDocumentTypes: documents.filter((item) => ['Received', 'Verified'].includes(item.status) && item.storagePath).map((item) => item.documentType),
+            storagePrefix,
           },
         })
         await tx.insert(auditEvents).values({
@@ -267,7 +294,7 @@ export const generateApplicationPack = createServerFn({ method: 'POST' })
         })
       })
     } catch (error) {
-      await removePrivatePdf(stored.url, stored.objectKey)
+      if (existingPack?.storageKey !== stored.objectKey) await removePrivatePdf(stored.url, stored.objectKey)
       throw error
     }
     // Never return applicant PDF bytes to the browser. Downloads use the audited, short-lived signed-link action below.
@@ -314,7 +341,7 @@ export const downloadApplicationPack = createServerFn({ method: 'POST' })
       .where(eq(applicationPacks.applicationId, application.id))
       .orderBy(desc(applicationPacks.generatedAt))
       .limit(1)
-    if (!pack?.storageKey || !pack.storageKey.startsWith(`application-packs/${application.id}/`)) {
+    if (!pack?.storageKey || !/^(Individual|Business)\/[^/]+\/application-pdf\/[^/]+-Application-Pack\.pdf$/.test(pack.storageKey) || pack.storageKey.includes('..')) {
       throw new Error('No securely stored application pack is available.')
     }
 
@@ -381,7 +408,7 @@ export const downloadMyApplicationPack = createServerFn({ method: 'POST' })
       .where(eq(applicationPacks.applicationId, application.id))
       .orderBy(desc(applicationPacks.generatedAt))
       .limit(1)
-    if (!pack?.storageKey || !pack.storageKey.startsWith(`application-packs/${application.id}/`)) {
+    if (!pack?.storageKey || !/^(Individual|Business)\/[^/]+\/application-pdf\/[^/]+-Application-Pack\.pdf$/.test(pack.storageKey) || pack.storageKey.includes('..')) {
       throw new Error('Your application pack has not yet been generated by Oxford.')
     }
 

@@ -1,6 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getUser } from '@netlify/identity'
-import { isIdentityEmailConfirmed } from './identity-verification'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -20,8 +18,14 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { getVerifiedSessionIdentity } from './verified-session'
 import { createApplicationReference } from './application-reference'
-import { encryptApplicantData } from './pii-crypto.server'
+import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
+import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
+import { partnerApplicantIntakeInput } from './partner-intake-validation'
+import { createOfficeInvitationToken } from './office-intake-security'
+import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
+import { hashOfficeInvitationToken } from './office-intake-security'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -47,23 +51,36 @@ async function requireIntakeOffice() {
 }
 
 function previewOrigin() {
-  const origin = process.env.DEPLOY_PRIME_URL ?? ''
-  if (process.env.CONTEXT !== 'deploy-preview' ||
-      !/^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app\/?$/i.test(origin)) {
-    throw new Error('Office applicant invitations are available only in the approved Deploy Preview environment.')
-  }
-  return origin.replace(/\/$/, '')
-}
-
-function createInvitationToken() {
-  const token = randomBytes(32).toString('base64url')
-  return { token, hash: createHash('sha256').update(token).digest('hex') }
+  return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
 }
 
 function invitationUrl(token: string) {
   const url = new URL('/invitation', previewOrigin())
   url.searchParams.set('token', token)
   return url.toString()
+}
+
+type IntakePiiFields = {
+  applicantEmail: string | null
+  applicantName: string | null
+  phone: string | null
+  applicantPiiCiphertext: string | null
+}
+
+function readIntakeContact(row: IntakePiiFields) {
+  const pii = row.applicantPiiCiphertext
+    ? decryptApplicantData(row.applicantPiiCiphertext)
+    : {
+        // Compatibility path for records created before M22. Backfill before production release.
+        email: row.applicantEmail ?? '',
+        applicantName: row.applicantName ?? '',
+        phone: row.phone ?? '',
+      }
+  return {
+    email: typeof pii.email === 'string' ? pii.email.trim().toLowerCase() : '',
+    applicantName: typeof pii.applicantName === 'string' ? pii.applicantName : '',
+    phone: typeof pii.phone === 'string' ? pii.phone : '',
+  }
 }
 
 async function queueInvitation(input: {
@@ -80,9 +97,8 @@ async function queueInvitation(input: {
     template: 'office_applicant_invitation',
     status: 'queued',
     payload: {
-      recipient: input.recipient,
+      applicantPiiEnvelope: encryptApplicantData({ recipient: input.recipient, applicantName: input.applicantName }),
       reference: input.reference,
-      applicantName: input.applicantName,
       assetDescription: input.assetDescription,
       partnerBusinessName: input.partnerBusinessName,
       invitationEnvelope: encryptApplicantData({ invitationUrl: input.url }),
@@ -131,24 +147,33 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
         businessName: partnerRegistrations.businessName,
         referralCode: partnerRegistrations.referralCode,
         userId: partnerRegistrations.userId,
-      }).from(partnerRegistrations).where(and(
-        eq(partnerRegistrations.id, data.partnerRegistrationId),
-        eq(partnerRegistrations.status, 'Approved'),
-      )).limit(1)
+      }).from(partnerRegistrations)
+        .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+        .where(and(
+          eq(partnerRegistrations.id, data.partnerRegistrationId),
+          eq(partnerRegistrations.status, 'Approved'),
+          eq(users.accountType, 'partner'),
+          eq(users.status, 'active'),
+        )).limit(1)
       // Approved merchant partners must have a linked partner account and referral code.
       if (!approved?.referralCode || !approved.userId) throw new Error('Choose an approved merchant partner with an active linked partner account.')
       partner = { id: approved.id, businessName: approved.businessName, referralCode: approved.referralCode }
     }
 
-    const { token, hash } = createInvitationToken()
+    // Validate the encryption key before any applicant identity data is inserted.
+    const applicantEmailFingerprint = fingerprintApplicantData({ email })
+    const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
+    const { token, hash } = createOfficeInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
     const [intake] = await db.insert(applicationIntakes).values({
       reference,
-      applicantEmail: email,
+      applicantEmail: null,
+      applicantEmailFingerprint,
+      applicantPiiCiphertext,
       applicantType: data.applicantType,
-      applicantName: data.applicantName,
-      phone: data.phone?.trim() || null,
+      applicantName: null,
+      phone: null,
       category: data.category,
       assetTypeId: data.assetTypeId ?? null,
       industryNameSnapshot: industryName,
@@ -201,12 +226,152 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
     return { success: true, intakeId: intake.id, reference }
   })
 
+
+async function requireIntakePartner() {
+  const session = await getAuthorizationSnapshot()
+  if (!session.authenticated || !session.provisioned || session.blocked ||
+      session.user.accountType !== 'partner' || !session.permissions.includes('partner_referrals.create')) {
+    throw new Error('An active, approved merchant partner with referral-create permission is required.')
+  }
+  const [partner] = await db.select({
+    id: partnerRegistrations.id,
+    businessName: partnerRegistrations.businessName,
+    referralCode: partnerRegistrations.referralCode,
+  }).from(partnerRegistrations)
+    .where(and(
+      eq(partnerRegistrations.userId, session.user.id),
+      eq(partnerRegistrations.status, 'Approved'),
+    ))
+    .orderBy(desc(partnerRegistrations.createdAt))
+    .limit(1)
+  if (!partner?.referralCode) {
+    throw new Error('Your partner registration is not approved or does not have an active referral code.')
+  }
+  return { session, partner }
+}
+
+/** Partners create only a minimal starter intake; the verified applicant owns the resulting application. */
+export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => partnerApplicantIntakeInput.parse(input))
+  .handler(async ({ data }) => {
+    const { session, partner } = await requireIntakePartner()
+    const [asset] = await db.select({
+      id: assetTypes.id,
+      name: assetTypes.name,
+      categoryName: assetCategories.name,
+      financeCategory: assetCategories.financeCategory,
+      industryName: assetIndustries.name,
+    }).from(assetTypes)
+      .innerJoin(assetCategories, eq(assetTypes.categoryId, assetCategories.id))
+      .innerJoin(assetIndustries, eq(assetCategories.industryId, assetIndustries.id))
+      .where(and(
+        eq(assetTypes.id, data.assetTypeId),
+        eq(assetTypes.isActive, true),
+        eq(assetCategories.isActive, true),
+        eq(assetIndustries.isActive, true),
+        eq(assetCategories.financeCategory, data.category),
+      )).limit(1)
+    if (!asset) throw new Error('Select an active asset from the approved catalogue for this finance category.')
+
+    const email = data.applicantEmail.toLowerCase()
+    const applicantEmailFingerprint = fingerprintApplicantData({ email })
+    const applicantPiiCiphertext = encryptApplicantData({ email, applicantName: data.applicantName, phone: data.phone?.trim() || '' })
+    const { token, hash } = createOfficeInvitationToken()
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
+    const reference = createApplicationReference().replace('OBG-APP-', 'OBG-INTAKE-')
+    const [intake] = await db.insert(applicationIntakes).values({
+      reference,
+      applicantEmail: null,
+      applicantEmailFingerprint,
+      applicantPiiCiphertext,
+      applicantType: data.applicantType,
+      applicantName: null,
+      phone: null,
+      category: data.category,
+      assetTypeId: asset.id,
+      industryNameSnapshot: asset.industryName,
+      assetCategoryNameSnapshot: asset.categoryName,
+      assetTypeNameSnapshot: asset.name,
+      financeAmount: null,
+      partnerRegistrationId: partner.id,
+      creatorUserId: session.user.id,
+      tokenHash: hash,
+      tokenExpiresAt: expiresAt,
+      status: 'pending_invitation',
+    }).returning({ id: applicationIntakes.id })
+    if (!intake) throw new Error('The applicant referral intake could not be created.')
+
+    try {
+      await queueInvitation({
+        recipient: email,
+        reference,
+        applicantName: data.applicantName,
+        assetDescription: asset.name,
+        partnerBusinessName: partner.businessName,
+        url: invitationUrl(token),
+        expiresAt,
+      })
+      await db.update(applicationIntakes).set({
+        status: 'invitation_sent',
+        invitationSentAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(applicationIntakes.id, intake.id))
+    } catch (error) {
+      await db.update(applicationIntakes).set({
+        status: 'pending_invitation',
+        updatedAt: new Date(),
+      }).where(eq(applicationIntakes.id, intake.id))
+      throw error
+    }
+
+    await db.insert(auditEvents).values({
+      actorUserId: session.user.id,
+      event: 'application_intake.partner_created',
+      resource: 'application_intake',
+      resourceId: intake.id,
+      details: {
+        reference,
+        partnerRegistrationId: partner.id,
+        recipientDomain: email.split('@')[1] ?? '',
+        applicantType: data.applicantType,
+        category: data.category,
+        assetTypeId: asset.id,
+        source: 'partner_referral',
+        applicantSensitiveInformationCollected: false,
+      },
+    })
+    return { success: true, intakeId: intake.id, reference, invitationExpiresAt: expiresAt.toISOString() }
+  })
+
+/** Partner-safe catalogue choices; no other partner registrations or applicant details are returned. */
+export const getPartnerIntakeOptions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireIntakePartner()
+  const assets = await db.select({
+    id: assetTypes.id,
+    name: assetTypes.name,
+    categoryName: assetCategories.name,
+    financeCategory: assetCategories.financeCategory,
+    industryName: assetIndustries.name,
+  }).from(assetTypes)
+    .innerJoin(assetCategories, eq(assetTypes.categoryId, assetCategories.id))
+    .innerJoin(assetIndustries, eq(assetCategories.industryId, assetIndustries.id))
+    .where(and(
+      eq(assetTypes.isActive, true),
+      eq(assetCategories.isActive, true),
+      eq(assetIndustries.isActive, true),
+    ))
+    .orderBy(assetIndustries.sortOrder, assetCategories.sortOrder, assetTypes.sortOrder)
+  return { assets }
+})
+
 export const getOfficeApplicantIntakes = createServerFn({ method: 'GET' }).handler(async () => {
   await requireIntakeOffice()
   const rows = await db.select({
     id: applicationIntakes.id,
     reference: applicationIntakes.reference,
     applicantEmail: applicationIntakes.applicantEmail,
+    applicantEmailFingerprint: applicationIntakes.applicantEmailFingerprint,
+    applicantPiiCiphertext: applicationIntakes.applicantPiiCiphertext,
     applicantType: applicationIntakes.applicantType,
     applicantName: applicationIntakes.applicantName,
     phone: applicationIntakes.phone,
@@ -218,7 +383,18 @@ export const getOfficeApplicantIntakes = createServerFn({ method: 'GET' }).handl
     invitationSentAt: applicationIntakes.invitationSentAt,
     createdAt: applicationIntakes.createdAt,
   }).from(applicationIntakes).orderBy(desc(applicationIntakes.createdAt)).limit(100)
-  return { intakes: rows }
+  const intakes = rows.map((row) => {
+    const pii = readIntakeContact(row)
+    return {
+      ...row,
+      applicantEmail: typeof pii.email === 'string' ? pii.email : '',
+      applicantName: typeof pii.applicantName === 'string' ? pii.applicantName : '',
+      phone: typeof pii.phone === 'string' ? pii.phone : '',
+      applicantPiiCiphertext: undefined,
+      applicantEmailFingerprint: undefined,
+    }
+  })
+  return { intakes }
 })
 
 export const revokeOfficeApplicantIntake = createServerFn({ method: 'POST' })
@@ -263,7 +439,12 @@ export const getOfficeIntakeOptions = createServerFn({ method: 'GET' }).handler(
       .orderBy(assetIndustries.sortOrder, assetCategories.sortOrder, assetTypes.sortOrder),
     db.select({ id: partnerRegistrations.id, businessName: partnerRegistrations.businessName })
       .from(partnerRegistrations)
-      .where(and(eq(partnerRegistrations.status, 'Approved'), /* require a linked partner account */ sql`${partnerRegistrations.userId} is not null`))
+      .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+      .where(and(
+        eq(partnerRegistrations.status, 'Approved'),
+        eq(users.accountType, 'partner'),
+        eq(users.status, 'active'),
+      ))
       .orderBy(partnerRegistrations.businessName),
   ])
   return { assets, partners }
@@ -280,14 +461,21 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
     if (!row || row.claimedAt || row.revokedAt || row.status === 'claimed' || row.status === 'revoked') {
       throw new Error('This intake cannot be re-invited.')
     }
+    const applicant = readIntakeContact(row)
     const [asset] = row.assetTypeId
       ? await db.select({ name: assetTypes.name }).from(assetTypes).where(eq(assetTypes.id, row.assetTypeId)).limit(1)
       : [undefined]
     const [partner] = row.partnerRegistrationId
       ? await db.select({ businessName: partnerRegistrations.businessName }).from(partnerRegistrations)
-        .where(and(eq(partnerRegistrations.id, row.partnerRegistrationId), eq(partnerRegistrations.status, 'Approved'))).limit(1)
+        .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+        .where(and(
+          eq(partnerRegistrations.id, row.partnerRegistrationId),
+          eq(partnerRegistrations.status, 'Approved'),
+          eq(users.accountType, 'partner'),
+          eq(users.status, 'active'),
+        )).limit(1)
       : [undefined]
-    const { token, hash } = createInvitationToken()
+    const { token, hash } = createOfficeInvitationToken()
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
     await db.transaction(async (tx) => {
       const [updated] = await tx.update(applicationIntakes).set({
@@ -307,9 +495,8 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
         template: 'office_applicant_invitation',
         status: 'queued',
         payload: {
-          recipient: row.applicantEmail,
+          applicantPiiEnvelope: encryptApplicantData({ recipient: applicant.email, applicantName: applicant.applicantName }),
           reference: row.reference,
-          applicantName: row.applicantName,
           assetDescription: asset?.name ?? 'the selected finance asset',
           partnerBusinessName: partner?.businessName ?? '',
           invitationEnvelope: encryptApplicantData({ invitationUrl: invitationUrl(token) }),
@@ -338,55 +525,67 @@ const claimInput = z.object({ token: z.string().min(32).max(128) })
 export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
   .validator((input: unknown) => claimInput.parse(input))
   .handler(async ({ data }) => {
-    const identity = await getUser()
-    const identityEmail = identity?.email?.trim().toLowerCase() ?? ''
-    if (!identity?.id || !identityEmail ||
-        !isIdentityEmailConfirmed(identity)) {
-      throw new Error('Sign in and verify your email address before continuing with this invitation.')
+    // Use the TanStack-managed server session; the Netlify Identity browser SDK is unavailable here.
+    const identity = getVerifiedSessionIdentity(await getAuthorizationSnapshot())
+    if (!identity || identity.accountType !== 'customer') {
+      throw new Error('Sign in with a verified customer account before continuing with this invitation.')
     }
-
-    const session = await getAuthorizationSnapshot()
-    if (!session.authenticated || !session.provisioned || session.blocked ||
-        session.user.accountType !== 'customer' || session.user.email.trim().toLowerCase() !== identityEmail) {
-      throw new Error('This invitation can only be claimed by its verified applicant customer account.')
-    }
-
-    const tokenHash = createHash('sha256').update(data.token).digest('hex')
+    const identityEmail = identity.email
+    const tokenHash = hashOfficeInvitationToken(data.token)
     return db.transaction(async (tx) => {
       await tx.execute(sql`select id from application_intakes where token_hash = ${tokenHash} for update`)
       const [intake] = await tx.select().from(applicationIntakes)
         .where(eq(applicationIntakes.tokenHash, tokenHash)).limit(1)
       if (!intake) throw new Error('This invitation is invalid or has already been used.')
-      if (intake.applicantEmail !== identityEmail) {
+      const applicant = readIntakeContact(intake)
+      const emailMatches = intake.applicantEmailFingerprint
+        ? intake.applicantEmailFingerprint === fingerprintApplicantData({ email: identityEmail })
+        : intake.applicantEmail?.trim().toLowerCase() === identityEmail
+      if (!emailMatches || applicant.email !== identityEmail) {
         throw new Error('The signed-in email address does not match the invited applicant.')
       }
-      if (intake.status === 'claimed' || intake.claimedAt) throw new Error('This invitation has already been claimed.')
-      if (intake.status === 'revoked' || intake.revokedAt) {
+      const claimBlockReason = getOfficeInvitationClaimBlockReason(intake)
+      if (claimBlockReason === 'claimed') throw new Error('This invitation has already been claimed.')
+      if (claimBlockReason === 'revoked') {
         throw new Error('This invitation has been revoked. Contact Oxford Business Group for assistance.')
       }
-      if (intake.tokenExpiresAt.getTime() <= Date.now()) {
+      if (claimBlockReason === 'expired') {
         throw new Error('This invitation has expired. Ask Oxford Business Group to send a new invitation.')
+      }
+      if (claimBlockReason === 'invalid_state') {
+        throw new Error('This invitation is invalid or is no longer available.')
       }
 
       const [account] = await tx.select({ id: users.id, status: users.status, accountType: users.accountType })
-        .from(users).where(eq(users.identityId, identity.id)).limit(1)
+        .from(users).where(eq(users.id, identity.userId)).limit(1)
       if (!account || account.status !== 'active' || account.accountType !== 'customer') {
         throw new Error('Your customer account is not active. Contact Oxford Business Group for assistance.')
       }
 
       const [existingCustomer] = await tx.select().from(customers)
         .where(eq(customers.userId, account.id)).limit(1)
-      const nameParts = intake.applicantName.trim().split(/\s+/)
+      const nameParts = String(applicant.applicantName ?? '').trim().split(/\s+/)
       const customerValues = {
         applicantType: intake.applicantType,
-        firstName: intake.applicantType === 'individual' ? nameParts[0] ?? null : null,
-        lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') || null : null,
-        businessName: intake.applicantType === 'business' ? intake.applicantName : null,
-        phone: intake.phone,
+        firstName: null,
+        lastName: null,
+        businessName: null,
+        phone: null,
+        profile: {
+          piiCiphertext: encryptApplicantData({
+            firstName: intake.applicantType === 'individual' ? nameParts[0] ?? '' : '',
+            lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') : '',
+            businessName: intake.applicantType === 'business' ? String(applicant.applicantName ?? '') : '',
+            phone: typeof applicant.phone === 'string' ? applicant.phone : '',
+            email: identityEmail,
+          }),
+          piiEncryptionVersion: 'aes-256-gcm-v1',
+        },
       }
       const [customer] = existingCustomer
         ? await tx.update(customers).set(customerValues).where(eq(customers.id, existingCustomer.id)).returning()
         : await tx.insert(customers).values({ userId: account.id, ...customerValues }).returning()
+      await tx.update(users).set({ displayName: null, updatedAt: new Date() }).where(eq(users.id, account.id))
 
       let referralCode: string | null = null
       let partnerUserId: string | null = null
@@ -396,16 +595,31 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
           userId: partnerRegistrations.userId,
           referralCode: partnerRegistrations.referralCode,
           businessName: partnerRegistrations.businessName,
-        }).from(partnerRegistrations).where(and(
-          eq(partnerRegistrations.id, intake.partnerRegistrationId),
-          eq(partnerRegistrations.status, 'Approved'),
-        )).limit(1)
-        if (!partner?.userId || !partner.referralCode) {
-          throw new Error('The linked merchant partner is no longer approved. Contact Oxford Business Group before continuing.')
+        }).from(partnerRegistrations)
+          .innerJoin(users, eq(partnerRegistrations.userId, users.id))
+          .where(and(
+            eq(partnerRegistrations.id, intake.partnerRegistrationId),
+            eq(partnerRegistrations.status, 'Approved'),
+            eq(users.accountType, 'partner'),
+            eq(users.status, 'active'),
+          )).limit(1)
+        if (partner?.userId && partner.referralCode) {
+          referralCode = partner.referralCode
+          partnerUserId = partner.userId
+          partnerBusinessName = partner.businessName
+        } else {
+          await tx.insert(auditEvents).values({
+            actorUserId: account.id,
+            event: 'application_intake.partner_attribution_skipped',
+            resource: 'application_intake',
+            resourceId: intake.id,
+            details: {
+              intakeReference: intake.reference,
+              partnerRegistrationId: intake.partnerRegistrationId,
+              reason: 'partner_account_inactive_or_unapproved',
+            },
+          })
         }
-        referralCode = partner.referralCode
-        partnerUserId = partner.userId
-        partnerBusinessName = partner.businessName
       }
 
       const reference = createApplicationReference()
@@ -425,11 +639,17 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
         assetTypeNameSnapshot: intake.assetTypeNameSnapshot,
         referralCode,
         applicationData: {
-          source: 'office_intake',
+          source: intake.partnerRegistrationId ? 'partner_referral_intake' : 'office_intake',
           intakeReference: intake.reference,
-          applicantName: intake.applicantName,
-          email: intake.applicantEmail,
-          phone: intake.phone ?? '',
+          piiCiphertext: encryptApplicantData({
+            applicantName: applicant.applicantName,
+            firstName: intake.applicantType === 'individual' ? nameParts[0] ?? '' : '',
+            lastName: intake.applicantType === 'individual' ? nameParts.slice(1).join(' ') : '',
+            businessName: intake.applicantType === 'business' ? applicant.applicantName : '',
+            email: identityEmail,
+            phone: applicant.phone ?? '',
+          }),
+          piiEncryptionVersion: 'aes-256-gcm-v1',
           partnerBusinessName,
           completionRequired: true,
         },
@@ -440,14 +660,16 @@ export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
         fromStatus: null,
         toStatus: 'Draft',
         changedBy: account.id,
-        note: 'Office-created application claimed by the verified applicant.',
+        note: intake.partnerRegistrationId
+          ? 'Partner-originated starter intake claimed by the verified applicant.'
+          : 'Office-created application claimed by the verified applicant.',
       })
       if (referralCode && partnerUserId) {
         await tx.insert(referrals).values({
           partnerUserId,
           code: referralCode,
           applicationId: application.id,
-          metadata: { source: 'office_intake', intakeReference: intake.reference },
+          metadata: { source: intake.partnerRegistrationId ? 'partner_referral_intake' : 'office_intake', intakeReference: intake.reference },
         })
         // Registration confirmation only; no applicant identity or document details.
         await tx.insert(notifications).values({

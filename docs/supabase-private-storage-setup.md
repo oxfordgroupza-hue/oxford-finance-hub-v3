@@ -1,10 +1,10 @@
-# Supabase private document storage — V2 implementation
+# Supabase private document storage — V3 implementation
 
-Last reviewed: 9 November 2026
+Last reviewed: 12 November 2026
 
 ## Provider decision
 
-Supabase is used **only for private document file storage** in Oxford Finance Hub V2.
+Supabase is used **only for private document file storage** in Oxford Finance Hub V3.
 
 - Relational database: Netlify Database (PostgreSQL) via Drizzle.
 - Authentication: Netlify Identity.
@@ -15,7 +15,7 @@ Do not move V2 application tables, roles, permissions, referrals, audit records 
 
 ## Existing bucket
 
-The connected Supabase project was inspected read-only on 9 November 2026. The existing bucket is:
+The connected Supabase project and existing bucket were inspected read-only on 9 November 2026. The existing bucket is:
 
 - Name: `oxford-customer-documents`
 - Public: false
@@ -25,11 +25,15 @@ The connected Supabase project was inspected read-only on 9 November 2026. The e
 
 Preserve this bucket and its privacy restrictions. Do not create another bucket, make this bucket public, widen client policies or change its limits without explicit review.
 
+### V3 preview verification — 11 November 2026
+
+The V3 Deploy Preview health endpoint currently reports `bucketConfigured=true` but `storageVerified=false`, `encryptionConfigured=false`, `documentUploadsEnabled=false` and `liveApplicationsEnabled=false`. The bucket's existence and prior private configuration are known from the 9 November read-only inspection; current server-side storage verification is blocked because the V3 Supabase server secret and PII encryption key are not configured. Do not describe storage as operational or enable uploads until the synthetic-data acceptance matrix passes.
+
 ## Current code path
 
 `netlify/functions/oxford-api.ts` implements server-mediated storage operations:
 
-1. Validates the Netlify Identity bearer token against the V2 Netlify Identity endpoint.
+1. Validates the Netlify Identity bearer token against the Identity endpoint resolved from the exact V3 Netlify deployment URL (`URL` / `DEPLOY_PRIME_URL`); no V2 site URL or site ID is hard-coded.
 2. Resolves the Identity subject to the Oxford account in Netlify Database.
 3. Derives effective roles and permissions from the Netlify Database access-control tables.
 4. Checks application ownership or office assignment/permissions before document operations.
@@ -43,7 +47,7 @@ The browser must never receive the Supabase secret/service credential. The brows
 
 ## Required server-only configuration
 
-Configure these variables in the V2 Netlify site's environment settings:
+Configure these variables in the V3 Netlify Deploy Preview context for synthetic acceptance tests only. Keep production credentials and feature gates separate:
 
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY` (server-only; send it in the `apikey` header only, never as `Authorization: Bearer` and never as a `VITE_*` variable). Supabase's current opaque `sb_secret_...` keys are not JWTs.
@@ -83,12 +87,12 @@ Use synthetic accounts and dummy documents only:
 
 ## Release gate
 
-Keep `OXFORD_DOCUMENT_UPLOADS_ENABLED` false until the tests above pass on a non-production environment or through an explicitly approved synthetic-data test. Keep `OXFORD_APPLICATIONS_ENABLED` false until the entire application submission, encryption, notifications, PDF, audit and recovery workflow has also passed.
+Keep `OXFORD_DOCUMENT_UPLOADS_ENABLED` false until the tests above pass on the V3 non-production environment using synthetic data. Keep `OXFORD_APPLICATIONS_ENABLED` false until the entire application submission, encryption, notifications, PDF, audit and recovery workflow has also passed.
 
-The existing V2 application page remains paused until the launch gates are closed. This document does not authorize a production deploy, feature-flag change or public acceptance of applications.
+The V3 Deploy Preview remains gated. This document does not authorize a production deploy, feature-flag change or public acceptance of applications.
 
 ## Upload size constraint
 
-The Supabase bucket permits objects up to 10 MiB, but the current upload route sends multipart file data through a Netlify Function. Netlify's buffered function request limit is 6 MB, and binary uploads incur approximately 30% Base64 overhead, giving an effective binary limit of about 4.5 MB. To avoid intermittent failures at the platform boundary, V2 currently enforces a **4 MiB application upload limit** in both the browser and server. The bucket remains at 10 MiB; do not change its settings. Supporting files larger than 4 MiB requires a separate server-authorized signed-upload flow directly to Supabase Storage, followed by server-side object verification and metadata finalization. That larger-file flow is not yet implemented.
+The Supabase bucket permits objects up to 10 MiB, but the current upload route sends multipart file data through a Netlify Function. Netlify's buffered function request limit is 6 MB, and binary uploads incur approximately 30% Base64 overhead, giving an effective binary limit of about 4.5 MB. To avoid intermittent failures at the platform boundary, V3 enforces a **4 MiB application upload limit** in both the browser and server. The bucket remains at 10 MiB; do not change its settings. Supporting files larger than 4 MiB requires a separate server-authorized signed-upload flow directly to Supabase Storage, followed by server-side object verification and metadata finalization. That larger-file flow is not yet implemented.
 
 Netlify limit reference: https://docs.netlify.com/build/functions/configuration/

@@ -20,13 +20,16 @@ import {
 import { evaluateEffectivePermissions } from '../../src/lib/access-control'
 import { isIdentityEmailConfirmed } from '../../src/lib/identity-verification'
 import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-permissions'
+import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
+import { applicationDocumentStoragePath } from '../../src/lib/application-document-storage'
+import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
+import { isSameOriginRequest } from '../../src/lib/origin-validation'
+import { isApprovedDeployPreviewRequest, isStorageBucketVerified, type NetlifyRuntimeContext } from '../../src/lib/document-storage-security'
 
 const SITE_URL = process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? 'http://localhost:8888'
 const SITE_ID = process.env.SITE_ID ?? ''
-const MAX_BUCKET_FILE_BYTES = 10 * 1024 * 1024
 const MAX_DOCUMENTS_PER_APPLICATION = 20
-const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
 const ALLOWED_DOCUMENT_KEYS = new Set([
   'id', 'payslips', 'bank', 'address', 'licence', 'cipc', 'directors-id',
   'afs', 'resolution', 'quote', 'contracts', 'motivation',
@@ -191,7 +194,13 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
     customerId: financeApplications.customerId,
     applicantType: financeApplications.applicantType,
     category: financeApplications.category,
-  }).from(financeApplications).where(eq(financeApplications.id, applicationId)).limit(1)
+    profile: customers.profile,
+    firstName: customers.firstName,
+    lastName: customers.lastName,
+    businessName: customers.businessName,
+  }).from(financeApplications)
+    .innerJoin(customers, eq(financeApplications.customerId, customers.id))
+    .where(eq(financeApplications.id, applicationId)).limit(1)
   if (!application) throw new HttpError('Application not found or access denied.', 404)
 
   if (account.account.accountType === 'customer') {
@@ -220,12 +229,7 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
 async function verifyStorageBucket() {
   const { bucket } = storageConfig()
   const details = await storage(`bucket/${encodeURIComponent(bucket)}`) as Row
-  const allowedTypes = Array.isArray(details.allowed_mime_types) ? details.allowed_mime_types : []
-  return details.id === bucket &&
-    details.public === false &&
-    Number(details.file_size_limit) === MAX_BUCKET_FILE_BYTES &&
-    ALLOWED_TYPES.size === allowedTypes.length &&
-    [...ALLOWED_TYPES].every((type) => allowedTypes.includes(type))
+  return isStorageBucketVerified(details)
 }
 
 function storageObjectPath(path: string) {
@@ -235,27 +239,14 @@ function storageObjectPath(path: string) {
 // Netlify build-context variables are not guaranteed in Function runtime.
 // Use the platform-supplied deploy context and site identity, plus the expected
 // preview hostname, as a fail-closed boundary for preview-only document uploads.
-type NetlifyRuntimeContext = {
-  site?: { id?: string }
-  deploy?: { context?: string }
-}
-
 function isDeployPreviewRequest(request: Request, context?: NetlifyRuntimeContext) {
-  const hostname = new URL(request.url).hostname.toLowerCase()
-  return context?.site?.id === SITE_ID &&
-    context?.deploy?.context === 'deploy-preview' &&
-    /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
+  return isApprovedDeployPreviewRequest(request.url, context, SITE_ID)
 }
 
 export default async (request: Request, context?: NetlifyRuntimeContext) => {
   try {
     const origin = request.headers.get('origin')
-    if (origin) {
-      const originHost = new URL(origin).hostname
-      const productionHost = new URL(SITE_URL).hostname
-      const isThisSitePreview = /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(originHost)
-      if (originHost !== productionHost && !isThisSitePreview) throw new HttpError('Origin not allowed.', 403)
-    }
+    if (!isSameOriginRequest(origin, request.url)) throw new HttpError('Origin not allowed.', 403)
 
     const url = new URL(request.url)
     const action = url.searchParams.get('action')
@@ -291,8 +282,9 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
       if (!isDeployPreviewRequest(request, context) || process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED !== 'true') {
         throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
       }
-      const requiredPermission = isApplicant ? 'own_documents.create' : 'documents.create'
-      if (!account.isSuperAdmin && !account.permissions.has(requiredPermission)) {
+      // Partners use a narrower referral-ownership and document-type policy below.
+      const requiredPermission = requiredDocumentUploadPermission(account.account.accountType as 'customer' | 'partner' | 'office')
+      if (requiredPermission && !account.isSuperAdmin && !account.permissions.has(requiredPermission)) {
         throw new HttpError('Your account does not have permission to upload application documents.', 403)
       }
 
@@ -325,7 +317,12 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
           applicantType: financeApplications.applicantType,
           category: financeApplications.category,
           canUploadSupportingDocuments: partnerRegistrations.canUploadSupportingDocuments,
+          profile: customers.profile,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          businessName: customers.businessName,
         }).from(financeApplications)
+          .innerJoin(customers, eq(financeApplications.customerId, customers.id))
           .innerJoin(referrals, eq(referrals.applicationId, financeApplications.id))
           .innerJoin(partnerRegistrations, eq(partnerRegistrations.userId, referrals.partnerUserId))
           .where(and(
@@ -429,7 +426,16 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
       if (!activeOperationId) throw new HttpError('This document is already being processed. Please wait before retrying.', 409)
 
       const ext = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/jpeg' ? 'jpg' : 'png'
-      const path = `${application.customerId}/${application.reference}/${documentType}-${hash.slice(0, 24)}.${ext}`
+      const profile = application.profile ?? {}
+      const pii = typeof profile.piiCiphertext === 'string' ? decryptApplicantData(profile.piiCiphertext) : {}
+      const applicantName = [pii.firstName ?? application.firstName, pii.lastName ?? application.lastName].filter(Boolean).join(' ') || String(pii.contactName ?? application.businessName ?? 'Applicant')
+      const path = applicationDocumentStoragePath({
+        applicantType: application.applicantType,
+        applicantName,
+        applicationReference: application.reference,
+        documentType,
+        fileName: `${documentType}-${hash.slice(0, 24)}.${ext}`,
+      })
       try {
         await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, {
           method: 'POST',

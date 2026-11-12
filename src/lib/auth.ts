@@ -1,25 +1,69 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getCookies, getRequest, setCookie } from '@tanstack/react-start/server'
+import { verifyRequestOrigin } from '@netlify/identity'
+import { z } from 'zod'
 import { isIdentityEmailConfirmed } from './identity-verification'
+
+/**
+ * Authenticate through Netlify Identity and persist its session using TanStack Start
+ * response cookies. This app runs on TanStack Start, not inside a Netlify Function.
+ */
+export const loginWithIdentity = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({
+    email: z.string().trim().email().max(254),
+    password: z.string().min(8).max(1024),
+  }).parse(input))
+  .handler(async ({ data }) => {
+    const request = getRequest()
+    verifyRequestOrigin(request)
+    const identityUrl = new URL('/.netlify/identity/token', request.url)
+    const response = await fetch(identityUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'password', username: data.email, password: data.password }),
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { msg?: string; error_description?: string }
+      throw new Error(body.msg || body.error_description || 'Sign-in failed. Check your email and password.')
+    }
+    const tokens = await response.json() as { access_token?: string; refresh_token?: string }
+    if (!tokens.access_token) throw new Error('Identity did not return a valid sign-in session.')
+    setCookie('nf_jwt', tokens.access_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
+    if (tokens.refresh_token) {
+      setCookie('nf_refresh', tokens.refresh_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
+    }
+    return { authenticated: true as const }
+  })
+
+/** Clear the server-side session cookies as well as the browser Identity session. */
+export const logoutWithIdentity = createServerFn({ method: 'POST' }).handler(async () => {
+  const request = getRequest()
+  verifyRequestOrigin(request)
+  const expiredCookie = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const, maxAge: 0 }
+  setCookie('nf_jwt', '', expiredCookie)
+  setCookie('nf_refresh', '', expiredCookie)
+  return { authenticated: false as const }
+})
 
 /**
  * Resolve the current Netlify Identity session against the authoritative database.
  * The explicitly configured bootstrap identity may claim the reserved Super
- * Administrator role in an isolated Deploy Preview. Production additionally requires
- * a temporary server-side flag and a confirmed Identity email.
+ * Administrator role only in the approved V3 Deploy Preview after email verification
+ * and a confirmed Identity email. Production bootstrap is disabled.
  */
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
-    { getUser },
     { and, eq, isNull },
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
+    { isApprovedV3DeployPreview },
   ] = await Promise.all([
-    import('@netlify/identity'),
     import('drizzle-orm'),
     import('../../db/index'),
     import('../../db/schema'),
     import('./access-control'),
+    import('./netlify-preview'),
   ])
 
   const {
@@ -34,16 +78,28 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     users,
   } = schema
 
-  let identityUser: Awaited<ReturnType<typeof getUser>>
+  const cookies = getCookies()
+  const accessToken = cookies.nf_jwt
+  if (!accessToken) return { authenticated: false as const }
+
+  const request = getRequest()
+  let identityUser: { id: string; email?: string; confirmed_at?: string | null; user_metadata?: Record<string, unknown> }
   try {
-    identityUser = await getUser()
+    const identityResponse = await fetch(new URL('/.netlify/identity/user', request.url), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (identityResponse.status === 401 || identityResponse.status === 400) {
+      return { authenticated: false as const }
+    }
+    if (!identityResponse.ok) {
+      return { authenticated: false as const, identityUnavailable: true as const }
+    }
+    identityUser = await identityResponse.json() as typeof identityUser
   } catch {
     return { authenticated: false as const, identityUnavailable: true as const }
   }
 
-  if (!identityUser) return { authenticated: false as const }
-
-  // Do not provision an account or grant workspace access until Identity confirms the email.
+  if (!identityUser.id) return { authenticated: false as const }
   if (!isIdentityEmailConfirmed(identityUser)) {
     return {
       authenticated: true as const,
@@ -155,8 +211,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
   const mayBootstrap = canBootstrapInitialSuperAdmin({
     email,
     bootstrapEmail,
-    isDeployPreview: process.env.CONTEXT === 'deploy-preview',
-    productionBootstrapEnabled: false, // V3 bootstrap is Deploy Preview-only.
+    isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
     emailConfirmed: isIdentityEmailConfirmed(identityUser),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),

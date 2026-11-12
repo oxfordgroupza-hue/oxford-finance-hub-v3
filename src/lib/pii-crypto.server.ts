@@ -1,6 +1,6 @@
 import '@tanstack/react-start/server-only'
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 
 /**
  * Encrypt applicant identity and financial details before they enter JSONB.
@@ -12,6 +12,25 @@ function encryptionKey(): Buffer {
     throw new Error('Secure application storage is not configured. Please try again later.')
   }
   return Buffer.from(configured, 'hex')
+}
+
+/** Derive a separate HMAC key so fingerprint use is cryptographically domain-separated from AES encryption. */
+function fingerprintKey(): Buffer {
+  return createHmac('sha256', encryptionKey()).update('oxford-applicant-fingerprint-v1', 'utf8').digest()
+}
+
+/** Stable keyed fingerprint for duplicate detection without exposing low-entropy PII hashes. */
+export function fingerprintApplicantData(value: Record<string, unknown>): string {
+  return createHmac('sha256', fingerprintKey()).update(JSON.stringify(value), 'utf8').digest('hex')
+}
+
+/** Normalise an exact identity number before generating its non-reversible lookup fingerprint. */
+export function fingerprintIdentityNumber(value: string): string {
+  const normalised = value.normalize('NFKC').replace(/[\s-]/g, '').toUpperCase()
+  if (normalised.length < 4 || normalised.length > 32 || !/^[A-Z0-9]+$/.test(normalised)) {
+    throw new Error('Enter a valid complete ID or passport number.')
+  }
+  return fingerprintApplicantData({ identityNumber: normalised })
 }
 
 export function encryptApplicantData(value: Record<string, unknown>): string {

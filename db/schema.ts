@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
+  bigint, boolean, check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from 'drizzle-orm/pg-core'
 import {
   accountStatuses, accountTypes, applicationStatuses, applicantTypeIds, consentTypes,
@@ -118,7 +118,7 @@ export const customers = pgTable('customers', {
   phone: text('phone'),
   profile: jsonb('profile').$type<Record<string, unknown>>().default({}).notNull(),
   ...timestamps(),
-}, (t) => [uniqueIndex('customers_user_id_uq').on(t.userId), index('customers_name_idx').on(t.lastName, t.firstName)])
+}, (t) => [uniqueIndex('customers_user_id_uq').on(t.userId), index('customers_name_idx').on(t.lastName, t.firstName), check('customers_pii_envelope_consistency_check', sql`(${t.profile} ->> 'piiCiphertext') is null or (${t.firstName} is null and ${t.lastName} is null and ${t.businessName} is null and ${t.phone} is null and NOT (${t.profile} ? 'firstName' OR ${t.profile} ? 'lastName' OR ${t.profile} ? 'businessName' OR ${t.profile} ? 'tradingName' OR ${t.profile} ? 'email' OR ${t.profile} ? 'phone' OR ${t.profile} ? 'supplier' OR ${t.profile} ? 'applicantName' OR ${t.profile} ? 'contactName' OR ${t.profile} ? 'comments' OR ${t.profile} ? 'idType' OR ${t.profile} ? 'idNumber' OR ${t.profile} ? 'dateOfBirth' OR ${t.profile} ? 'address' OR ${t.profile} ? 'employmentStatus' OR ${t.profile} ? 'employer' OR ${t.profile} ? 'grossMonthlyIncome' OR ${t.profile} ? 'netMonthlyIncome' OR ${t.profile} ? 'registrationNumber' OR ${t.profile} ? 'yearsTrading' OR ${t.profile} ? 'industry' OR ${t.profile} ? 'businessAddress' OR ${t.profile} ? 'annualTurnover' OR ${t.profile} ? 'directors'))`)])
 
 export const financeProducts = pgTable('finance_products', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -172,9 +172,13 @@ export const assetTypes = pgTable('asset_types', {
 export const applicationIntakes = pgTable('application_intakes', {
   id: uuid('id').defaultRandom().primaryKey(),
   reference: text('reference').notNull(),
-  applicantEmail: text('applicant_email').notNull(),
+  // Legacy plaintext columns remain nullable for a controlled encrypted backfill.
+  // New intake rows store only the keyed fingerprint and AES-256-GCM envelope below.
+  applicantEmail: text('applicant_email'),
+  applicantEmailFingerprint: text('applicant_email_fingerprint'),
+  applicantPiiCiphertext: text('applicant_pii_ciphertext'),
   applicantType: applicantTypeEnum('applicant_type').notNull(),
-  applicantName: text('applicant_name').notNull(),
+  applicantName: text('applicant_name'),
   phone: text('phone'),
   category: financeCategoryEnum('category').notNull(),
   assetTypeId: uuid('asset_type_id').references(() => assetTypes.id, { onDelete: 'set null' }),
@@ -196,7 +200,9 @@ export const applicationIntakes = pgTable('application_intakes', {
 }, (t) => [
   uniqueIndex('application_intakes_reference_uq').on(t.reference),
   uniqueIndex('application_intakes_token_hash_uq').on(t.tokenHash),
-  index('application_intakes_email_status_idx').on(t.applicantEmail, t.status),
+  index('application_intakes_email_fingerprint_status_idx').on(t.applicantEmailFingerprint, t.status),
+  check('application_intakes_pii_consistency_check', sql`(${t.applicantPiiCiphertext} is null and ${t.applicantEmailFingerprint} is null) or (${t.applicantPiiCiphertext} is not null and ${t.applicantEmailFingerprint} is not null)`),
+  check('application_intakes_pii_envelope_consistency_check', sql`${t.applicantPiiCiphertext} is null or (${t.applicantEmail} is null and ${t.applicantName} is null and ${t.phone} is null)`),
   index('application_intakes_creator_idx').on(t.creatorUserId, t.createdAt),
   check('application_intakes_status_check', sql`${t.status} in ('pending_invitation', 'invitation_sent', 'claimed', 'expired', 'revoked')`),
   check('application_intakes_claim_consistency_check', sql`(${t.status} = 'claimed' and ${t.claimedAt} is not null and ${t.customerId} is not null and ${t.applicationId} is not null) or (${t.status} <> 'claimed' and ${t.claimedAt} is null and ${t.customerId} is null and ${t.applicationId} is null)`),
@@ -220,9 +226,10 @@ export const financeApplications = pgTable('finance_applications', {
   referralCode: text('referral_code'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   providerDecision: text('provider_decision'),
+  idNumberFingerprint: text('id_number_fingerprint'),
   applicationData: jsonb('application_data').$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps(),
-}, (t) => [uniqueIndex('finance_applications_reference_uq').on(t.reference), check('finance_applications_provider_decision_check', sql`${t.providerDecision} is null or ${t.providerDecision} in ('approved', 'declined', 'withdrawn')`), index('finance_applications_customer_idx').on(t.customerId), index('finance_applications_status_idx').on(t.status), index('finance_applications_referral_idx').on(t.referralCode)])
+}, (t) => [uniqueIndex('finance_applications_reference_uq').on(t.reference), check('finance_applications_provider_decision_check', sql`${t.providerDecision} is null or ${t.providerDecision} in ('approved', 'declined', 'withdrawn')`), index('finance_applications_customer_idx').on(t.customerId), index('finance_applications_status_idx').on(t.status), index('finance_applications_referral_idx').on(t.referralCode), index('finance_applications_identity_fingerprint_idx').on(t.idNumberFingerprint).where(sql`${t.idNumberFingerprint} is not null`)])
 
 export const financeDrafts = pgTable('finance_drafts', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -280,6 +287,47 @@ export const applicationStatusHistory = pgTable('application_status_history', {
 }, (t) => [index('application_status_history_application_idx').on(t.applicationId, t.createdAt)])
 
 
+/** Versioned Super Administrator-controlled internal credit scoring rules. */
+export const creditAssessmentRules = pgTable('credit_assessment_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  version: integer('version').notNull(),
+  status: text('status').notNull().default('draft'),
+  verifiedIncomeAndStability: integer('verified_income_and_stability').notNull(),
+  affordabilityAndDisposableIncome: integer('affordability_and_disposable_income').notNull(),
+  existingFinancialCommitments: integer('existing_financial_commitments').notNull(),
+  bankStatementBehaviour: integer('bank_statement_behaviour').notNull(),
+  employmentOrBusinessStability: integer('employment_or_business_stability').notNull(),
+  documentConsistencyAndVerification: integer('document_consistency_and_verification').notNull(),
+  rationale: text('rationale').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('credit_assessment_rules_version_positive_check', sql`${t.version} > 0`),
+  check('credit_assessment_rules_status_check', sql`${t.status} in ('draft', 'active', 'superseded')`),
+  check('credit_assessment_rules_rationale_check', sql`length(btrim(${t.rationale})) >= 10`),
+  check('credit_assessment_rules_approval_check', sql`
+    (${t.status} = 'active' and ${t.approvedBy} is not null and ${t.approvedAt} is not null)
+    or (${t.status} = 'draft' and ${t.approvedBy} is null and ${t.approvedAt} is null)
+    or ${t.status} = 'superseded'
+  `),
+  check('credit_assessment_rules_weights_check', sql`
+    ${t.verifiedIncomeAndStability} >= 0 and
+    ${t.affordabilityAndDisposableIncome} >= 0 and
+    ${t.existingFinancialCommitments} >= 0 and
+    ${t.bankStatementBehaviour} >= 0 and
+    ${t.employmentOrBusinessStability} >= 0 and
+    ${t.documentConsistencyAndVerification} >= 0 and
+    ${t.verifiedIncomeAndStability} + ${t.affordabilityAndDisposableIncome} +
+    ${t.existingFinancialCommitments} + ${t.bankStatementBehaviour} +
+    ${t.employmentOrBusinessStability} + ${t.documentConsistencyAndVerification} = 100
+  `),
+  uniqueIndex('credit_assessment_rules_version_uq').on(t.version),
+  uniqueIndex('credit_assessment_rules_single_active_uq').on(t.status).where(sql`${t.status} = 'active'`),
+  index('credit_assessment_rules_status_idx').on(t.status, t.version),
+])
+
 /** Latest private human-reviewed credit assessment worksheet per application. */
 export const creditAssessmentReports = pgTable('credit_assessment_reports', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -309,6 +357,42 @@ export const creditAssessmentReportVersions = pgTable('credit_assessment_report_
 }, (t) => [
   uniqueIndex('credit_assessment_report_versions_version_uq').on(t.reportId, t.version),
   index('credit_assessment_report_versions_application_idx').on(t.applicationId, t.createdAt),
+])
+
+/** Immutable, encrypted transaction evidence transcribed from verified bank statements. */
+export const creditAssessmentTransactionEvidence = pgTable('credit_assessment_transaction_evidence', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'restrict' }),
+  sourceDocumentId: uuid('source_document_id').notNull().references(() => applicationDocuments.id, { onDelete: 'restrict' }),
+  statementPeriodStart: date('statement_period_start', { mode: 'date' }),
+  statementPeriodEnd: date('statement_period_end', { mode: 'date' }),
+  initialClassification: text('initial_classification').notNull().default('needs_review'),
+  transactionDetailsCiphertext: text('transaction_details_ciphertext').notNull(),
+  evidenceFingerprint: text('evidence_fingerprint').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('credit_assessment_transaction_evidence_initial_classification_check', sql`${t.initialClassification} = 'needs_review'`),
+  check('credit_assessment_transaction_evidence_statement_period_check', sql`(${t.statementPeriodStart} is null and ${t.statementPeriodEnd} is null) or (${t.statementPeriodStart} is not null and ${t.statementPeriodEnd} is not null and ${t.statementPeriodStart} <= ${t.statementPeriodEnd})`),
+  uniqueIndex('credit_assessment_transaction_evidence_dedup_uq').on(t.applicationId, t.sourceDocumentId, t.evidenceFingerprint),
+  index('credit_assessment_transaction_evidence_application_idx').on(t.applicationId, t.createdAt),
+  index('credit_assessment_transaction_evidence_source_document_idx').on(t.sourceDocumentId),
+])
+
+/** Append-only human classification history; the latest version is authoritative. */
+export const creditAssessmentTransactionEvidenceReviews = pgTable('credit_assessment_transaction_evidence_reviews', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  evidenceId: uuid('evidence_id').notNull().references(() => creditAssessmentTransactionEvidence.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull(),
+  classification: text('classification').notNull(),
+  reviewerNote: text('reviewer_note').notNull().default(''),
+  reviewedBy: uuid('reviewed_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('credit_assessment_transaction_evidence_reviews_version_check', sql`${t.version} > 0`),
+  check('credit_assessment_transaction_evidence_reviews_classification_check', sql`${t.classification} in ('needs_review', 'debit_order_reversal', 'not_a_debit_order_reversal')`),
+  uniqueIndex('credit_assessment_transaction_evidence_reviews_version_uq').on(t.evidenceId, t.version),
+  index('credit_assessment_transaction_evidence_reviews_latest_idx').on(t.evidenceId, t.version),
 ])
 
 export const assignments = pgTable('assignments', {
@@ -355,6 +439,42 @@ export const partnerRegistrations = pgTable('partner_registrations', {
   ...timestamps(),
 }, (t) => [uniqueIndex('partner_registrations_referral_code_uq').on(t.referralCode), index('partner_registrations_status_idx').on(t.status)])
 
+/** Immutable, versioned fee terms configured and activated separately for each merchant partner. */
+export const partnerCommercialTerms = pgTable('partner_commercial_terms', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  partnerRegistrationId: uuid('partner_registration_id').notNull().references(() => partnerRegistrations.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull(),
+  status: text('status').notNull().default('draft'),
+  facilitationRateBps: integer('facilitation_rate_bps').notNull(),
+  adminFeeMode: text('admin_fee_mode').notNull(),
+  adminRateBps: integer('admin_rate_bps').notNull(),
+  adminFixedAmountCents: bigint('admin_fixed_amount_cents', { mode: 'number' }),
+  rationale: text('rationale').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  check('partner_commercial_terms_version_check', sql`${t.version} > 0`),
+  check('partner_commercial_terms_status_check', sql`${t.status} in ('draft', 'active', 'superseded')`),
+  check('partner_commercial_terms_rationale_check', sql`length(btrim(${t.rationale})) >= 10`),
+  check('partner_commercial_terms_facilitation_rate_check', sql`${t.facilitationRateBps} between 0 and 10000`),
+  check('partner_commercial_terms_admin_rate_check', sql`${t.adminRateBps} between 0 and 10000`),
+  check('partner_commercial_terms_admin_mode_check', sql`${t.adminFeeMode} in ('percentage', 'fixed')`),
+  check('partner_commercial_terms_admin_value_check', sql`
+    (${t.adminFeeMode} = 'percentage' and ${t.adminFixedAmountCents} is null and ${t.facilitationRateBps} + ${t.adminRateBps} <= 10000)
+    or (${t.adminFeeMode} = 'fixed' and ${t.adminRateBps} = 0 and ${t.adminFixedAmountCents} is not null and ${t.adminFixedAmountCents} >= 0)
+  `),
+  check('partner_commercial_terms_approval_check', sql`
+    (${t.status} = 'active' and ${t.approvedBy} is not null and ${t.approvedAt} is not null)
+    or (${t.status} = 'draft' and ${t.approvedBy} is null and ${t.approvedAt} is null)
+    or ${t.status} = 'superseded'
+  `),
+  uniqueIndex('partner_commercial_terms_partner_version_uq').on(t.partnerRegistrationId, t.version),
+  uniqueIndex('partner_commercial_terms_single_active_uq').on(t.partnerRegistrationId).where(sql`${t.status} = 'active'`),
+  index('partner_commercial_terms_partner_status_idx').on(t.partnerRegistrationId, t.status, t.version),
+])
+
 export const customerPreferences = pgTable('customer_preferences', {
   id: uuid('id').defaultRandom().primaryKey(),
   customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
@@ -387,11 +507,12 @@ export const supportRequests = pgTable('support_requests', {
   status: supportStatusEnum('status').default('Open').notNull(),
   name: text('name').notNull(),
   email: text('email').notNull(),
+  phone: text('phone'),
   subject: text('subject').notNull(),
   message: text('message').notNull(),
   assignedTo: uuid('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   ...timestamps(),
-}, (t) => [index('support_requests_status_idx').on(t.status)])
+}, (t) => [index('support_requests_status_idx').on(t.status), index('support_requests_phone_idx').on(t.phone)])
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -480,14 +601,16 @@ export const enquiryAssessments = pgTable('enquiry_assessments', {
 })
 
 /**
- * Confirmed funder settlements are append-only. Every row stores the exact
- * approved amount, actual funder receipt, fee outputs and terms version used.
+ * Confirmed funder settlements are append-only. The funder settlement amount
+ * is stored gross, before the 1% documentation deduction. Each row snapshots
+ * the approved amount, fee outputs and partner-specific terms version used.
  * Partner-facing queries must project partnerNetPayableCents only.
  */
 export const settlementRecords = pgTable('settlement_records', {
   id: uuid('id').defaultRandom().primaryKey(),
   applicationId: uuid('application_id').notNull().references(() => financeApplications.id, { onDelete: 'restrict' }),
   partnerRegistrationId: uuid('partner_registration_id').notNull().references(() => partnerRegistrations.id, { onDelete: 'restrict' }),
+  partnerCommercialTermsId: uuid('partner_commercial_terms_id').references(() => partnerCommercialTerms.id, { onDelete: 'restrict' }),
   partnerUserId: uuid('partner_user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
   applicationReferenceSnapshot: text('application_reference_snapshot').notNull(),
   partnerBusinessNameSnapshot: text('partner_business_name_snapshot').notNull(),
@@ -495,9 +618,13 @@ export const settlementRecords = pgTable('settlement_records', {
   currency: text('currency').notNull().default('ZAR'),
   approvedFinanceAmountCents: bigint('approved_finance_amount_cents', { mode: 'number' }).notNull(),
   actualFunderSettlementAmountCents: bigint('actual_funder_settlement_amount_cents', { mode: 'number' }).notNull(),
+  documentationFeeRateBps: integer('documentation_fee_rate_bps').notNull().default(100),
   documentationFeeCents: bigint('documentation_fee_cents', { mode: 'number' }).notNull(),
   partnerGrossPayableCents: bigint('partner_gross_payable_cents', { mode: 'number' }).notNull(),
+  facilitationRateBps: integer('facilitation_rate_bps'),
   facilitationFeeCents: bigint('facilitation_fee_cents', { mode: 'number' }).notNull(),
+  adminFeeMode: text('admin_fee_mode'),
+  adminFixedAmountCents: bigint('admin_fixed_amount_cents', { mode: 'number' }),
   adminFeeCents: bigint('admin_fee_cents', { mode: 'number' }).notNull(),
   partnerNetPayableCents: bigint('partner_net_payable_cents', { mode: 'number' }).notNull(),
   oxfordTotalFeesCents: bigint('oxford_total_fees_cents', { mode: 'number' }).notNull(),
@@ -510,6 +637,16 @@ export const settlementRecords = pgTable('settlement_records', {
   uniqueIndex('settlement_records_reference_uq').on(t.settlementReference),
   uniqueIndex('settlement_records_application_uq').on(t.applicationId),
   index('settlement_records_partner_idx').on(t.partnerUserId, t.settledAt),
+  index('settlement_records_partner_terms_idx').on(t.partnerCommercialTermsId),
+  check('settlement_records_documentation_rate_check', sql`${t.documentationFeeRateBps} = 100`),
+  check('settlement_records_terms_snapshot_check', sql`
+    (${t.partnerCommercialTermsId} is null and ${t.facilitationRateBps} is null and ${t.adminFeeMode} is null and ${t.adminFixedAmountCents} is null)
+    or
+    (${t.partnerCommercialTermsId} is not null and ${t.facilitationRateBps} between 0 and 10000 and (
+      (${t.adminFeeMode} = 'percentage' and ${t.adminFixedAmountCents} is null and ${t.facilitationRateBps} + ${t.adminRateBps} <= 10000)
+      or (${t.adminFeeMode} = 'fixed' and ${t.adminRateBps} = 0 and ${t.adminFixedAmountCents} is not null and ${t.adminFixedAmountCents} >= 0)
+    ))
+  `),
   check('settlement_records_amounts_nonnegative_check', sql`${t.approvedFinanceAmountCents} > 0 and ${t.actualFunderSettlementAmountCents} > 0 and ${t.documentationFeeCents} >= 0 and ${t.partnerGrossPayableCents} >= 0 and ${t.facilitationFeeCents} >= 0 and ${t.adminFeeCents} >= 0 and ${t.partnerNetPayableCents} >= 0 and ${t.oxfordTotalFeesCents} >= 0`),
   check('settlement_records_reconciliation_check', sql`${t.partnerGrossPayableCents} = ${t.actualFunderSettlementAmountCents} - ${t.documentationFeeCents} and ${t.partnerNetPayableCents} = ${t.partnerGrossPayableCents} - ${t.facilitationFeeCents} - ${t.adminFeeCents} and ${t.oxfordTotalFeesCents} = ${t.facilitationFeeCents} + ${t.adminFeeCents}`),
   check('settlement_records_currency_check', sql`${t.currency} = 'ZAR'`),

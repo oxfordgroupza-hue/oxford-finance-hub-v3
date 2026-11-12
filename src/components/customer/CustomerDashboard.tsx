@@ -1,5 +1,7 @@
 import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
 import { downloadMyApplicationPack } from '@/lib/pdf-pack-actions'
+import { searchMyRecords } from '@/lib/directory-actions'
 import { toast } from 'sonner'
 import { DocumentUploadPanel } from '@/components/application/DocumentUploadPanel'
 import { Download, FilePen } from 'lucide-react'
@@ -8,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { StatusBadge } from '@/components/site/StatusBadge'
 import { applicantTypes, applicationStatuses, getCategory } from '@/lib/finance-config'
 import { formatDate, formatDateTime, formatZAR } from '@/lib/format'
+import { calculateFinanceAmount } from '@/lib/fee-calculation'
 import { cn } from '@/lib/utils'
 
 const trackedStages = applicationStatuses.filter((status) => status !== 'Draft' && status !== 'Closed')
@@ -17,7 +20,7 @@ type CustomerApplication = {
   category: 'vehicle' | 'equipment' | 'commercial-asset' | 'other'
   status: (typeof applicationStatuses)[number]; financeAmount: number | null
   assetDescription: string | null; submittedAt: Date | string | null; updatedAt: Date | string
-  isOfficeIntakeDraft?: boolean
+  isAssistedIntakeDraft?: boolean
   statusHistory: Array<{ fromStatus: string | null; toStatus: string; createdAt: Date | string }>
 }
 type CustomerDraft = {
@@ -28,6 +31,23 @@ type CustomerDraft = {
 type CustomerSupportRequest = { id: string; channel: string; status: string; subject: string; createdAt: Date | string; updatedAt: Date | string }
 
 export function CustomerDashboard({ applications, drafts, supportRequests }: { applications: CustomerApplication[]; drafts: CustomerDraft[]; supportRequests: CustomerSupportRequest[] }) {
+  const [recordQuery, setRecordQuery] = useState('')
+  const [recordResults, setRecordResults] = useState<Array<{ reference: string; category: string; status: CustomerApplication['status']; identityNumber: string }>>([])
+  const [recordSearchBusy, setRecordSearchBusy] = useState(false)
+  const runRecordSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (recordQuery.trim().length < 2 || recordSearchBusy) return
+    setRecordSearchBusy(true)
+    try {
+      const result = await searchMyRecords({ data: { query: recordQuery.trim() } })
+      setRecordResults(result.entries)
+      if (!result.entries.length) toast.info('No matching records were found in your account.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not search your records.')
+    } finally {
+      setRecordSearchBusy(false)
+    }
+  }
   return (
     <div className="space-y-10">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -38,6 +58,16 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
         <div className="max-w-sm rounded-sm border border-border bg-card p-4 text-sm text-muted-foreground">New online applications are temporarily paused while Oxford verifies its secure application and document services.</div>
       </div>
 
+      <section aria-labelledby="my-record-search" className="rounded-sm border border-border bg-card p-6">
+        <h2 id="my-record-search" className="text-xl">Find my records</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Search only your own Oxford applications by name, email, phone or application reference. For an exact ID/passport lookup, prefix the number with ID: or PASSPORT:. Identity numbers remain masked.</p>
+        <form onSubmit={runRecordSearch} className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <input value={recordQuery} onChange={(event) => setRecordQuery(event.target.value)} maxLength={100} minLength={2} placeholder="Name, email, phone, reference or ID: number" className="min-w-0 flex-1 rounded-sm border border-border bg-background px-3 py-2 text-sm" />
+          <Button type="submit" variant="outlineGold" className="rounded-sm" disabled={recordSearchBusy || recordQuery.trim().length < 2}>{recordSearchBusy ? 'Searching…' : 'Search my records'}</Button>
+        </form>
+        {recordResults.length > 0 && <ul className="mt-4 divide-y divide-border">{recordResults.map((entry) => <li key={entry.reference} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"><div><p className="font-mono text-gold">{entry.reference}</p><p className="mt-1 text-xs text-muted-foreground">{entry.category}{entry.identityNumber ? ` · ID/passport ${entry.identityNumber}` : ''}</p></div><StatusBadge status={entry.status} /></li>)}</ul>}
+      </section>
+
       <section aria-labelledby="apps-h" className="space-y-4">
         <h2 id="apps-h" className="text-2xl">Applications</h2>
         {applications.length === 0 ? (
@@ -47,6 +77,9 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
           </div>
         ) : applications.map((application) => {
           const stage = trackedStages.indexOf(application.status as (typeof trackedStages)[number])
+          const financeCalculation = application.financeAmount && application.financeAmount > 0
+            ? calculateFinanceAmount(application.financeAmount * 100)
+            : null
           return (
             <article key={application.id} className="rounded-sm border border-border bg-card p-6">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -54,15 +87,16 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
                   <p className="font-mono text-xs text-gold">{application.reference}</p>
                   <h3 className="mt-1 text-2xl">{getCategory(application.category)?.name}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {applicantTypes[application.applicantType].label} · {formatZAR(application.financeAmount ?? 0)} · submitted {application.submittedAt ? formatDate(String(application.submittedAt)) : 'pending'}
+                    {applicantTypes[application.applicantType].label} · Principal requested: {formatZAR(application.financeAmount ?? 0)} · submitted {application.submittedAt ? formatDate(String(application.submittedAt)) : 'pending'}
                   </p>
+                  {financeCalculation && <p className="mt-1 text-sm text-muted-foreground">Total finance amount including 1% documentation fee and 15% VAT: {formatZAR(financeCalculation.totalFinanceAmountCents / 100)}</p>}
                   {application.assetDescription && <p className="mt-2 text-sm text-muted-foreground">{application.assetDescription}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={application.status} />
-                  {application.status === 'Draft' && application.isOfficeIntakeDraft && (
+                  {application.status === 'Draft' && application.isAssistedIntakeDraft && (
                     <Button asChild size="sm" variant="outlineGold" className="rounded-sm">
-                      <Link to="/apply" search={{ application: application.id }}>Complete application</Link>
+                      <Link to="/apply" search={{ application: application.id }}>Complete assisted application</Link>
                     </Button>
                   )}
                 </div>

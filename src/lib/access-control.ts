@@ -30,14 +30,13 @@ import type { AccountStatus, AccountType } from './domain'
 /**
  * One-time Super Administrator bootstrap for the explicitly configured identity.
  * It must never override a disabled/suspended account or silently restore a role
- * that an administrator previously revoked. Production additionally requires a
- * temporary server-side flag and a confirmed Identity email.
+ * that an administrator previously revoked. V3 production bootstrap is disabled;
+ * the approved Deploy Preview requires the exact configured identity and a confirmed email.
  */
 export function canBootstrapInitialSuperAdmin(input: {
   email: string | null | undefined
   bootstrapEmail: string | null | undefined
   isDeployPreview: boolean
-  productionBootstrapEnabled: boolean
   emailConfirmed: boolean
   accountStatus: AccountStatus
   hasSuperAdminAssignmentHistory: boolean
@@ -50,7 +49,7 @@ export function canBootstrapInitialSuperAdmin(input: {
   // Email confirmation is mandatory in every environment. Preview isolation is
   // not a substitute for proving control of the designated administrator email.
   if (!input.emailConfirmed) return false
-  return input.isDeployPreview || input.productionBootstrapEnabled
+  return input.isDeployPreview
 }
 
 export const permissionActions = [
@@ -107,6 +106,10 @@ export const resourceDefinitions = [
     actions: ['view', 'create', 'edit', 'delete'], description: 'Internal office notes on applications.' },
   { resource: 'customers', label: 'Customers', scope: 'office', accountTypes: OFFICE,
     actions: ['view', 'create', 'edit', 'delete', 'export'], description: 'Customer profiles and preferences.' },
+  { resource: 'directory', label: 'Restricted people directory', scope: 'office', accountTypes: OFFICE,
+    actions: ['view'], description: 'Limited contact and account lookup only; excludes financial information and private documents.' },
+  { resource: 'identity_records', label: 'Sensitive identity numbers', scope: 'office', accountTypes: OFFICE,
+    actions: ['view'], description: 'View full South African ID and passport numbers in authorised applicant search results.' },
   { resource: 'partners', label: 'Partners', scope: 'office', accountTypes: OFFICE,
     actions: ['view', 'create', 'edit', 'delete', 'approve', 'export'], description: 'Partner registrations, approval and referral codes.' },
   { resource: 'support', label: 'Support inbox', scope: 'office', accountTypes: OFFICE,
@@ -246,12 +249,13 @@ export const roleTemplates: readonly RoleTemplate[] = [
     audience: 'office',
     reserved: false,
     permissions: [
-      'office.view',
+      'office.view', 'directory.view',
       'applications.view', 'applications.create', 'applications.edit', 'applications.assign',
       'documents.view', 'documents.create', 'documents.download',
       'pdf_packs.view', 'pdf_packs.create', 'pdf_packs.download',
       'notes.view', 'notes.create', 'notes.edit',
       'customers.view', 'customers.create', 'customers.edit',
+      'identity_records.view',
       'partners.view',
       'support.view', 'support.create', 'support.edit', 'support.assign',
       'products.view', 'content.view', 'reports.view',
@@ -265,24 +269,26 @@ export const roleTemplates: readonly RoleTemplate[] = [
     audience: 'office',
     reserved: false,
     permissions: [
-      'office.view',
+      'office.view', 'directory.view',
       'applications.view', 'applications.edit', 'applications.approve',
       'credit_assessments.view', 'credit_assessments.create', 'credit_assessments.edit',
       'documents.view', 'documents.download', 'documents.approve',
       'pdf_packs.view', 'pdf_packs.download',
       'notes.view', 'notes.create', 'notes.edit',
       'customers.view', 'reports.view',
+      'identity_records.view',
     ],
   },
   {
     key: 'customer_support',
     name: 'Customer support',
-    description: 'Handles support requests and customer communication. Application, partner, internal-note and document registers are not included.',
+    description: 'Handles support requests and customer communication, with access to a restricted contact directory. Financial information, private documents and full identity numbers are excluded.',
     audience: 'office',
     reserved: false,
     permissions: [
       'office.view',
       'support.view', 'support.create', 'support.edit', 'support.assign',
+      'directory.view',
       'notifications.view',
     ],
   },

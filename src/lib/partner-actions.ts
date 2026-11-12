@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { randomUUID } from 'node:crypto'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import {
+  applicationIntakes,
   auditEvents,
   financeApplications,
   partnerRegistrations,
@@ -13,6 +14,7 @@ import {
   users,
 } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
+import { isActivePartnerAccount } from './partner-account-validation'
 
 export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await getAuthorizationSnapshot()
@@ -51,6 +53,28 @@ export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler
     .orderBy(desc(referrals.referredAt))
     .limit(250)
 
+  const initiatedIntakes = await db.select({
+    id: applicationIntakes.id,
+    reference: applicationIntakes.reference,
+    category: applicationIntakes.category,
+    assetTypeName: applicationIntakes.assetTypeNameSnapshot,
+    status: applicationIntakes.status,
+    tokenExpiresAt: applicationIntakes.tokenExpiresAt,
+    createdAt: applicationIntakes.createdAt,
+  }).from(applicationIntakes)
+    .where(and(
+      eq(applicationIntakes.creatorUserId, session.user.id),
+      eq(applicationIntakes.partnerRegistrationId, registration.id),
+    ))
+    .orderBy(desc(applicationIntakes.createdAt))
+    .limit(50)
+  const now = Date.now()
+  const partnerIntakes = initiatedIntakes.map((intake) => ({
+    ...intake,
+    status: intake.status !== 'claimed' && intake.status !== 'revoked' &&
+      intake.tokenExpiresAt.getTime() <= now ? 'expired' : intake.status,
+  }))
+
   const siteUrl = process.env.DEPLOY_PRIME_URL || process.env.URL
   const referralUrl = registration.status === 'Approved' && registration.referralCode && siteUrl
     ? new URL(`/apply?ref=${encodeURIComponent(registration.referralCode)}`, siteUrl).toString()
@@ -58,6 +82,7 @@ export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler
   return {
     partner: registration,
     referrals: registration.status === 'Approved' ? referredApplications : [],
+    intakes: partnerIntakes,
     referralUrl,
   }
 })
@@ -183,6 +208,13 @@ export const setPartnerSupportingDocumentPermission = createServerFn({ method: '
       .where(eq(partnerRegistrations.id, data.registrationId)).limit(1)
     if (!registration || registration.status !== 'Approved' || !registration.userId) {
       throw new Error('Only an approved partner linked to an active account can receive this permission.')
+    }
+    const [partnerAccount] = await db.select({
+      accountType: users.accountType,
+      status: users.status,
+    }).from(users).where(eq(users.id, registration.userId)).limit(1)
+    if (!isActivePartnerAccount(partnerAccount)) {
+      throw new Error('The partner account is no longer active. Reactivate and verify the account before changing upload permissions.')
     }
     if (registration.canUploadSupportingDocuments === data.enabled) {
       return { success: true, enabled: data.enabled, unchanged: true }

@@ -11,6 +11,7 @@ import {
   userSuspensions,
 } from '../../db/schema'
 import { canBootstrapInitialSuperAdmin, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY } from '../../src/lib/access-control'
+import { isApprovedV3DeployPreview } from '../../src/lib/netlify-preview'
 
 interface IdentityUserEvent {
   user: {
@@ -77,17 +78,17 @@ async function assignBaselineRole(userId: string, roleKey: string) {
 }
 
 /**
- * One-time bootstrap of the explicitly designated administrator on Deploy
- * Previews only. Never reactivate a disabled/suspended account or restore a
- * Super Administrator assignment that has previously been revoked.
+ * One-time bootstrap of the explicitly designated administrator on the approved
+ * V3 Deploy Preview only. Never reactivate a disabled/suspended account or restore
+ * a Super Administrator assignment that has previously been revoked.
  */
 async function bootstrapInitialAdministrator(userId: string, email: string, emailConfirmed: boolean) {
-  const configuredEmail = process.env.OXFORD_INITIAL_SUPER_ADMIN_EMAIL?.trim().toLowerCase()
-  // Defence in depth: never run the bootstrap on production, even if the
-  // Netlify variable was accidentally given an all-context scope.
-  const deployPrimeUrl = process.env.DEPLOY_PRIME_URL ?? ''
-  const isDeployPreview = process.env.CONTEXT === 'deploy-preview'
-    || /^https:\/\/deploy-preview-\d+--/i.test(deployPrimeUrl)
+  const configuredEmail = Netlify.env.get('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+  // Defence in depth: only the approved V3 Deploy Preview can bootstrap the
+  // designated, email-verified administrator. Production is never eligible.
+  const context = Netlify.env.get('CONTEXT')
+  const deployPrimeUrl = Netlify.env.get('DEPLOY_PRIME_URL')
+  const isDeployPreview = isApprovedV3DeployPreview(context, deployPrimeUrl)
   if (!isDeployPreview || !configuredEmail || email !== configuredEmail) return false
 
   const [account] = await db.select({ status: users.status })
@@ -114,7 +115,6 @@ async function bootstrapInitialAdministrator(userId: string, email: string, emai
     email,
     bootstrapEmail: configuredEmail,
     isDeployPreview,
-    productionBootstrapEnabled: false,
     emailConfirmed,
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(assignmentHistory),
@@ -155,14 +155,12 @@ export default {
 
     await ensureAccessControlCatalogue()
 
-    const fullName = typeof event.user.userMetadata?.full_name === 'string'
-      ? event.user.userMetadata.full_name.trim()
-      : null
-
+    // Customer names are collected only into the encrypted customer profile.
+    // Do not copy Identity user metadata into the plaintext display_name column.
     await db.insert(users).values({
       identityId,
       email,
-      displayName: fullName || null,
+      displayName: null,
       accountType: 'customer',
       status: 'active',
     }).onConflictDoNothing()
@@ -192,12 +190,6 @@ export default {
       ? event.user.userMetadata.full_name.trim()
       : undefined
 
-    await db.update(users).set({
-      ...(email ? { email } : {}),
-      ...(fullName ? { displayName: fullName } : {}),
-      lastLoginAt: new Date(),
-    }).where(eq(users.identityId, identityId))
-
     if (!email) return
     const [account] = await db
       .select({ id: users.id, accountType: users.accountType })
@@ -205,6 +197,13 @@ export default {
       .where(eq(users.identityId, identityId))
       .limit(1)
     if (!account) return
+
+    await db.update(users).set({
+      email,
+      // Applicant/customer names are kept in the encrypted profile, not display_name.
+      displayName: account.accountType === 'customer' ? null : (fullName || null),
+      lastLoginAt: new Date(),
+    }).where(eq(users.identityId, identityId))
 
     if (await bootstrapInitialAdministrator(account.id, email, isIdentityEmailConfirmed(event.user))) return
 

@@ -22,6 +22,7 @@ import {
   type FinanceCategoryId,
 } from '@/lib/finance-config'
 import { formatZAR } from '@/lib/format'
+import { calculateFinanceAmount } from '@/lib/fee-calculation'
 import { cn } from '@/lib/utils'
 import { submitFinanceApplication, saveFinanceDraft, loadMyFinanceDraft, deleteMyFinanceDraft, loadMyOfficeApplicationDraft, saveMyOfficeApplicationDraft } from '@/lib/application-actions'
 import { getPublicAssetCatalogue } from '@/lib/catalog-actions'
@@ -194,7 +195,7 @@ function validate(step: StepId, f: ApplicationForm): Errors {
       }
       break
     case 'finance':
-      if (!numOk(f.amount) || Number(f.amount) < 10000) e.amount = 'Enter the amount required (minimum R10 000).'
+      if (!numOk(f.amount) || Number(f.amount) < 10000) e.amount = 'Enter the principal loan amount (minimum R10 000).'
       need('term', 'Select a preferred term.')
       need('assetIndustryId', 'Select an industry.')
       need('assetCategoryId', 'Select an asset category.')
@@ -306,7 +307,7 @@ export function ApplicationWizard({
         setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
         setRestoredDraft(true)
       }).catch((error: unknown) => {
-        if (active) toast.error(error instanceof Error ? error.message : 'The Office-created application could not be restored.')
+        if (active) toast.error(error instanceof Error ? error.message : 'The assisted application could not be restored.')
       })
       return () => { active = false }
     }
@@ -493,6 +494,11 @@ export function ApplicationWizard({
       setSubmittedRef(result.reference)
       if (result.duplicate) {
         toast.info('Your application was already received. We have restored its reference.')
+      }
+      if (!result.packGenerated) {
+        toast.info('Your application was received. The complete document pack is pending and Office can retry its generation.')
+      } else if (!result.duplicate) {
+        toast.success('Your application was received and its document pack was generated.')
       }
       scrollTop()
     } catch (error) {
@@ -826,7 +832,7 @@ function FinanceStep({
   const selectedType = catalogue.types.find((item) => item.id === form.assetTypeId)
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <Field id="amount" label="Amount required" error={errors.amount}>
+      <Field id="amount" label="Principal loan amount" error={errors.amount}>
         <div className="relative">
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">R</span>
           <Input id="amount" inputMode="numeric" className="pl-7" value={form.amount} aria-invalid={Boolean(errors.amount)} onChange={(e) => update('amount', e.target.value.replace(/[^\d]/g, ''))} />
@@ -949,6 +955,10 @@ function DocumentsStep({ form }: { form: ApplicationForm }) {
 function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: number) => void }) {
   const biz = form.applicantType === 'business'
   const cat = getCategory(form.category)
+  const principalAmount = Number(form.amount)
+  const financeCalculation = form.amount && Number.isSafeInteger(principalAmount) && principalAmount > 0
+    ? calculateFinanceAmount(principalAmount * 100)
+    : null
   const rows: { section: string; step: number; items: [string, string][] }[] = [
     { section: 'Application', step: 0, items: [['Applicant type', applicantTypes[form.applicantType ?? 'individual'].label], ['Finance category', cat?.name ?? '—']] },
     {
@@ -971,7 +981,18 @@ function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: numb
     },
     {
       section: 'Finance requirement', step: 4,
-      items: [['Amount', form.amount ? formatZAR(Number(form.amount)) : '—'], ['Term', `${form.term} months`], ['Deposit', form.deposit ? formatZAR(Number(form.deposit)) : 'None'], ['Requirement', form.assetDescription], ['Timing', form.timing], ['Referral code', form.referralCode || '—']],
+      items: [
+        ['Principal loan amount', form.amount ? formatZAR(principalAmount) : '—'],
+        ['Documentation fee (1%)', financeCalculation ? formatZAR(financeCalculation.documentationFeeCents / 100) : '—'],
+        ['VAT base (principal + documentation)', financeCalculation ? formatZAR(financeCalculation.vatBaseCents / 100) : '—'],
+        ['VAT (15%)', financeCalculation ? formatZAR(financeCalculation.vatAmountCents / 100) : '—'],
+        ['Total finance amount', financeCalculation ? formatZAR(financeCalculation.totalFinanceAmountCents / 100) : '—'],
+        ['Term', `${form.term} months`],
+        ['Deposit', form.deposit ? formatZAR(Number(form.deposit)) : 'None'],
+        ['Requirement', form.assetDescription],
+        ['Timing', form.timing],
+        ['Referral code', form.referralCode || '—'],
+      ],
     },
   ]
   const consents: { key: keyof ApplicationForm; label: string; required: boolean }[] = [

@@ -16,6 +16,7 @@ export const CREDIT_ASSESSMENT_WEIGHTS = {
 } as const
 
 export type CreditAssessmentDimension = keyof typeof CREDIT_ASSESSMENT_WEIGHTS
+export type CreditAssessmentWeights = Record<CreditAssessmentDimension, number>
 
 export type BankTransactionClassification =
   | 'debit_order_reversal'

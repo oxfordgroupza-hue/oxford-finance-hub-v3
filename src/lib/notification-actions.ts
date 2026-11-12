@@ -3,8 +3,10 @@ import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db } from '../../db'
 import { auditEvents, customerPreferences, customers, notifications, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
-import { decryptApplicantData } from './pii-crypto'
+import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
+import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
+import { isPreviewEmailDeliveryEnabled } from './netlify-preview'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -18,13 +20,13 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  // Feature flags may accidentally be scoped to all Netlify contexts. Require
-  // both the build context and the exact preview hostname before any email
-  // can be sent from this migration branch.
-  const previewUrl = process.env.DEPLOY_PRIME_URL ?? ''
-  const isExpectedDeployPreview = process.env.CONTEXT === 'deploy-preview' &&
-    /^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app\/?$/i.test(previewUrl)
-  return isExpectedDeployPreview && process.env.OXFORD_EMAIL_DELIVERY_ENABLED === 'true'
+  // Even an accidentally broad feature flag cannot enable delivery outside
+  // this exact V3 Deploy Preview.
+  return isPreviewEmailDeliveryEnabled(
+    process.env.CONTEXT,
+    process.env.DEPLOY_PRIME_URL,
+    process.env.OXFORD_EMAIL_DELIVERY_ENABLED,
+  )
 }
 
 function configured() {
@@ -67,6 +69,21 @@ function validEmail(value: string | null | undefined) {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 }
 
+function notificationApplicantPii(payload: Record<string, unknown>) {
+  const envelope = typeof payload.applicantPiiEnvelope === 'string' ? payload.applicantPiiEnvelope : ''
+  const privateData = envelope
+    ? decryptApplicantData(envelope)
+    : {
+        // Compatibility for notifications queued before encrypted payloads were introduced.
+        recipient: payload.recipient,
+        applicantName: payload.applicantName,
+      }
+  return {
+    recipient: typeof privateData.recipient === 'string' ? privateData.recipient : '',
+    applicantName: typeof privateData.applicantName === 'string' ? privateData.applicantName : '',
+  }
+}
+
 async function resolveRecipient(item: typeof notifications.$inferSelect) {
   const payload = item.payload ?? {}
   if (item.template === 'new_support_request' || item.template === 'new_partner_registration') {
@@ -86,7 +103,7 @@ async function resolveRecipient(item: typeof notifications.$inferSelect) {
     }
     return accountEmail
   }
-  return typeof payload.recipient === 'string' ? validEmail(payload.recipient) : null
+  return validEmail(notificationApplicantPii(payload).recipient)
 }
 
 function emailContent(template: string, payload: Record<string, unknown>) {
@@ -98,9 +115,8 @@ function emailContent(template: string, payload: Record<string, unknown>) {
   const partnerBusinessName = typeof payload.partnerBusinessName === 'string'
     ? payload.partnerBusinessName.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
     : ''
-  const applicantName = typeof payload.applicantName === 'string'
-    ? payload.applicantName.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
-    : ''
+  const applicantName = notificationApplicantPii(payload).applicantName
+    .replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
   if (template === 'application_received') {
     const applicationFor = assetDescription || 'your selected equipment or vehicle'
     const message = partnerBusinessName
@@ -122,17 +138,15 @@ function emailContent(template: string, payload: Record<string, unknown>) {
         throw new Error('The applicant invitation details could not be securely decrypted.')
       }
     })()
-    const expectedOrigin = (process.env.DEPLOY_PRIME_URL ?? '').replace(/\/$/, '')
     let actionUrl = ''
     try {
+      const expectedOrigin = getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
       const parsed = new URL(rawUrl)
-      if (process.env.CONTEXT === 'deploy-preview' &&
-          /^https:\/\/deploy-preview-\d+--oxford-finance-hub-v2\.netlify\.app$/i.test(parsed.origin) &&
-          parsed.origin === expectedOrigin && parsed.pathname === '/invitation') actionUrl = parsed.toString()
+      if (parsed.origin === expectedOrigin && parsed.pathname === '/invitation') actionUrl = parsed.toString()
     } catch { actionUrl = '' }
     const expiresAt = typeof payload.expiresAt === 'string' ? new Date(payload.expiresAt) : null
     if (!actionUrl || !expiresAt || !Number.isFinite(expiresAt.getTime())) throw new Error('The applicant invitation details are invalid or expired.')
-    const applicantName = typeof payload.applicantName === 'string' ? payload.applicantName.replace(/[\r\n\t]/g, ' ').slice(0, 120) : ''
+    const applicantName = notificationApplicantPii(payload).applicantName.replace(/[\r\n\t]/g, ' ').slice(0, 120)
     const asset = assetDescription || 'your selected finance asset'
     const partnerLine = partnerBusinessName ? ' Your referring merchant partner is ' + partnerBusinessName + '.' : ''
     const expiry = expiresAt.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' })

@@ -1,12 +1,12 @@
-import { getUser, logout } from '@netlify/identity'
+import { logout } from '@netlify/identity'
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import { getAuthorizationSnapshot } from '@/lib/auth'
+import { getAuthorizationSnapshot, logoutWithIdentity } from '@/lib/auth'
 import { BrandLogo } from './BrandLogo'
 
 export const primaryNav = [
@@ -22,23 +22,22 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [workspace, setWorkspace] = useState<WorkspaceLink | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     let active = true
     void (async () => {
       try {
-        const user = await getUser()
+        // The server-managed HttpOnly cookie is authoritative; do not depend on
+        // a separate browser Identity SDK token being present in local storage.
+        const session = await getAuthorizationSnapshot()
         if (!active) return
-        setAuthenticated(Boolean(user))
-        if (!user) {
+        setAuthenticated(session.authenticated)
+        if (!session.authenticated || !session.provisioned || session.blocked) {
           setWorkspace(null)
           return
         }
-        const session = await getAuthorizationSnapshot()
-        if (!active) return
-        if (!session.authenticated || !session.provisioned || session.blocked) {
-          setWorkspace(null)
-        } else if (session.isSuperAdmin) {
+        if (session.isSuperAdmin) {
           setWorkspace({ to: '/admin', label: 'Administration' })
         } else if (session.user.accountType === 'office' && session.permissions.includes('office.view')) {
           setWorkspace({ to: '/office', label: 'Office workspace' })
@@ -61,9 +60,12 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
 
   async function handleSignOut() {
     if (signingOut) return
+    setMobileMenuOpen(false)
     setSigningOut(true)
     try {
-      await logout()
+      // Remove the app's server-side cookies before clearing browser Identity state.
+      await logoutWithIdentity()
+      await logout().catch(() => undefined)
       setAuthenticated(false)
       setWorkspace(null)
       window.location.assign('/')
@@ -121,27 +123,34 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
             <Link to="/apply">Applications paused</Link>
           </Button>
         </nav>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
-              <Menu />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-80 border-border bg-background">
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            aria-label="Open menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <Menu />
+          </Button>
+          <SheetContent id="mobile-navigation" side="right" className="w-80 border-border bg-background">
             <SheetHeader>
               <SheetTitle className="font-display text-2xl">Oxford Finance Hub</SheetTitle>
               <SheetDescription>Finance arranged by Oxford Business Group</SheetDescription>
             </SheetHeader>
             <nav aria-label="Mobile" className="flex flex-col gap-1 px-4">
               {primaryNav.map((item) => (
-                <Link key={item.to} to={item.to} className="border-b border-border/60 py-3 text-base hover:text-gold">
+                <Link key={item.to} to={item.to} onClick={() => setMobileMenuOpen(false)} className="border-b border-border/60 py-3 text-base hover:text-gold">
                   {item.label}
                 </Link>
               ))}
               {authenticated ? (
                 <>
                   {workspace && (
-                    <Link to={workspace.to} className="border-b border-border/60 py-3 text-base hover:text-gold">
+                    <Link to={workspace.to} onClick={() => setMobileMenuOpen(false)} className="border-b border-border/60 py-3 text-base hover:text-gold">
                       {workspace.label}
                     </Link>
                   )}
@@ -150,12 +159,12 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
                   </Button>
                 </>
               ) : (
-                <Link to="/login" className="border-b border-border/60 py-3 text-base hover:text-gold">
+                <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="border-b border-border/60 py-3 text-base hover:text-gold">
                   Sign in
                 </Link>
               )}
               <Button asChild className="mt-6" size="lg">
-                <Link to="/apply">Applications paused</Link>
+                <Link to="/apply" onClick={() => setMobileMenuOpen(false)}>Applications paused</Link>
               </Button>
             </nav>
           </SheetContent>
