@@ -1,6 +1,6 @@
 [build]
-  # Publish the approved public site and isolated PR previews; keep finance intake, uploads, notifications and settlements disabled by runtime flags.
-  ignore = 'if [ "$CONTEXT" = "deploy-preview" ] || [ "$CONTEXT" = "production" ]; then exit 1; fi; echo "Oxford Business Group V3 only publishes production and controlled deploy previews"; exit 0'
+  # Allow isolated PR previews; hold production publishing until the production database and designated Super Administrator are safely provisioned.
+  ignore = 'if [ "$CONTEXT" = "deploy-preview" ]; then exit 1; fi; echo "Oxford Business Group V3 production publishing is held pending production provisioning and acceptance"; exit 0'
   command = "pnpm build && pnpm typecheck && pnpm test && pnpm lint"
   publish = "dist/client"
 

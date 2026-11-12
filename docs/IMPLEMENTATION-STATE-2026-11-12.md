@@ -102,3 +102,7 @@ No production deployment, production migration, live applicant processing, live 
 ## Public website publication scope
 
 The approved publication is limited to the public informational website and controlled demonstration. Finance application submissions, document uploads, outbound email delivery, super-administrator bootstrap and settlement execution remain disabled by production-safe flags. This publication does not represent authorization to accept live applications, collect applicant documents, deliver finance decisions, or execute partner settlements. Production database migrations are not part of this release.
+
+## Production publication attempt — blocked safely
+
+The approved public-site production deploy was attempted after the release approval. Netlify blocked publication during its pre-publish database migration stage because migration 20261111210000_m23_initial_super_admin_provisioning could not find the designated Oxford account (oxfordbusinessgroup@outlook.com) in the production application database. Netlify reported all 26 migrations as not applied. No attempt was made to bypass the provisioning check, create an administrator without verified account ownership, or enable live finance processing. The production hold has therefore been restored in netlify.toml; Deploy Previews remain available. Production publication requires the designated account to exist and be verified in the production identity/application flow, followed by controlled migration and acceptance.
