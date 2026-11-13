@@ -66,6 +66,11 @@ function LoginPage() {
     let active = true
     void (async () => {
       try {
+        const initialSearch = new URLSearchParams(window.location.search)
+        if (initialSearch.get('signup') === '1' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
+          window.location.replace('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
+          return
+        }
         // Process Identity callback tokens before reading the reset query. A recovery
         // email may land directly on /login with its token in the URL fragment.
         const callback = await handleAuthCallback()
@@ -85,7 +90,12 @@ function LoginPage() {
           await continueToWorkspace()
           return
         }
-        const shouldResolveSession = new URLSearchParams(window.location.search).get('resolve') === '1'
+        const searchParams = new URLSearchParams(window.location.search)
+        if (searchParams.get('signup') === '1') {
+          setMode('signup')
+          return
+        }
+        const shouldResolveSession = searchParams.get('resolve') === '1'
         let currentUser = null
         try { currentUser = await getUser() } catch { /* The server-side cookie check below is authoritative after login. */ }
         if (currentUser || shouldResolveSession) await continueToWorkspace()
@@ -100,6 +110,13 @@ function LoginPage() {
     event.preventDefault()
     setError('')
     setMessage('')
+
+    // Netlify confirmation links inherit the site origin that initiated signup.
+    // Keep all new customer registrations on the production Identity origin.
+    if (mode === 'signup' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
+      window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
+      return
+    }
 
     if (['login', 'signup', 'recovery'].includes(mode) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Enter a valid email address to continue.')
@@ -195,7 +212,7 @@ function LoginPage() {
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
+              <button type="button" onClick={() => { if (window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') { window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1'); return } setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
