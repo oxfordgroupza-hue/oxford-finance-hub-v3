@@ -66,6 +66,11 @@ function LoginPage() {
     let active = true
     void (async () => {
       try {
+        const initialSearch = new URLSearchParams(window.location.search)
+        if (initialSearch.get('signup') === '1' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
+          window.location.replace('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
+          return
+        }
         // Process Identity callback tokens before reading the reset query. A recovery
         // email may land directly on /login with its token in the URL fragment.
         const callback = await handleAuthCallback()
@@ -207,7 +212,7 @@ function LoginPage() {
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
+              <button type="button" onClick={() => { if (window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') { window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1'); return } setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
