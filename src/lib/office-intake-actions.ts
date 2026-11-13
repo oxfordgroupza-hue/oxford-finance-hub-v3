@@ -54,8 +54,8 @@ function previewOrigin() {
   return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
 }
 
-function invitationUrl(token: string) {
-  const url = new URL('/invitation', previewOrigin())
+function invitationUrl(token: string, origin: string) {
+  const url = new URL('/invitation', origin)
   url.searchParams.set('token', token)
   return url.toString()
 }
@@ -111,6 +111,8 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
   .validator((input: unknown) => intakeInput.parse(input))
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice()
+    // Validate the preview-only invitation origin before creating any database records.
+    const invitationOrigin = previewOrigin()
     const email = data.applicantEmail.toLowerCase()
     let assetDescription = 'the selected finance asset'
     let industryName: string | null = null
@@ -194,7 +196,7 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
         applicantName: data.applicantName,
         assetDescription,
         partnerBusinessName: partner?.businessName ?? '',
-        url: invitationUrl(token),
+        url: invitationUrl(token, invitationOrigin),
         expiresAt,
       })
       await db.update(applicationIntakes).set({
@@ -255,6 +257,8 @@ export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
   .validator((input: unknown) => partnerApplicantIntakeInput.parse(input))
   .handler(async ({ data }) => {
     const { session, partner } = await requireIntakePartner()
+    // Validate the preview-only invitation origin before creating any database records.
+    const invitationOrigin = previewOrigin()
     const [asset] = await db.select({
       id: assetTypes.id,
       name: assetTypes.name,
@@ -308,7 +312,7 @@ export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
         applicantName: data.applicantName,
         assetDescription: asset.name,
         partnerBusinessName: partner.businessName,
-        url: invitationUrl(token),
+        url: invitationUrl(token, invitationOrigin),
         expiresAt,
       })
       await db.update(applicationIntakes).set({
@@ -456,6 +460,7 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
   .validator((input: unknown) => idInput.parse(input))
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice()
+    const invitationOrigin = previewOrigin()
     const [row] = await db.select().from(applicationIntakes)
       .where(eq(applicationIntakes.id, data.intakeId)).limit(1)
     if (!row || row.claimedAt || row.revokedAt || row.status === 'claimed' || row.status === 'revoked') {
@@ -499,7 +504,7 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
           reference: row.reference,
           assetDescription: asset?.name ?? 'the selected finance asset',
           partnerBusinessName: partner?.businessName ?? '',
-          invitationEnvelope: encryptApplicantData({ invitationUrl: invitationUrl(token) }),
+          invitationEnvelope: encryptApplicantData({ invitationUrl: invitationUrl(token, invitationOrigin) }),
           expiresAt: expiresAt.toISOString(),
         },
       })
