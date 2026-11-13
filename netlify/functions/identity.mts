@@ -121,6 +121,7 @@ async function bootstrapInitialAdministrator(userId: string, email: string, emai
     ))
     .limit(1)
   const mayBootstrap = canBootstrapInitialSuperAdmin({
+    bootstrapEnabled: Netlify.env.get('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true',
     email,
     bootstrapEmail: configuredEmail,
     isDeployPreview,
