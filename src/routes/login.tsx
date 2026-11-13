@@ -85,7 +85,12 @@ function LoginPage() {
           await continueToWorkspace()
           return
         }
-        const shouldResolveSession = new URLSearchParams(window.location.search).get('resolve') === '1'
+        const searchParams = new URLSearchParams(window.location.search)
+        if (searchParams.get('signup') === '1') {
+          setMode('signup')
+          return
+        }
+        const shouldResolveSession = searchParams.get('resolve') === '1'
         let currentUser = null
         try { currentUser = await getUser() } catch { /* The server-side cookie check below is authoritative after login. */ }
         if (currentUser || shouldResolveSession) await continueToWorkspace()
@@ -100,6 +105,13 @@ function LoginPage() {
     event.preventDefault()
     setError('')
     setMessage('')
+
+    // Netlify confirmation links inherit the site origin that initiated signup.
+    // Keep all new customer registrations on the production Identity origin.
+    if (mode === 'signup' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
+      window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
+      return
+    }
 
     if (['login', 'signup', 'recovery'].includes(mode) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Enter a valid email address to continue.')
