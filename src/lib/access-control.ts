@@ -34,6 +34,7 @@ import type { AccountStatus, AccountType } from './domain'
  * requires the exact configured identity and a confirmed email.
  */
 export function canBootstrapInitialSuperAdmin(input: {
+  bootstrapEnabled: boolean
   email: string | null | undefined
   bootstrapEmail: string | null | undefined
   isDeployPreview: boolean
@@ -44,6 +45,7 @@ export function canBootstrapInitialSuperAdmin(input: {
   hasSuperAdminAssignmentHistory: boolean
   isSuspended: boolean
 }): boolean {
+  if (!input.bootstrapEnabled) return false
   const email = input.email?.trim().toLowerCase()
   const bootstrapEmail = input.bootstrapEmail?.trim().toLowerCase()
   if (!email || !bootstrapEmail || email !== bootstrapEmail) return false

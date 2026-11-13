@@ -217,6 +217,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     ))
     .limit(1)
   const mayBootstrap = canBootstrapInitialSuperAdmin({
+    bootstrapEnabled: process.env.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED === 'true',
     email,
     bootstrapEmail,
     isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),

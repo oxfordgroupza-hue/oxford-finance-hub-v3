@@ -300,6 +300,7 @@ describe('administrative privilege-escalation guards', () => {
 
 describe('initial Super Administrator bootstrap gate', () => {
   const base = {
+    bootstrapEnabled: true,
     email: 'admin@example.co.za',
     bootstrapEmail: 'ADMIN@example.co.za',
     isDeployPreview: false,
@@ -310,6 +311,10 @@ describe('initial Super Administrator bootstrap gate', () => {
     hasSuperAdminAssignmentHistory: false,
     isSuspended: false,
   }
+
+  it('requires the explicit bootstrap-enable switch', () => {
+    expect(canBootstrapInitialSuperAdmin({ ...base, bootstrapEnabled: false, isProduction: true, emailConfirmed: true })).toBe(false)
+  })
 
   it('allows the configured identity in an isolated Deploy Preview only after email confirmation', () => {
     expect(canBootstrapInitialSuperAdmin({ ...base, isDeployPreview: true, emailConfirmed: true })).toBe(true)
