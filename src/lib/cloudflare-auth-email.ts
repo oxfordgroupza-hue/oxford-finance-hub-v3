@@ -1,4 +1,4 @@
-﻿import { env } from 'cloudflare:workers'
+﻿import { getServerEnv } from './server-runtime-env'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -8,7 +8,12 @@ type AuthEmailEnvironment = {
 }
 
 function configuration() {
-  const runtime = env as unknown as AuthEmailEnvironment
+  const runtime: AuthEmailEnvironment = {
+    BREVO_API_KEY: getServerEnv('BREVO_API_KEY'),
+    OXFORD_NOTIFICATION_FROM_EMAIL: getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL'),
+    OXFORD_NOTIFICATION_FROM_NAME: getServerEnv('OXFORD_NOTIFICATION_FROM_NAME'),
+    OXFORD_EMAIL_DELIVERY_ENABLED: getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED'),
+  }
   // Fail closed: authentication emails must obey the same explicit preview/production
   // delivery switch as every other Oxford notification. Missing means disabled.
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
