@@ -1,4 +1,4 @@
-# Oxford Finance Hub V3 — mandatory project instructions
+﻿# Oxford Finance Hub V3 â€” mandatory project instructions
 
 This repository is the sole authorised V3 development target for Oxford Finance Hub, Oxford Business Group (Pty) Ltd. The V3 master project specification dated 10 November 2026 is the controlling product, security, business-workflow and release reference.
 
@@ -20,10 +20,11 @@ This repository is the sole authorised V3 development target for Oxford Finance 
 - Never auto-approve/decline finance, infer a lender decision, grant permissions or execute payouts using AI.
 
 ## Provider architecture
-- Netlify Identity: authentication.
-- Netlify Database/PostgreSQL via Drizzle: authoritative relational application data.
+- Cloudflare Workers: application hosting, server functions and application-owned authentication runtime.
+- Neon PostgreSQL via Drizzle and Cloudflare Hyperdrive: authoritative relational application data, credentials, sessions, users, roles, permissions, applications, referrals and audit records.
 - Supabase Storage: private files only.
-- Brevo: transactional email only.
+- Brevo: transactional email only; preserve existing mail hosting and DNS records.
+- Netlify Identity is a legacy dependency to be removed only after the Cloudflare-native preview passes acceptance tests and production cutover is separately approved.
 Do not migrate authentication, roles, permissions, applications, referrals or audit records to Supabase.
 
 ## Release gates

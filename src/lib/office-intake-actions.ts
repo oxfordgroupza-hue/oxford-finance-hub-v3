@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -21,7 +22,6 @@ import { getAuthorizationSnapshot } from './auth'
 import { getVerifiedSessionIdentity } from './verified-session'
 import { createApplicationReference } from './application-reference'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
-import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
 import { partnerApplicantIntakeInput } from './partner-intake-validation'
 import { createOfficeInvitationToken } from './office-intake-security'
 import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
@@ -51,7 +51,11 @@ async function requireIntakeOffice() {
 }
 
 function previewOrigin() {
-  return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
+  const url = new URL(getRequest().url)
+  if (url.hostname !== 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev') {
+    throw new Error('Applicant invitations are available only in the approved Cloudflare preview environment.')
+  }
+  return url.origin
 }
 
 function invitationUrl(token: string, origin: string) {

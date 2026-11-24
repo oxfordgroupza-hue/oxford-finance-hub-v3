@@ -1,3 +1,4 @@
+import { getServerEnv } from './server-runtime-env'
 import '@tanstack/react-start/server-only'
 
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
@@ -7,7 +8,7 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:
  * OXFORD_PII_ENCRYPTION_KEY must be a server-only 32-byte hex key.
  */
 function encryptionKey(): Buffer {
-  const configured = process.env.OXFORD_PII_ENCRYPTION_KEY
+  const configured = getServerEnv('OXFORD_PII_ENCRYPTION_KEY')
   if (!configured || !/^[a-f0-9]{64}$/i.test(configured)) {
     throw new Error('Secure application storage is not configured. Please try again later.')
   }

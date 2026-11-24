@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { getUser } from '@netlify/identity'
 import { Download, FileUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
@@ -14,31 +13,11 @@ type DocumentRow = {
   uploadedAt: string | null
 }
 
-async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {
-  const token = await identityToken()
-  const response = await fetch(`/.netlify/functions/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: 'no-store',
+async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {  const response = await fetch(`/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`, {    cache: 'no-store',
   })
   const result = await response.json() as { documents?: DocumentRow[]; error?: string }
   if (!response.ok) throw new Error(result.error || 'Could not load application documents.')
   return result.documents ?? []
-}
-
-async function identityToken() {
-  const user = await getUser()
-  if (!user) throw new Error('Please sign in again to manage documents.')
-  const tokenUser = user as unknown as {
-    token?: string | { access_token?: string }
-    jwt?: () => Promise<string>
-  }
-  const token = typeof tokenUser.jwt === 'function'
-    ? await tokenUser.jwt()
-    : typeof tokenUser.token === 'string'
-      ? tokenUser.token
-      : tokenUser.token?.access_token
-  if (!token) throw new Error('Your secure sign-in token is unavailable. Please sign in again.')
-  return token
 }
 
 export function DocumentUploadPanel({ applicationId, applicantType, category }: {
@@ -59,7 +38,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     void (async () => {
       try {
         const [healthResponse, rows] = await Promise.all([
-          fetch('/.netlify/functions/oxford-api?action=health', { cache: 'no-store' }),
+          fetch('/api/oxford-api?action=health', { cache: 'no-store' }),
           fetchDocuments(applicationId),
         ])
         const health = await healthResponse.json() as { documentUploadsEnabled?: boolean }
@@ -82,16 +61,12 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     }
     setBusy(true)
     setError('')
-    try {
-      const token = await identityToken()
-      const form = new FormData()
+    try {      const form = new FormData()
       form.set('applicationId', applicationId)
       form.set('documentKey', documentType)
       form.set('file', file)
-      const response = await fetch('/.netlify/functions/oxford-api?action=upload-document', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
-        body: form,
+      const response = await fetch('/api/oxford-api?action=upload-document', {
+        method: 'POST',        body: form,
       })
       const result = await response.json() as { error?: string }
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')
@@ -108,11 +83,9 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     if (busy) return
     setBusy(true)
     setError('')
-    try {
-      const token = await identityToken()
-      const response = await fetch('/.netlify/functions/oxford-api?action=download-document', {
+    try {      const response = await fetch('/api/oxford-api?action=download-document', {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ documentId }),
       })
       const result = await response.json() as { url?: string; error?: string }

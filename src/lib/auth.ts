@@ -1,69 +1,167 @@
+import { getServerEnv } from './server-runtime-env'
 import { createServerFn } from '@tanstack/react-start'
 import { getCookies, getRequest, setCookie } from '@tanstack/react-start/server'
-import { verifyRequestOrigin } from '@netlify/identity'
 import { z } from 'zod'
-import { isIdentityEmailConfirmed } from './identity-verification'
+import { verifyPassword, hashPassword, createOpaqueToken, hashOpaqueToken } from './cloudflare-auth-crypto'
+
+function verifyRequestOrigin(request: Request) {
+  const origin = request.headers.get('origin')
+  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw new Error('This request could not be verified. Refresh the page and try again.')
+  if (request.headers.get('sec-fetch-site') === 'cross-site') throw new Error('Cross-site requests are not permitted.')
+}
 
 /**
- * Authenticate through Netlify Identity and persist its session using TanStack Start
- * response cookies. This app runs on TanStack Start, not inside a Netlify Function.
+ * Authenticate against Oxford credentials and establish a Cloudflare-native session.
  */
-export const loginWithIdentity = createServerFn({ method: 'POST' })
-  .validator((input: unknown) => z.object({
-    email: z.string().trim().email().max(254),
-    password: z.string().min(8).max(1024),
-  }).parse(input))
+export const loginWithPassword = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254), password: z.string().min(12).max(1024) }).parse(input))
   .handler(async ({ data }) => {
-    const request = getRequest()
-    verifyRequestOrigin(request)
-    const identityUrl = new URL('/.netlify/identity/token', request.url)
-    const response = await fetch(identityUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'password', username: data.email, password: data.password }),
-    })
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({})) as { msg?: string; error_description?: string }
-      throw new Error(body.msg || body.error_description || 'Sign-in failed. Check your email and password.')
+    verifyRequestOrigin(getRequest())
+    const [{ db }, { and, eq, gt, isNull }, schema] = await Promise.all([import('../../db/index'), import('drizzle-orm'), import('../../db/schema')])
+    const email = data.email.trim().toLowerCase()
+    const [record] = await db.select({ userId: schema.users.id, status: schema.users.status, emailVerifiedAt: schema.users.emailVerifiedAt,
+      passwordHash: schema.authCredentials.passwordHash, passwordSalt: schema.authCredentials.passwordSalt,
+      passwordAlgorithm: schema.authCredentials.passwordAlgorithm, passwordIterations: schema.authCredentials.passwordIterations,
+      failedAttempts: schema.authCredentials.failedAttempts, lockedUntil: schema.authCredentials.lockedUntil,
+    }).from(schema.users).innerJoin(schema.authCredentials, eq(schema.authCredentials.userId, schema.users.id)).where(eq(schema.users.email, email)).limit(1)
+    const failure = 'Sign-in could not be completed. Check your details or use account recovery.'
+    if (!record) throw new Error(failure)
+    const now = new Date()
+    if (record.lockedUntil && record.lockedUntil > now) throw new Error(failure)
+    const valid = await verifyPassword(data.password, { algorithm: record.passwordAlgorithm, iterations: record.passwordIterations, salt: record.passwordSalt, hash: record.passwordHash })
+    if (!valid) {
+      const attempts = record.failedAttempts + 1
+      await db.update(schema.authCredentials).set({ failedAttempts: attempts, lockedUntil: attempts >= 8 ? new Date(now.getTime()+15*60*1000) : null, updatedAt: now }).where(eq(schema.authCredentials.userId, record.userId))
+      throw new Error(failure)
     }
-    const tokens = await response.json() as { access_token?: string; refresh_token?: string }
-    if (!tokens.access_token) throw new Error('Identity did not return a valid sign-in session.')
-    setCookie('nf_jwt', tokens.access_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
-    if (tokens.refresh_token) {
-      setCookie('nf_refresh', tokens.refresh_token, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
-    }
-    return { authenticated: true as const }
+    if (record.status !== 'active' || !record.emailVerifiedAt) throw new Error('Your Oxford account is not yet active and email-verified. Use secure account activation or recovery.')
+    await db.update(schema.authCredentials).set({ failedAttempts: 0, lockedUntil: null, updatedAt: now }).where(eq(schema.authCredentials.userId, record.userId))
+    await db.update(schema.authSessions).set({ revokedAt: now }).where(and(eq(schema.authSessions.userId, record.userId), isNull(schema.authSessions.revokedAt), gt(schema.authSessions.expiresAt, now)))
+    const token=createOpaqueToken()
+    await db.insert(schema.authSessions).values({ userId: record.userId, tokenHash: await hashOpaqueToken(token), expiresAt: new Date(now.getTime()+12*60*60*1000), lastSeenAt: now })
+    setCookie('__Host-oxford_session',token,{path:'/',secure:true,httpOnly:true,sameSite:'lax',maxAge:12*60*60})
+    await db.update(schema.users).set({lastLoginAt:now,updatedAt:now}).where(eq(schema.users.id,record.userId))
+    return {authenticated:true as const}
   })
 
-/** Clear the server-side session cookies as well as the browser Identity session. */
-export const logoutWithIdentity = createServerFn({ method: 'POST' }).handler(async () => {
-  const request = getRequest()
-  verifyRequestOrigin(request)
-  const expiredCookie = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const, maxAge: 0 }
-  setCookie('nf_jwt', '', expiredCookie)
-  setCookie('nf_refresh', '', expiredCookie)
-  return { authenticated: false as const }
+export const logoutOxfordSession = createServerFn({ method: 'POST' }).handler(async () => {
+  verifyRequestOrigin(getRequest())
+  const token=getCookies()['__Host-oxford_session']
+  if(token){const [{db},{and,eq,isNull},schema]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')]);await db.update(schema.authSessions).set({revokedAt:new Date()}).where(and(eq(schema.authSessions.tokenHash,await hashOpaqueToken(token)),isNull(schema.authSessions.revokedAt)))}
+  setCookie('__Host-oxford_session','',{path:'/',secure:true,httpOnly:true,sameSite:'lax',maxAge:0})
+  return {authenticated:false as const}
 })
 
-/**
- * Resolve the current Netlify Identity session against the authoritative database.
- * The explicitly configured bootstrap identity may claim the reserved Super
- * Administrator role in the approved V3 Deploy Preview or production after the
- * exact configured Identity email is confirmed and no prior administrator exists.
- */
+
+/** Create a customer account without linking or modifying any existing Oxford account. */
+export const registerCustomer = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254), fullName: z.string().trim().min(2).max(120), password: z.string().min(12).max(1024) }).parse(input))
+  .handler(async ({ data }) => {
+    const request=getRequest();verifyRequestOrigin(request)
+    const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
+    const [{db},{eq},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const email=data.email.trim().toLowerCase()
+    const [existing]=await db.select({id:users.id}).from(users).where(eq(users.email,email)).limit(1)
+    if(existing)return {accepted:true as const}
+    const credentials=await hashPassword(data.password)
+    const [account]=await db.insert(users).values({email,displayName:data.fullName.trim(),accountType:'customer',status:'invited'}).onConflictDoNothing().returning({id:users.id})
+    if(!account)return {accepted:true as const}
+    await db.insert(authCredentials).values({userId:account.id,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
+    const token=createOpaqueToken();const now=new Date()
+    await db.insert(authChallenges).values({userId:account.id,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+    const verificationUrl=new URL('/login',request.url);verificationUrl.searchParams.set('verify',token)
+    await sendOxfordAuthEmail({to:email,name:data.fullName.trim(),url:verificationUrl.toString(),purpose:'verification'})
+    return {accepted:true as const}
+  })
+
+/** Request recovery using a generic response to avoid disclosing registered addresses. */
+export const requestPasswordRecovery = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254) }).parse(input))
+  .handler(async ({ data }) => {
+    const request=getRequest();verifyRequestOrigin(request)
+    const [{db},{and,eq,isNull},{users,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const email=data.email.trim().toLowerCase()
+    const [account]=await db.select({id:users.id,email:users.email,displayName:users.displayName,status:users.status,accountType:users.accountType}).from(users).where(eq(users.email,email)).limit(1)
+    if(account&&(account.status==='active'||(account.status==='invited'&&account.accountType==='customer'))){
+      const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
+      const purpose=account.status==='active'?'password_recovery':'email_verification'
+      const token=createOpaqueToken();const now=new Date()
+      await db.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,account.id),eq(authChallenges.purpose,purpose),isNull(authChallenges.consumedAt)))
+      await db.insert(authChallenges).values({userId:account.id,purpose,tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+      const actionUrl=new URL('/login',request.url)
+      if(purpose==='password_recovery'){actionUrl.searchParams.set('reset','1');actionUrl.searchParams.set('token',token)}
+      else actionUrl.searchParams.set('verify',token)
+      await sendOxfordAuthEmail({to:account.email,name:account.displayName||'Oxford Finance Hub user',url:actionUrl.toString(),purpose:purpose==='password_recovery'?'recovery':'verification'})
+    }
+    return {accepted:true as const}
+  })
+
+/** Consume a one-time recovery challenge and replace credentials without changing account roles. */
+export const completePasswordRecovery = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({ token:z.string().min(32).max(128),password:z.string().min(12).max(1024) }).parse(input))
+  .handler(async ({data})=>{
+    const request=getRequest();verifyRequestOrigin(request)
+    const [{db},{and,eq,gt,isNull},{users,authChallenges,authCredentials,authSessions}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const now=new Date();const credentials=await hashPassword(data.password)
+    await db.transaction(async (tx) => {
+      const [challenge] = await tx.update(authChallenges).set({ consumedAt: now }).where(and(
+        eq(authChallenges.tokenHash, await hashOpaqueToken(data.token)),
+        eq(authChallenges.purpose, 'password_recovery'),
+        isNull(authChallenges.consumedAt),
+        gt(authChallenges.expiresAt, now),
+      )).returning({ userId: authChallenges.userId })
+      if (!challenge) throw new Error('This recovery link is invalid or has expired. Request a new one.')
+      await tx.insert(authCredentials).values({
+        userId: challenge.userId, passwordHash: credentials.hash, passwordSalt: credentials.salt,
+        passwordAlgorithm: credentials.algorithm, passwordIterations: credentials.iterations,
+        passwordChangedAt: now, failedAttempts: 0, lockedUntil: null,
+      }).onConflictDoUpdate({ target: authCredentials.userId, set: {
+        passwordHash: credentials.hash, passwordSalt: credentials.salt, passwordAlgorithm: credentials.algorithm,
+        passwordIterations: credentials.iterations, passwordChangedAt: now, failedAttempts: 0,
+        lockedUntil: null, updatedAt: now,
+      } })
+      await tx.update(users).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(users.id, challenge.userId))
+      await tx.update(authSessions).set({ revokedAt: now }).where(and(
+        eq(authSessions.userId, challenge.userId), isNull(authSessions.revokedAt),
+      ))
+    })
+    return {updated:true as const}
+  })
+
+/** Verify a new customer's email using a short-lived, single-use challenge. */
+export const verifyCustomerEmail = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => z.object({ token:z.string().min(32).max(128) }).parse(input))
+  .handler(async ({data})=>{
+    const request=getRequest();verifyRequestOrigin(request)
+    const [{db},{and,eq,gt,isNull},{users,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const now=new Date()
+    await db.transaction(async (tx) => {
+      const [challenge] = await tx.update(authChallenges).set({ consumedAt: now }).where(and(
+        eq(authChallenges.tokenHash, await hashOpaqueToken(data.token)),
+        eq(authChallenges.purpose, 'email_verification'),
+        isNull(authChallenges.consumedAt),
+        gt(authChallenges.expiresAt, now),
+      )).returning({ userId: authChallenges.userId })
+      if (!challenge) throw new Error('This verification link is invalid or has expired.')
+      const [activated] = await tx.update(users).set({ emailVerifiedAt: now, status: 'active', updatedAt: now }).where(and(
+        eq(users.id, challenge.userId), eq(users.accountType, 'customer'), eq(users.status, 'invited'),
+      )).returning({ id: users.id })
+      if (!activated) throw new Error('This customer account cannot be activated with the supplied verification link.')
+    })
+    return {verified:true as const}
+  })
+
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
-    { and, eq, isNull, ne },
+    { and, eq, gt, isNull, ne },
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
-    { isApprovedV3DeployPreview },
   ] = await Promise.all([
     import('drizzle-orm'),
     import('../../db/index'),
     import('../../db/schema'),
     import('./access-control'),
-    import('./netlify-preview'),
   ])
 
   const {
@@ -78,39 +176,17 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     users,
   } = schema
 
-  const cookies = getCookies()
-  const accessToken = cookies.nf_jwt
-  if (!accessToken) return { authenticated: false as const }
+  const token=getCookies()['__Host-oxford_session']
+  if(!token)return {authenticated:false as const}
+  const [activeSession]=await db.select({userId:users.id,email:users.email,emailVerifiedAt:users.emailVerifiedAt})
+    .from(schema.authSessions).innerJoin(users,eq(schema.authSessions.userId,users.id))
+    .where(and(eq(schema.authSessions.tokenHash,await hashOpaqueToken(token)),isNull(schema.authSessions.revokedAt),gt(schema.authSessions.expiresAt,new Date()))).limit(1)
+  if(!activeSession)return {authenticated:false as const}
+  if(!activeSession.emailVerifiedAt)return {authenticated:true as const,provisioned:false as const,email:activeSession.email,emailVerificationRequired:true as const}
+  const sessionUser={id:activeSession.userId,email:activeSession.email,confirmed_at:activeSession.emailVerifiedAt.toISOString()}
 
-  const request = getRequest()
-  let identityUser: { id: string; email?: string; confirmed_at?: string | null; user_metadata?: Record<string, unknown> }
-  try {
-    const identityResponse = await fetch(new URL('/.netlify/identity/user', request.url), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    if (identityResponse.status === 401 || identityResponse.status === 400) {
-      return { authenticated: false as const }
-    }
-    if (!identityResponse.ok) {
-      return { authenticated: false as const, identityUnavailable: true as const }
-    }
-    identityUser = await identityResponse.json() as typeof identityUser
-  } catch {
-    return { authenticated: false as const, identityUnavailable: true as const }
-  }
-
-  if (!identityUser.id) return { authenticated: false as const }
-  if (!isIdentityEmailConfirmed(identityUser)) {
-    return {
-      authenticated: true as const,
-      provisioned: false as const,
-      email: identityUser.email?.trim().toLowerCase() || null,
-      emailVerificationRequired: true as const,
-    }
-  }
-
-  const email = identityUser.email?.trim().toLowerCase() ?? ''
-  const bootstrapEmail = process.env.OXFORD_INITIAL_SUPER_ADMIN_EMAIL
+  const email = sessionUser.email?.trim().toLowerCase() ?? ''
+  const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')
   // Always repair the permission catalogue on an authenticated session. Identity
   // event hooks are best-effort; login must not depend on a signup/login hook having
   // completed successfully.
@@ -167,25 +243,12 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
   }
 
   let [account] = await db.select().from(users)
-    .where(eq(users.identityId, identityUser.id)).limit(1)
+    .where(eq(users.id, sessionUser.id)).limit(1)
 
-  // Self-heal customer and partner provisioning from the authenticated Identity
-  // session. This covers missed Identity webhooks and legacy accounts. Email
-  // conflicts are deliberately not auto-linked to avoid account takeover.
-  if (!account && email) {
-    await db.insert(users).values({
-      identityId: identityUser.id,
-      email,
-      accountType: 'customer',
-      status: 'active',
-    }).onConflictDoNothing()
-
-    ;[account] = await db.select().from(users)
-      .where(eq(users.identityId, identityUser.id)).limit(1)
-  }
+  // Sessions resolve only to an existing Oxford user row; no email-based account linking.
 
   if (!account) {
-    throw new Error('Your Identity email is already associated with a different Oxford account, or provisioning could not complete. Oxford must securely reconcile the account; automatic linking is disabled.')
+    throw new Error('The Oxford account record for this session could not be found. Access is denied; automatic account linking is disabled.')
   }
 
   const authorizationTime = new Date()
@@ -217,13 +280,13 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     ))
     .limit(1)
   const mayBootstrap = canBootstrapInitialSuperAdmin({
-    bootstrapEnabled: process.env.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED === 'true',
+    bootstrapEnabled: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true',
     email,
     bootstrapEmail,
-    isDeployPreview: isApprovedV3DeployPreview(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL),
-    isProduction: process.env.CONTEXT === 'production',
+    isDeployPreview: new URL(getRequest().url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+    isProduction: false,
     hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
-    emailConfirmed: isIdentityEmailConfirmed(identityUser),
+    emailConfirmed: Boolean(account.emailVerifiedAt),
     accountStatus: account.status,
     hasSuperAdminAssignmentHistory: Boolean(superAdminAssignmentHistory),
     isSuspended: isSuspended(suspensions, authorizationTime),
@@ -324,7 +387,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     provisioned: true as const,
     user: {
       id: account.id,
-      email: identityUser.email ?? account.email,
+      email: sessionUser.email ?? account.email,
       displayName: account.displayName,
       accountType: account.accountType,
       status: account.status,

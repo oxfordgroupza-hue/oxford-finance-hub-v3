@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+﻿import { createServerFn } from '@tanstack/react-start'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -77,12 +77,10 @@ async function requireVerifiedIdentity(): Promise<{ id: string; email: string }>
   if (!session.authenticated || !session.provisioned || session.blocked) {
     throw new Error('Please sign in and verify your email before submitting an application or saving a draft.')
   }
-  const [account] = await db.select({ identityId: users.identityId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1)
-  if (!account?.identityId || !session.user.email) {
-    throw new Error('Your Oxford account could not be securely matched to its verified Identity account.')
+  if (!session.user.id || !session.user.email) {
+    throw new Error('Your Oxford account could not be securely matched to its verified session.')
   }
-  return { id: account.identityId, email: session.user.email }
+  return { id: session.user.id, email: session.user.email }
 }
 
 async function requireCustomerPermission(permission: PermissionKey) {
@@ -258,7 +256,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
 
     const submission = await db.transaction(async (tx) => {
       const [account] = await tx.select().from(users)
-        .where(and(eq(users.identityId, identity.id), eq(users.status, 'active')))
+        .where(and(eq(users.id, identity.id), eq(users.status, 'active')))
         .limit(1)
       if (!account || account.accountType !== 'customer') {
         throw new Error('Your account is not enabled for customer applications. Please contact Oxford support.')
@@ -581,7 +579,7 @@ async function requireCustomerAccount(permission: PermissionKey) {
   await requireCustomerPermission(permission)
   const identity = await requireVerifiedIdentity()
   const [account] = await db.select().from(users)
-    .where(and(eq(users.identityId, identity.id), eq(users.status, 'active'))).limit(1)
+    .where(and(eq(users.id, identity.id), eq(users.status, 'active'))).limit(1)
   if (!account || account.accountType !== 'customer') {
     throw new Error('An active customer account is required to save a server-side draft.')
   }

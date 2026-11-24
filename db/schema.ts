@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+﻿import { sql } from 'drizzle-orm'
 import {
   bigint, boolean, check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from 'drizzle-orm/pg-core'
@@ -25,8 +25,10 @@ const consentTypeEnum = pgEnum('consent_type', consentTypes)
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
-  identityId: text('identity_id').notNull(),
+  // Nullable for Cloudflare-native accounts; legacy Netlify subjects remain mapped during the migration.
+  identityId: text('identity_id'),
   email: text('email').notNull(),
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   displayName: text('display_name'),
   accountType: accountTypeEnum('account_type').notNull(),
   status: accountStatusEnum('status').default('invited').notNull(),
@@ -650,4 +652,51 @@ export const settlementRecords = pgTable('settlement_records', {
   check('settlement_records_amounts_nonnegative_check', sql`${t.approvedFinanceAmountCents} > 0 and ${t.actualFunderSettlementAmountCents} > 0 and ${t.documentationFeeCents} >= 0 and ${t.partnerGrossPayableCents} >= 0 and ${t.facilitationFeeCents} >= 0 and ${t.adminFeeCents} >= 0 and ${t.partnerNetPayableCents} >= 0 and ${t.oxfordTotalFeesCents} >= 0`),
   check('settlement_records_reconciliation_check', sql`${t.partnerGrossPayableCents} = ${t.actualFunderSettlementAmountCents} - ${t.documentationFeeCents} and ${t.partnerNetPayableCents} = ${t.partnerGrossPayableCents} - ${t.facilitationFeeCents} - ${t.adminFeeCents} and ${t.oxfordTotalFeesCents} = ${t.facilitationFeeCents} + ${t.adminFeeCents}`),
   check('settlement_records_currency_check', sql`${t.currency} = 'ZAR'`),
+])
+
+/** Password credentials are owned by the Cloudflare application, never by the browser. */
+export const authCredentials = pgTable('auth_credentials', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  passwordHash: text('password_hash').notNull(),
+  passwordSalt: text('password_salt').notNull(),
+  passwordAlgorithm: text('password_algorithm').notNull().default('pbkdf2-sha256'),
+  passwordIterations: integer('password_iterations').notNull(),
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }).defaultNow().notNull(),
+  failedAttempts: integer('failed_attempts').default(0).notNull(),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  ...timestamps(),
+}, (t) => [
+  check('auth_credentials_algorithm_check', sql`${t.passwordAlgorithm} = 'pbkdf2-sha256'`),
+  check('auth_credentials_iterations_check', sql`${t.passwordIterations} >= 100000`),
+  check('auth_credentials_failed_attempts_check', sql`${t.failedAttempts} >= 0`),
+])
+
+/** Opaque bearer sessions are stored only as SHA-256 token digests. */
+export const authSessions = pgTable('auth_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('auth_sessions_token_hash_uq').on(t.tokenHash),
+  index('auth_sessions_user_active_idx').on(t.userId, t.expiresAt).where(sql`${t.revokedAt} is null`),
+  index('auth_sessions_expiry_idx').on(t.expiresAt),
+])
+
+/** One-time, purpose-bound email verification, recovery and invitation challenges. */
+export const authChallenges = pgTable('auth_challenges', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  purpose: text('purpose').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('auth_challenges_token_hash_uq').on(t.tokenHash),
+  check('auth_challenges_purpose_check', sql`${t.purpose} in ('email_verification', 'password_recovery', 'account_invitation')`),
+  index('auth_challenges_user_purpose_idx').on(t.userId, t.purpose, t.expiresAt),
 ])
