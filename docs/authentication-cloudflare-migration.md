@@ -127,3 +127,15 @@ The following code-level changes have now been pushed to the same draft branch a
 - The Cloudflare build is marked as `cloudflare-preview`. Application submission requires both that context, the exact `oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev` hostname and the explicit server-side `OXFORD_APPLICATIONS_ENABLED=true` flag. Draft editing additionally requires the PII encryption key. These flags and secrets remain unset; the change only makes a later controlled preview test possible and does not enable intake now.
 
 These follow-up changes have been committed through GitHub's repository contents API. They have **not** yet been built, typechecked, linted, tested or deployed from this updated branch. Do not infer that the earlier 204-test result covers these changes. The current Cloudflare Worker still runs the previous deployed version until a fresh local validation and preview deployment are completed.
+
+
+## Validation of follow-up implementation (24 November 2026)
+The latest branch head was pulled onto the authorized Windows development machine and validated after the follow-up code changes:
+- `pnpm.cmd typecheck`: passed.
+- `pnpm.cmd test`: 204 tests passed across 38 files.
+- `pnpm.cmd lint`: zero errors; two warnings remain in generated `worker-configuration.d.ts`.
+- `pnpm.cmd cf:build`: passed, including client and SSR Worker bundles.
+
+The first validation attempt used PowerShell's blocked `pnpm.ps1` shim and did not run. The commands were rerun using `pnpm.cmd`; the complete validation sequence then exited with code 0.
+
+The latest source is validated locally but has not yet been deployed to the preview Worker. The running Worker remains on version `a76e8c11-b4f0-4dfa-9e29-056888403dc1` until a fresh preview deployment is performed. No production settings or secrets were changed.
