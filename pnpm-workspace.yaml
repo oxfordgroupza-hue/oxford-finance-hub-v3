@@ -1,2 +1,3 @@
-allowBuilds:
+﻿allowBuilds:
   esbuild: true
+  workerd: true

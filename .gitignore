@@ -27,3 +27,8 @@ src/routeTree.gen.ts
 Thumbs.db
 .vscode/
 .idea/
+
+# Cloudflare local state
+.wrangler/
+.dev.vars*
+worker-configuration.d.ts

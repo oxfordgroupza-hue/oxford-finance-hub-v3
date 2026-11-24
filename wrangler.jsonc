@@ -1,0 +1,7 @@
+﻿{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "oxford-finance-hub-v3",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-11-24",
+  "observability": { "enabled": true }
+}

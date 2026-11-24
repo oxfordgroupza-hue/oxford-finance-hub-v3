@@ -12,7 +12,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:seed:access": "pnpm dlx tsx scripts/seed-access-control.ts"
+    "db:seed:access": "pnpm dlx tsx scripts/seed-access-control.ts",
+    "cf:dev": "vite --config vite.cloudflare.config.ts --port 3001",
+    "cf:build": "vite build --config vite.cloudflare.config.ts",
+    "cf:preview": "wrangler dev"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.2",
@@ -47,6 +50,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.70.1",
     "@eslint/js": "10.0.1",
     "@netlify/vite-plugin-tanstack-start": "1.3.19",
     "@tailwindcss/vite": "4.3.3",
@@ -67,7 +71,8 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
     "vite": "8.3.5",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "wrangler": "^4.166.0"
   },
   "engines": {
     "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
