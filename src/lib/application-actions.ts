@@ -1,4 +1,6 @@
 ﻿import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
+import { getServerEnv } from './server-runtime-env'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -54,18 +56,28 @@ const consentVersion = '2026-11-08-v1'
  * private Supabase Storage integration and launch acceptance tests are complete.
  * This flag is server-only; browser code cannot enable application processing.
  */
+function isApprovedCloudflarePreviewRequest() {
+  const request = getRequest()
+  return process.env.CONTEXT === 'cloudflare-preview' &&
+    new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+}
+
 function assertApplicationProcessingEnabled() {
-  // Even an accidentally enabled production environment variable must never
-  // activate live applicant intake. This code path is preview-only.
-  if (process.env.CONTEXT !== 'deploy-preview' || process.env.OXFORD_APPLICATIONS_ENABLED !== 'true') {
+  // Intake remains disabled unless the deployment-specific server-side flag is
+  // explicitly enabled. Cloudflare is additionally pinned to its preview host.
+  const enabled = process.env.CONTEXT === 'deploy-preview'
+    ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
+    : isApprovedCloudflarePreviewRequest() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  if (!enabled) {
     throw new Error('Online applications and saved drafts are temporarily unavailable while Oxford completes secure platform verification. Please contact Oxford Business Group for assistance.')
   }
 }
 
-/** Existing encrypted drafts may be edited only in Deploy Preview. This does not enable new intake or submission. */
+/** Existing encrypted drafts may be edited only on an approved non-production preview host. */
 function assertExistingDraftEditingEnabled() {
-  if (process.env.CONTEXT !== 'deploy-preview') {
-    throw new Error('Saved draft editing is available only in the secure Deploy Preview while Oxford completes platform verification.')
+  const allowed = process.env.CONTEXT === 'deploy-preview' || isApprovedCloudflarePreviewRequest()
+  if (!allowed) {
+    throw new Error('Saved draft editing is available only in the secure preview while Oxford completes platform verification.')
   }
 }
 
