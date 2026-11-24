@@ -22,12 +22,8 @@ function LoginPage() {
 
   const continueToWorkspace = useCallback(async () => {
     const session = await getAuthorizationSnapshot()
-    if ('identityUnavailable' in session && session.identityUnavailable) {
-      setError('Netlify Identity is not available yet. The project must be connected to a Netlify site with Identity enabled.')
-      return
-    }
-    if ('identityVerificationUnavailable' in session && session.identityVerificationUnavailable) {
-      setError('Your sign-in succeeded, but Netlify could not confirm your email verification status. Please try again shortly; Oxford has not changed your account permissions.')
+    if (!session.authenticated) {
+      setMessage('Your Oxford session could not be confirmed. Please sign in again.')
       return
     }
     if (session.authenticated && 'emailVerificationRequired' in session && session.emailVerificationRequired) {
