@@ -84,11 +84,12 @@ export const requestPasswordRecovery = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254) }).parse(input))
   .handler(async ({ data }) => {
     const request=getRequest();verifyRequestOrigin(request)
+    const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email')
+    assertOxfordAuthEmailConfigured()
     const [{db},{and,eq,isNull},{users,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const email=data.email.trim().toLowerCase()
     const [account]=await db.select({id:users.id,email:users.email,displayName:users.displayName,status:users.status,accountType:users.accountType}).from(users).where(eq(users.email,email)).limit(1)
     if(account&&(account.status==='active'||(account.status==='invited'&&account.accountType==='customer'))){
-      const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
       const purpose=account.status==='active'?'password_recovery':'email_verification'
       const token=createOpaqueToken();const now=new Date()
       await db.transaction(async (tx) => {
