@@ -17,7 +17,7 @@ export const loginWithPassword = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254), password: z.string().min(12).max(1024) }).parse(input))
   .handler(async ({ data }) => {
     verifyRequestOrigin(getRequest())
-    const [{ db }, { and, eq, gt, isNull }, schema] = await Promise.all([import('../../db/index'), import('drizzle-orm'), import('../../db/schema')])
+    const [{ db }, { and, eq, gt, isNull, sql }, schema] = await Promise.all([import('../../db/index'), import('drizzle-orm'), import('../../db/schema')])
     const email = data.email.trim().toLowerCase()
     const [record] = await db.select({ userId: schema.users.id, status: schema.users.status, emailVerifiedAt: schema.users.emailVerifiedAt,
       passwordHash: schema.authCredentials.passwordHash, passwordSalt: schema.authCredentials.passwordSalt,
@@ -30,8 +30,11 @@ export const loginWithPassword = createServerFn({ method: 'POST' })
     if (record.lockedUntil && record.lockedUntil > now) throw new Error(failure)
     const valid = await verifyPassword(data.password, { algorithm: record.passwordAlgorithm, iterations: record.passwordIterations, salt: record.passwordSalt, hash: record.passwordHash })
     if (!valid) {
-      const attempts = record.failedAttempts + 1
-      await db.update(schema.authCredentials).set({ failedAttempts: attempts, lockedUntil: attempts >= 8 ? new Date(now.getTime()+15*60*1000) : null, updatedAt: now }).where(eq(schema.authCredentials.userId, record.userId))
+      await db.update(schema.authCredentials).set({
+        failedAttempts: sql`${schema.authCredentials.failedAttempts} + 1`,
+        lockedUntil: sql`CASE WHEN ${schema.authCredentials.failedAttempts} + 1 >= 8 THEN ${new Date(now.getTime()+15*60*1000)} ELSE NULL END`,
+        updatedAt: now,
+      }).where(eq(schema.authCredentials.userId, record.userId))
       throw new Error(failure)
     }
     if (record.status !== 'active' || !record.emailVerifiedAt) throw new Error('Your Oxford account is not yet active and email-verified. Use secure account activation or recovery.')
@@ -61,14 +64,16 @@ export const registerCustomer = createServerFn({ method: 'POST' })
     const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
     const [{db},{eq},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const email=data.email.trim().toLowerCase()
-    const [existing]=await db.select({id:users.id}).from(users).where(eq(users.email,email)).limit(1)
-    if(existing)return {accepted:true as const}
     const credentials=await hashPassword(data.password)
-    const [account]=await db.insert(users).values({email,displayName:data.fullName.trim(),accountType:'customer',status:'invited'}).onConflictDoNothing().returning({id:users.id})
-    if(!account)return {accepted:true as const}
-    await db.insert(authCredentials).values({userId:account.id,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
     const token=createOpaqueToken();const now=new Date()
-    await db.insert(authChallenges).values({userId:account.id,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+    const account=await db.transaction(async (tx) => {
+      const [created]=await tx.insert(users).values({email,displayName:data.fullName.trim(),accountType:'customer',status:'invited'}).onConflictDoNothing().returning({id:users.id})
+      if(!created)return null
+      await tx.insert(authCredentials).values({userId:created.id,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
+      await tx.insert(authChallenges).values({userId:created.id,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+      return created
+    })
+    if(!account)return {accepted:true as const}
     const verificationUrl=new URL('/login',request.url);verificationUrl.searchParams.set('verify',token)
     await sendOxfordAuthEmail({to:email,name:data.fullName.trim(),url:verificationUrl.toString(),purpose:'verification'})
     return {accepted:true as const}
@@ -86,8 +91,10 @@ export const requestPasswordRecovery = createServerFn({ method: 'POST' })
       const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
       const purpose=account.status==='active'?'password_recovery':'email_verification'
       const token=createOpaqueToken();const now=new Date()
-      await db.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,account.id),eq(authChallenges.purpose,purpose),isNull(authChallenges.consumedAt)))
-      await db.insert(authChallenges).values({userId:account.id,purpose,tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+      await db.transaction(async (tx) => {
+        await tx.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,account.id),eq(authChallenges.purpose,purpose),isNull(authChallenges.consumedAt)))
+        await tx.insert(authChallenges).values({userId:account.id,purpose,tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+      })
       const actionUrl=new URL('/login',request.url)
       if(purpose==='password_recovery'){actionUrl.searchParams.set('reset','1');actionUrl.searchParams.set('token',token)}
       else actionUrl.searchParams.set('verify',token)
