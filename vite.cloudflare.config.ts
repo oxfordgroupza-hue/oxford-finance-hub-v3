@@ -27,8 +27,9 @@ const databaseBoundary = {
 
 export default defineConfig({
   define: {
-    // Netlify preview-only safeguards remain closed on Cloudflare.
-    'process.env.CONTEXT': JSON.stringify('unknown'),
+    // Mark this build as a dedicated Cloudflare preview; server-side gates still require
+    // the exact preview hostname and explicit runtime feature flags.
+    'process.env.CONTEXT': JSON.stringify('cloudflare-preview'),
   },
   resolve: { tsconfigPaths: true },
   plugins: [
