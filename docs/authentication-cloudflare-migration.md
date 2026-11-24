@@ -86,16 +86,33 @@ Neon remains connected through the existing preview Hyperdrive configuration. It
 - Add transactional guarantees and integration tests for challenge consumption, credential updates, registration, session rotation, account suspension and RBAC enforcement.
 - Review and implement any staff-account invitation acceptance workflow that is still dependent on the legacy Identity provider; applicant intake invitations are a separate verified-customer workflow and are already retained.
 - Configure preview-only Worker secrets through an approved secure path; do not read or print secret values from Netlify.
-- Apply M27 only to the isolated Neon `cloudflare-preview` branch after final SQL/code review.
+- M27 has been applied only to the isolated Neon `cloudflare-preview` branch; production schema and data remain untouched.
 - Test login, recovery, email verification, applicant intake claim, document listing/upload/download, private bucket policy, notification queue, PII encryption and all seven Oxford account roles using synthetic accounts.
-- Deploy the candidate to the Cloudflare preview Worker only after the preview database and environment are prepared. Production cutover remains a separate approval.
+- Complete preview Worker environment configuration and authenticated synthetic end-to-end testing. Production cutover remains a separate approval.
 
 
 ## Preview deployment record (24 November 2026)
 - M27 was applied transactionally to Neon project `odd-field-47093538`, isolated branch `cloudflare-preview` (`br-autumn-rain-bgtzmfh8`), database `oxford_finance_hub`. Verification confirmed `auth_credentials`, `auth_sessions`, and `auth_challenges` exist; `users.identity_id` is nullable and `users.email_verified_at` exists. No production branch was changed.
-- Cloudflare preview Worker deployment succeeded: `oxford-finance-hub-v3-preview`, version `5eb48872-51a0-4516-8e7b-2324462eb9f5`. It uses the existing Hyperdrive binding `6dd54a2875c646608281c9e0e67a380e`.
+- Cloudflare preview Worker deployment succeeded: `oxford-finance-hub-v3-preview`, initial version `5eb48872-51a0-4516-8e7b-2324462eb9f5`; latest redeployment after transactional recovery/verification updates: `a76e8c11-b4f0-4dfa-9e29-056888403dc1`. It uses the existing Hyperdrive binding `6dd54a2875c646608281c9e0e67a380e`.
 - HTTP smoke checks: `/` returned 200; `/login` returned 200; document API health returned 200 and reported storage/encryption/upload/application gates disabled; unauthenticated document upload returned 401.
 - Local checks on this exact source: TypeScript passed; 204 tests across 38 files passed; ESLint passed with zero errors and two warnings in generated `worker-configuration.d.ts`; Cloudflare build passed.
 - Wrangler reported no preview Worker secrets configured. Consequently email-dependent registration/recovery, initial Super Administrator bootstrap, Supabase storage, and document upload are not operational yet. No secret values were copied from Netlify, and no email-hosting configuration was touched.
 - PBKDF2 has not yet been benchmarked in the deployed Worker runtime. Auth challenge/credential mutations still need transaction wrapping and integration tests; staff invitation acceptance requires a separate legacy-flow audit. This preview is a deployed technical candidate, not a launch-ready finance service.
 - Production DNS/custom domains, production database/schema/data, production secrets, Netlify configuration, and mail hosting remain unchanged. Do not cut over until the outstanding blockers pass and production cutover is separately approved.
+
+
+## Follow-up source review (24 November 2026)
+A further review of the pushed branch and draft PR #9 identified these items as open:
+- Customer registration currently creates the user, password credential and email-verification challenge in separate database operations. Make this a single transaction and add rollback/failure tests.
+- Password-recovery challenge replacement currently consumes prior challenges and inserts the new challenge in separate operations. Make this atomic.
+- Login failed-attempt increments are read-modify-write operations; change to an atomic database increment/lockout update and test concurrent failures.
+- The Cloudflare build sets `process.env.CONTEXT` to `unknown`, while application submission and draft-edit gates still require `deploy-preview`. The current Cloudflare Worker therefore deliberately cannot accept application submissions through the existing wizard.
+- The current applicant invitation route is the assisted-applicant claim flow. Staff-account invitation acceptance is not yet migrated to Cloudflare-native authentication.
+- The login page retains outdated Netlify Identity error messaging and should be updated.
+- GitHub Actions validation remains manual-dispatch only because the repository's configured GitHub-hosted runner billing restriction prevents automated PR checks. Local validation is not a substitute for an automated preview acceptance matrix.
+
+The draft pull request is https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/9. It is intentionally not merged. These items are not represented as completed.
+
+Cloudflare's current Workers compatibility-date behavior enables Node.js compatibility for dates on or after 2026-08-04, so the configured 2026-11-24 compatibility date supports the branch's `node:crypto` imports without an additional compatibility flag. This does not replace a live runtime benchmark.
+
+Latest preview configuration inspection still found no Worker secrets configured. The preview can serve public pages, but email verification/recovery, PII encryption, Supabase storage and document upload remain unavailable until the preview-only bindings are securely configured and verified.
