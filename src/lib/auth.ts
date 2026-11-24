@@ -62,7 +62,7 @@ export const registerCustomer = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const request=getRequest();verifyRequestOrigin(request)
     const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
-    const [{db},{eq},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const [{db},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('../../db/schema')])
     const email=data.email.trim().toLowerCase()
     const credentials=await hashPassword(data.password)
     const token=createOpaqueToken();const now=new Date()
