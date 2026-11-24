@@ -75,7 +75,11 @@ function assertApplicationProcessingEnabled() {
 
 /** Existing encrypted drafts may be edited only on an approved non-production preview host. */
 function assertExistingDraftEditingEnabled() {
-  const allowed = process.env.CONTEXT === 'deploy-preview' || isApprovedCloudflarePreviewRequest()
+  const allowed = process.env.CONTEXT === 'deploy-preview' || (
+    isApprovedCloudflarePreviewRequest() &&
+    getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true' &&
+    Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY'))
+  )
   if (!allowed) {
     throw new Error('Saved draft editing is available only in the secure preview while Oxford completes platform verification.')
   }
