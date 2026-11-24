@@ -4,10 +4,16 @@ type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
   OXFORD_NOTIFICATION_FROM_EMAIL?: string
   OXFORD_NOTIFICATION_FROM_NAME?: string
+  OXFORD_EMAIL_DELIVERY_ENABLED?: string
 }
 
 function configuration() {
   const runtime = env as unknown as AuthEmailEnvironment
+  // Fail closed: authentication emails must obey the same explicit preview/production
+  // delivery switch as every other Oxford notification. Missing means disabled.
+  if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
+    throw new Error('Oxford account email delivery is disabled for this environment.')
+  }
   const apiKey = runtime.BREVO_API_KEY
   const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
