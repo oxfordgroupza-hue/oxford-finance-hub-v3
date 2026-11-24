@@ -5,10 +5,10 @@ import { SiteLayout } from '@/components/site/SiteLayout'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { applicantTypes, documentCollectionNotice, financeCategories, intermediaryDisclaimer } from '@/lib/finance-config'
 import { img, imgSrcSet } from '@/lib/images'
-import { getPublicSiteConfig } from '@/lib/catalog-actions'
+import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 
 export const Route = createFileRoute('/')({
-  loader: () => getPublicSiteConfig(),
+  loader: () => getPublicSiteConfigWithFallback(),
   component: Home,
 })
 

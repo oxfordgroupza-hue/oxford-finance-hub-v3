@@ -1,4 +1,4 @@
-﻿import { fileURLToPath } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { cloudflare } from '@cloudflare/vite-plugin'
@@ -8,12 +8,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
-const browserServerDatabaseBoundary = {
-  name: 'browser-server-database-boundary',
+const databaseBoundary = {
+  name: 'cloudflare-database-runtime-boundary',
   enforce: 'pre' as const,
   resolveId(source: string, _importer: string | undefined, options: { ssr?: boolean }) {
-    if (options.ssr === false && (source === '../../db' || source === '../../db/index')) {
-      return resolve(projectRoot, 'src/lib/db-client-stub.ts')
+    if (source === '../../db' || source === '../../db/index') {
+      if (options.ssr === false) {
+        return resolve(projectRoot, 'src/lib/db-client-stub.ts')
+      }
+      return resolve(projectRoot, 'db/cloudflare.ts')
     }
     return null
   },
@@ -21,13 +24,13 @@ const browserServerDatabaseBoundary = {
 
 export default defineConfig({
   define: {
-    // No Netlify deploy context exists on Workers. Unknown fails closed for preview-only safeguards.
+    // Netlify preview-only safeguards remain closed on Cloudflare.
     'process.env.CONTEXT': JSON.stringify('unknown'),
   },
   resolve: { tsconfigPaths: true },
   plugins: [
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    browserServerDatabaseBoundary,
+    databaseBoundary,
     tailwindcss(),
     tanstackStart(),
     viteReact(),

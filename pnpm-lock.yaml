@@ -13,7 +13,7 @@ importers:
         version: 5.9.2(ajv-errors@3.0.0(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
       '@netlify/database':
         specifier: ^2.0.3
-        version: 2.0.3
+        version: 2.0.3(postgres@3.4.7)
       '@netlify/identity':
         specifier: ^2.0.1
         version: 2.0.1
@@ -73,13 +73,16 @@ importers:
         version: 2.1.1
       drizzle-orm:
         specifier: 1.0.0-beta.22
-        version: 1.0.0-beta.22(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)(pg@8.23.1)(zod@4.6.7)
+        version: 1.0.0-beta.22(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.7)(zod@4.6.7)
       lucide-react:
         specifier: 1.61.0
         version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      postgres:
+        specifier: 3.4.7
+        version: 3.4.7
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -4501,6 +4504,10 @@ packages:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
 
+  postgres@3.4.7:
+    resolution: {integrity: sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw==}
+    engines: {node: '>=12'}
+
   precinct@12.3.2:
     resolution: {integrity: sha512-JbJevI1K80z8e/WIyDt/4vUN/4qcfBSKKqOjJA4mosPPPb7zODKRJQV7YN7apVWN3k58nZYm/vEsLgEGYmnxwg==}
     engines: {node: '>=18'}
@@ -6322,12 +6329,12 @@ snapshots:
       '@electric-sql/pglite': 0.3.16
       pg-gateway: 0.3.0-beta.4
 
-  '@netlify/database@2.0.3':
+  '@netlify/database@2.0.3(postgres@3.4.7)':
     dependencies:
       '@neondatabase/serverless': 1.2.0
       '@netlify/runtime-utils': 3.0.1
       pg: 8.23.1
-      waddler: 0.1.1(@neondatabase/serverless@1.2.0)(pg@8.23.1)
+      waddler: 0.1.1(@neondatabase/serverless@1.2.0)(pg@8.23.1)(postgres@3.4.7)
       ws: 8.22.1
     transitivePeerDependencies:
       - '@clickhouse/client'
@@ -8347,11 +8354,12 @@ snapshots:
       get-tsconfig: 4.14.3
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-beta.22(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)(pg@8.23.1)(zod@4.6.7):
+  drizzle-orm@1.0.0-beta.22(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)(pg@8.23.1)(postgres@3.4.7)(zod@4.6.7):
     optionalDependencies:
       '@neondatabase/serverless': 1.2.0
       '@opentelemetry/api': 1.9.1
       pg: 8.23.1
+      postgres: 3.4.7
       zod: 4.6.7
 
   dunder-proto@1.0.1:
@@ -9713,6 +9721,8 @@ snapshots:
     dependencies:
       xtend: 4.0.2
 
+  postgres@3.4.7: {}
+
   precinct@12.3.2(supports-color@7.2.0):
     dependencies:
       '@dependents/detective-less': 5.0.3
@@ -10476,10 +10486,11 @@ snapshots:
     dependencies:
       xml-name-validator: 5.0.0
 
-  waddler@0.1.1(@neondatabase/serverless@1.2.0)(pg@8.23.1):
+  waddler@0.1.1(@neondatabase/serverless@1.2.0)(pg@8.23.1)(postgres@3.4.7):
     optionalDependencies:
       '@neondatabase/serverless': 1.2.0
       pg: 8.23.1
+      postgres: 3.4.7
 
   web-streams-polyfill@3.3.3: {}
 

@@ -5,10 +5,10 @@ import { PageHero } from '@/components/site/PageHero'
 import { SiteLayout } from '@/components/site/SiteLayout'
 import { financeCategories, getDocumentChecklist, intermediaryDisclaimer } from '@/lib/finance-config'
 import { img } from '@/lib/images'
-import { getPublicSiteConfig } from '@/lib/catalog-actions'
+import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 
 export const Route = createFileRoute('/solutions')({
-  loader: () => getPublicSiteConfig(),
+  loader: () => getPublicSiteConfigWithFallback(),
   head: () => ({ meta: [{ title: 'Finance solutions | Oxford Finance Hub' }] }),
   component: SolutionsPage,
 })
