@@ -116,3 +116,14 @@ The draft pull request is https://github.com/oxfordgroupza-hue/oxford-finance-hu
 Cloudflare's current Workers compatibility-date behavior enables Node.js compatibility for dates on or after 2026-08-04, so the configured 2026-11-24 compatibility date supports the branch's `node:crypto` imports without an additional compatibility flag. This does not replace a live runtime benchmark.
 
 Latest preview configuration inspection still found no Worker secrets configured. The preview can serve public pages, but email verification/recovery, PII encryption, Supabase storage and document upload remain unavailable until the preview-only bindings are securely configured and verified.
+
+
+## Follow-up implementation (24 November 2026)
+The following code-level changes have now been pushed to the same draft branch after the source review:
+- Customer registration now inserts the Oxford user, password credential and email-verification challenge in one database transaction. Verification email is sent only after the transaction commits.
+- Password-recovery challenge replacement now consumes previous challenges and creates the replacement challenge in one transaction.
+- Failed-login attempt counting now uses a database-side atomic increment and computes lockout time from the updated counter, avoiding the earlier read-modify-write lost-update race.
+- Login callback messaging no longer refers to Netlify Identity availability.
+- The Cloudflare build is marked as `cloudflare-preview`. Application submission requires both that context, the exact `oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev` hostname and the explicit server-side `OXFORD_APPLICATIONS_ENABLED=true` flag. Draft editing additionally requires the PII encryption key. These flags and secrets remain unset; the change only makes a later controlled preview test possible and does not enable intake now.
+
+These follow-up changes have been committed through GitHub's repository contents API. They have **not** yet been built, typechecked, linted, tested or deployed from this updated branch. Do not infer that the earlier 204-test result covers these changes. The current Cloudflare Worker still runs the previous deployed version until a fresh local validation and preview deployment are completed.
