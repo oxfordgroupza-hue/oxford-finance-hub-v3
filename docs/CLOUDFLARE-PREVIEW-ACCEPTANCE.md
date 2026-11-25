@@ -84,7 +84,7 @@ Read-only inspection confirmed the existing `oxford-customer-documents` bucket:
 - Allowed MIME types: PDF, JPEG and PNG.
 - A restrictive `storage.objects` policy denies direct client access by `anon` and `authenticated` roles for this bucket.
 
-The application route's current server-mediated upload validation is stricter at 4 MiB and checks the file signature. This is intentional; do not raise it to the bucket limit without a separately reviewed upload design. No file has been uploaded. Because the branch-specific Preview deployment is missing its Supabase secret key, upload, download, signed access, cleanup and recovery have not been tested. The PII encryption secret is present.
+The application route's current server-mediated upload validation is stricter at 4 MiB and checks the file signature. This is intentional; do not raise it to the bucket limit without a separately reviewed upload design. No file has been uploaded. All required branch-specific Preview bindings are now present, including the Supabase secret key as an encrypted secret. Upload, download, signed access, cleanup and recovery remain untested; the upload feature flag stays off until those acceptance tests pass.
 
 Supabase advisory checks returned informational RLS-enabled/no-policy notices for five public tables, one unindexed foreign key on `application_documents.customer_id`, and four unused indexes. The restrictive storage policy is deny-by-default for direct client access. Reassess the advisory findings after synthetic traffic and before production.
 
@@ -102,8 +102,8 @@ Unit tests passing do not establish the live provider integrations or the full l
 
 ## Release blockers
 
-1. **Staff account invitations:** a Cloudflare-native staff invitation and activation workflow has now been implemented on the feature branch. It creates a pending office account, assigns only an active non-reserved office role, sends a single-use 72-hour invitation and activates the account after password creation. The new workflow has not yet passed its build or end-to-end email acceptance test. Applicant intake invitations are a different workflow.
-2. **Preview secrets:** securely configure the dedicated Preview PII encryption key and Supabase URL, service secret key and bucket name. Do not expose secret values in source, logs, documentation or chat.
+1. **Staff account invitations:** a Cloudflare-native staff invitation and activation workflow has been implemented and included in a successful Preview build. The live invitation/activation/email lifecycle still requires end-to-end acceptance. Applicant intake invitations are a different workflow.
+2. **Preview secrets:** all required branch-specific Preview secrets and non-secret bindings are now confirmed present. Secret values remain encrypted and were not read or exposed. The integration itself still requires acceptance testing.
 3. **Authentication E2E:** test signup, email verification, login, recovery, password change, session expiry/rotation/revocation, logout, origin/CSRF rejection, lockout, suspension and the one-time Super Administrator bootstrap.
 4. **PBKDF2 runtime benchmark:** measure the 310,000-iteration implementation in the deployed Cloudflare Worker runtime and record latency.
 5. **RBAC and isolation:** run the direct-route and direct-server-function matrix for all seven roles, including partner-only referral scope, customer ownership, reviewer assignment, support restrictions and administrator limits.
@@ -144,3 +144,13 @@ Unit tests passing do not establish the live provider integrations or the full l
 - Latest branch deployment flags are `OXFORD_DOCUMENT_UPLOADS_ENABLED=false` and `OXFORD_EMAIL_DELIVERY_ENABLED=true`. Use the branch-specific Preview deployment configuration, not the separate base Worker settings endpoint, when checking these values.
 - `SUPABASE_URL`, `SUPABASE_BUCKET`, and the PII encryption secret are present in the branch-specific Preview deployment. `SUPABASE_SECRET_KEY` is visible only in the base Worker script's secret-name list, not the branch deployment's environment. It must be set for the branch Preview environment with `wrangler preview secret put SUPABASE_SECRET_KEY --name work/v3-cloudflare-native-auth`; enter a dedicated Supabase secret key at the terminal prompt, never in chat or source control.
 - A no-compute Neon checkpoint branch exists: `br-hidden-pine-bge4ifgv` (`v3-preview-pre-acceptance-checkpoint-20261125`), cloned from the isolated Preview database. It is not a production backup.
+
+
+## Supabase Preview secret installed — 25 November 2026
+
+- The user confirmed completion of the dedicated branch-specific Preview secret setup.
+- Cloudflare deployment 52 (`d0b9ec16-01ea-41ac-93f3-1f15557a059e`, created `2026-11-25T07:31:51Z`) now lists `SUPABASE_SECRET_KEY` as `secret_text` in the branch-specific Preview deployment environment.
+- The same deployment confirms `OXFORD_PII_ENCRYPTION_KEY` and `BREVO_API_KEY` as encrypted secrets, `SUPABASE_URL=https://wgcnawtnkblivfirclvz.supabase.co`, `SUPABASE_BUCKET=oxford-customer-documents`, and the Neon `HYPERDRIVE` binding.
+- Preview flags remain `OXFORD_APPLICATIONS_ENABLED=true`, `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`, and `OXFORD_EMAIL_DELIVERY_ENABLED=true`.
+- No secret value was read, logged or copied. No email, Super Administrator bootstrap, customer application, or document upload was initiated as part of this configuration check.
+- This removes the Preview secret-configuration blocker. It does not establish that the Supabase API credentials work or that upload/download authorization is correct; those remain acceptance tests.
