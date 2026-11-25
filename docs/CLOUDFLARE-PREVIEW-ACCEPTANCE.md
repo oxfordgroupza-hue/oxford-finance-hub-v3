@@ -1,43 +1,117 @@
-# Cloudflare preview acceptance — Oxford Finance Hub V3
+# Oxford Finance Hub V3 — Preview acceptance and release gate
 
-**Current branch:** `work/v3-cloudflare-native-auth`  
-**Current preview:** `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`  
-**Production status:** unchanged; no custom hostname or DNS cutover.
+**Last verified:** 25 November 2026  
+**Branch:** `work/v3-cloudflare-native-auth`  
+**Branch HEAD:** `d0768fafc31dba1eb85feb929e878b2817ceb7f1`  
+**Preview:** https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
+**Latest immutable deployment:** https://5996df01-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
+**Production:** unchanged. Draft PR #9 remains unmerged.
 
-## Verified source and deployment state — 25 November 2026
+## Current decision
 
-- Cloudflare Worker preview build succeeded for commit `6494a3b5ddd66a1aa02c3d9a02f4dbc6e62e647b` (build `f7bb225f-d8ca-44bb-b581-281c69e1392f`).
-- Preview feature flags in the branch's `wrangler.jsonc`: applications enabled for synthetic preview testing; document uploads disabled; email delivery enabled only after the dedicated Preview Brevo API key was stored; initial Super Administrator bootstrap enabled for the designated mailbox only. Email has not yet been sent.
-- A shared origin validator now accepts only the exact HTTPS Cloudflare preview hostname, with no credentials or nonstandard port. It is used by the application route, application actions, applicant-intake invitation origin, authentication email guard, notification delivery, document API and initial administrator bootstrap.
-- The live branch homepage displays the synthetic-preview notice and preview application calls to action. A header navigation button was found hard-coded as `Applications paused`; it has been corrected to `Apply for finance` in commit `7263228a83835affd32361647063d67cb280a65b`, pending its Preview build and runtime check. The application route and all server actions still enforce their own preview gates. Document uploads remain disabled.
-- No administrator account has been created. No email has been sent. No application has been submitted. No document has been uploaded.
-- A dedicated Brevo API key named `Oxford Finance Hub Preview` was securely added to the branch Preview with Wrangler. The key value was not exposed in chat or committed to source. Production Worker secrets were not copied or reused. The approved sender is active in Brevo.
-- The preview database is isolated from production. Use synthetic data and dummy files only.
+**NOT RELEASE READY.** The current source builds and deploys successfully, but a successful build and unit suite are not evidence of end-to-end finance workflow readiness. This document supersedes older historical status notes below and records the latest verified state.
 
-## Validation results
+The approved target architecture is Cloudflare Workers + Oxford-owned Cloudflare-native authentication + Neon PostgreSQL + private Supabase Storage + Brevo transactional email. Netlify remains rollback/reference only during migration. This approval does not authorise production cutover.
 
-- Cloudflare Preview build succeeded for commit `46da11978176391c7842702f936b5b6a2617937a`.
-- Local Cloudflare build succeeded on the validation worktree.
-- Vitest: 39 test files and 212 tests passed after generating the route tree.
-- TypeScript and ESLint passed on commit `74360df4e092d1c9cda5a4ab8d3c6b185d97fb4b` after running `wrangler types`.
-- A subsequent change moved Preview-context checks to the Cloudflare runtime environment binding. Commit `30efa5bd02fdd80b009297d825f8813f291861fd` built successfully; the branch homepage now returns preview-enabled copy, but the `/apply` route, authenticated flows and latest source changes still require runtime verification. The complete suite has not been rerun on the current branch head.
+## Latest automated build — PASS
 
-## Acceptance still outstanding
+- Cloudflare Build: `18870e2a-51c8-4b88-aeaf-87bc23e37537`
+- Preview deployment number: `39`
+- Preview deployment ID: `5996df01-0133-4485-921a-1a77fbb21698`
+- Commit tag: `d0768fa`
+- Vite Cloudflare production bundle: passed.
+- Wrangler Worker type generation: passed.
+- TypeScript: passed.
+- Vitest: **39 test files, 215 tests passed, 0 failed**.
+- ESLint: **0 errors, 2 warnings** (unused disable directives).
+- Wrangler Preview deployment: succeeded.
 
-1. **Initial Super Administrator:** choose and verify the single Oxford-owned test mailbox; align `OXFORD_NOTIFICATION_ADMIN_EMAIL` with `OXFORD_INITIAL_SUPER_ADMIN_EMAIL`; configure the preview-only sender/provider credentials securely; obtain approval before enabling preview email and the one-time bootstrap flag; complete registration, verification, bootstrap, login, role checks and sign-out. Never enable public staff registration.
-2. **Staff invitations:** a separate Cloudflare-native staff invitation/activation workflow is not yet implemented. Applicant intake invitations are not staff invitations.
-3. **Authentication:** test signup, email verification, login, password recovery, password change, session expiry/revocation, logout, CSRF/origin rejection, lockout and account suspension with synthetic accounts.
-4. **RBAC:** test direct routes and direct server functions for all seven account roles, including customer ownership, partner own-referral scope, reviewer assignment, support restrictions and administrator controls.
-5. **Applications:** test all eight Individual/Business × finance-category combinations with synthetic data, including validation, ownership, status history and PDF generation. The currently open browser form must not be submitted unless its contents are confirmed synthetic.
-6. **Private documents:** verify the private Supabase bucket and PII encryption configuration, then test upload/download, file type/size limits, cross-customer and cross-partner denial, signed access, concurrency and interrupted-operation recovery using dummy files. Keep the upload flag false until the full matrix passes.
-7. **Notifications:** test delivery only to the approved Oxford-owned preview mailbox, then test provider errors, retry limits and queue recovery. Keep email/WhatsApp disabled until explicitly approved.
-8. **Password hashing:** benchmark the configured PBKDF2 work factor in the actual Cloudflare Worker runtime and document measured latency.
-9. **Data resilience:** verify isolated preview migration state, backup/restore and recovery procedures.
-10. **Release destination:** attach `finance.oxfordbusinessgroup.co.za` only after acceptance and separate approval for production DNS/custom-domain changes and cutover.
+Prettier is not part of this build command. A previous repository-wide format check reported 181 files with formatting differences. A changed-files-only format check has not yet been verified on this exact branch head; formatting therefore remains an open quality gate.
+
+## Preview deployment configuration — verified
+
+The latest Preview deployment's own environment (not the separate Production or Previews Base settings page) contains:
+
+- `CONTEXT=cloudflare-preview`
+- Neon Hyperdrive binding `HYPERDRIVE` pointing to the isolated Preview connection.
+- Secret binding `BREVO_API_KEY` present; value remains encrypted and was not read or exposed.
+- `OXFORD_APPLICATIONS_ENABLED=true`
+- `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`
+- `OXFORD_EMAIL_DELIVERY_ENABLED=true`
+- `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`
+- Initial Super Administrator and notification recipient both restricted to the approved Oxford-owned Preview mailbox.
+- Approved sender name/address configured.
+
+The latest Preview deployment does **not** contain these required bindings:
+
+- `OXFORD_PII_ENCRYPTION_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+- `SUPABASE_BUCKET`
+
+Consequences: encrypted applicant PII persistence and the authenticated Supabase document workflow cannot pass acceptance yet. The upload feature flag remains off. Do not copy production or legacy Netlify secrets into Preview; add dedicated Preview values through a secure secret-entry path.
+
+No verification email has been sent and no Super Administrator has been created. The approved mailbox is allow-listed, but the actual verification/bootstrap path remains untested.
+
+## Neon Preview database — verified
+
+- Project: `odd-field-47093538`
+- Isolated branch: `br-autumn-rain-bgtzmfh8` (`cloudflare-preview`)
+- Database: `oxford_finance_hub`
+- Branch state: ready; non-primary branch, separate from the default `main` branch.
+- Roles: 7.
+- Permission catalogue rows: 90.
+- Stored role-permission assignments: 148.
+- Reserved Super Administrator role: present; its permissions are derived dynamically from the office catalogue, so it has no stored role-permission rows.
+- Active Super Administrator assignments: 0.
+- Users, credentials, sessions, challenges, finance applications, customers, partner registrations, application intakes, notifications and audit events: all 0 rows at the time of inspection.
+
+No explicit Neon snapshot schedule was returned for either the Preview branch or the project's default branch. Backup/restore and recovery evidence is still required before release; do not infer that recovery has been tested.
+
+## Supabase private storage — configuration verified, application integration unverified
+
+Read-only inspection confirmed the existing `oxford-customer-documents` bucket:
+
+- Private (`public=false`).
+- 10 MiB bucket maximum.
+- Allowed MIME types: PDF, JPEG and PNG.
+- A restrictive `storage.objects` policy denies direct client access by `anon` and `authenticated` roles for this bucket.
+
+The application route's current server-mediated upload validation is stricter at 4 MiB and checks the file signature. This is intentional; do not raise it to the bucket limit without a separately reviewed upload design. No file has been uploaded. Because the Preview Worker is missing its Supabase and PII secrets, upload, download, signed access, cleanup and recovery have not been tested.
+
+Supabase advisory checks returned informational RLS-enabled/no-policy notices for five public tables, one unindexed foreign key on `application_documents.customer_id`, and four unused indexes. The restrictive storage policy is deny-by-default for direct client access. Reassess the advisory findings after synthetic traffic and before production.
+
+## Implemented in source / automated tests, but not yet end-to-end verified
+
+- Cloudflare-native customer registration, password login, logout, email verification and password recovery handlers.
+- PBKDF2-HMAC-SHA-256 password hashing configured at 310,000 iterations, unique salts, hashed opaque sessions/challenges and 12-hour secure HttpOnly session cookie.
+- One-time Super Administrator bootstrap logic restricted to the designated verified email and Preview context.
+- Seven role templates and server-side permission evaluation/account-type ceilings.
+- Application and office-intake server actions, referral/partner workflows, audit records, fee/settlement logic, credit-assessment modules and PDF pack generation.
+- Private document API and Supabase server-mediated storage implementation.
+- Brevo email and notification queue implementation.
+
+Unit tests passing do not establish the live provider integrations or the full lifecycle of these features.
+
+## Release blockers
+
+1. **Staff account invitations:** a separate Cloudflare-native staff invitation/activation workflow is not yet implemented/verified. Applicant intake invitations are a different workflow.
+2. **Preview secrets:** securely configure the dedicated Preview PII encryption key and Supabase URL, service secret key and bucket name. Do not expose secret values in source, logs, documentation or chat.
+3. **Authentication E2E:** test signup, email verification, login, recovery, password change, session expiry/rotation/revocation, logout, origin/CSRF rejection, lockout, suspension and the one-time Super Administrator bootstrap.
+4. **PBKDF2 runtime benchmark:** measure the 310,000-iteration implementation in the deployed Cloudflare Worker runtime and record latency.
+5. **RBAC and isolation:** run the direct-route and direct-server-function matrix for all seven roles, including partner-only referral scope, customer ownership, reviewer assignment, support restrictions and administrator limits.
+6. **Application acceptance:** test all eight Individual/Business × four finance-category combinations with synthetic data, including validation, consent, idempotency, drafts, ownership, status history, PDF pack contents and office processing.
+7. **Office/partner workflows:** verify office-created applicant invitation/claim, partner referral attribution, merchant linking, registration-only notifications, supplier document controls and support handling.
+8. **Document acceptance:** after the dedicated secrets are configured, test file limits/signatures, 20-document concurrency limit, metadata/checksum, upload/download authorisation, cross-customer and cross-partner denial, signed URL expiry, retries, interrupted uploads, orphan cleanup and audit events. Use dummy files only.
+9. **Notification acceptance:** test verification/recovery and queue/provider failure behaviour only to the approved Preview mailbox. No WhatsApp or external customer notifications without separate approval.
+10. **Commercial and settlement acceptance:** verify approved fee/VAT rules, documentation-fee separation, immutable settlement/reconciliation/adjustment and partner own-net visibility. Keep terms approval and settlement/payout execution fail-closed; the application must not initiate payments.
+11. **Data resilience:** document and verify backup, restore, migration rollback and administrator recovery procedures.
+12. **Quality and UX:** complete changed-files formatting checks, responsive desktop/tablet/mobile acceptance and final security review.
+13. **Legal/compliance:** obtain qualified review of POPIA, FICA, NCA, privacy notices, retention, complaints and actual operating processes. Do not claim certification or legal compliance based on code alone.
 
 ## Release controls
 
-- Do not use real applicant identity, banking, income or financial information in the preview.
-- Do not enable document uploads, outbound email/WhatsApp, settlement execution or payouts merely to make a test pass.
-- Do not merge the draft pull request, change production Worker settings, alter production DNS, migrate production data or remove the legacy Netlify fallback without separate approval.
-- Do not claim POPIA, FICA, NCA or other legal/regulatory compliance based only on implementation. Qualified professional review is required.
+- Synthetic data and dummy documents only in Preview.
+- Do not submit real applications, upload real applicant documents, send customer/partner emails or WhatsApp, execute payments, settlements or payouts.
+- Do not merge PR #9, change production Worker settings/secrets, alter production DNS/custom domains, migrate production data, or remove the Netlify fallback without separate explicit approval.
+- Production domain attachment and live feature flags require a separate production cutover approval after the above gates pass.
