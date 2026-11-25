@@ -7,11 +7,11 @@
 ## Verified source and deployment state — 25 November 2026
 
 - Cloudflare Worker preview build succeeded for commit `6494a3b5ddd66a1aa02c3d9a02f4dbc6e62e647b` (build `f7bb225f-d8ca-44bb-b581-281c69e1392f`).
-- Preview feature flags in the branch's `wrangler.jsonc`: applications enabled for synthetic preview testing; document uploads disabled; email delivery disabled pending a Preview-specific Brevo secret; initial Super Administrator bootstrap enabled for the designated mailbox only.
+- Preview feature flags in the branch's `wrangler.jsonc`: applications enabled for synthetic preview testing; document uploads disabled; email delivery enabled only after the dedicated Preview Brevo API key was stored; initial Super Administrator bootstrap enabled for the designated mailbox only. Email has not yet been sent.
 - A shared origin validator now accepts only the exact HTTPS Cloudflare preview hostname, with no credentials or nonstandard port. It is used by the application route, application actions, applicant-intake invitation origin, authentication email guard, notification delivery, document API and initial administrator bootstrap.
-- The homepage and application page now identify the preview correctly and state that document uploads remain disabled.
+- The live branch homepage displays the synthetic-preview notice and preview application calls to action. A header navigation button was found hard-coded as `Applications paused`; it has been corrected to `Apply for finance` in commit `7263228a83835affd32361647063d67cb280a65b`, pending its Preview build and runtime check. The application route and all server actions still enforce their own preview gates. Document uploads remain disabled.
 - No administrator account has been created. No email has been sent. No application has been submitted. No document has been uploaded.
-- The approved sender is active in Brevo, but `wrangler preview secret list --name work/v3-cloudflare-native-auth` returned no Preview secrets. Production Worker secrets are not copied into Previews. Do not reuse a production API key; create a dedicated Preview key and add it with Wrangler's Preview secret command. Until that is done, `OXFORD_EMAIL_DELIVERY_ENABLED` remains `false`.
+- A dedicated Brevo API key named `Oxford Finance Hub Preview` was securely added to the branch Preview with Wrangler. The key value was not exposed in chat or committed to source. Production Worker secrets were not copied or reused. The approved sender is active in Brevo.
 - The preview database is isolated from production. Use synthetic data and dummy files only.
 
 ## Validation results
@@ -20,7 +20,7 @@
 - Local Cloudflare build succeeded on the validation worktree.
 - Vitest: 39 test files and 212 tests passed after generating the route tree.
 - TypeScript and ESLint passed on commit `74360df4e092d1c9cda5a4ab8d3c6b185d97fb4b` after running `wrangler types`.
-- A subsequent change moved Preview-context checks to the Cloudflare runtime environment binding because the live application page was still displaying the paused state. The Preview build for that latest change is queued; runtime confirmation and rerunning the full suite on the latest branch head remain outstanding.
+- A subsequent change moved Preview-context checks to the Cloudflare runtime environment binding. Commit `30efa5bd02fdd80b009297d825f8813f291861fd` built successfully; the branch homepage now returns preview-enabled copy, but the `/apply` route, authenticated flows and latest source changes still require runtime verification. The complete suite has not been rerun on the current branch head.
 
 ## Acceptance still outstanding
 
