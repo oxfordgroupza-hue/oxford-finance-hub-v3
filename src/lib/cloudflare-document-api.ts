@@ -25,7 +25,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
@@ -232,8 +232,7 @@ function storageObjectPath(path: string) {
 
 // Uploads are restricted to this dedicated Cloudflare preview Worker until release approval.
 function isDeployPreviewRequest(request: Request) {
-  const url = new URL(request.url)
-  return url.protocol === 'https:' && url.hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  return isApprovedCloudflarePreviewRequest(request.url)
 }
 
 export async function handleCloudflareOxfordApi(request: Request) {
