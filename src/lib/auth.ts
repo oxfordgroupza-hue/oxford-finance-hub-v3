@@ -3,6 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getCookies, getRequest, setCookie } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { verifyPassword, hashPassword, createOpaqueToken, hashOpaqueToken } from './cloudflare-auth-crypto'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 function verifyRequestOrigin(request: Request) {
   const origin = request.headers.get('origin')
@@ -291,7 +292,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     bootstrapEnabled: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true',
     email,
     bootstrapEmail,
-    isDeployPreview: new URL(getRequest().url).hostname === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+    isDeployPreview: isApprovedCloudflarePreviewRequest(getRequest().url),
     isProduction: false,
     hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
     emailConfirmed: Boolean(account.emailVerifiedAt),
