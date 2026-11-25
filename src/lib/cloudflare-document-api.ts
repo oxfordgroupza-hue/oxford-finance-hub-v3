@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../db'
 import {
   applicationDocuments,
@@ -247,8 +247,16 @@ export async function handleCloudflareOxfordApi(request: Request) {
       if (storageConfigured) {
         try { storageVerified = await verifyStorageBucket() } catch { storageVerified = false }
       }
+      let databaseVerified = false
+      try {
+        await db.execute(sql`select 1 as ok`)
+        databaseVerified = true
+      } catch {
+        databaseVerified = false
+      }
       return json({
         configured: storageConfigured,
+        databaseVerified,
         bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
