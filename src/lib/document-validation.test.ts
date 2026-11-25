@@ -63,9 +63,9 @@ describe('parseBoundedDocumentFormData', () => {
   it('parses valid multipart data delivered in many tiny stream chunks', async () => {
     const boundary = '----oxford-fragmented-boundary'
     const body = [
-      `--${boundary}\\r\\nContent-Disposition: form-data; name="applicationId"\\r\\n\\r\\n${base.applicationId}\\r\\n`,
-      `--${boundary}\\r\\nContent-Disposition: form-data; name="documentKey"\\r\\n\\r\\nid\\r\\n`,
-      `--${boundary}--\\r\\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="applicationId"\r\n\r\n${base.applicationId}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="documentKey"\r\n\r\nid\r\n`,
+      `--${boundary}--\r\n`,
     ].join('')
     const bytes = new TextEncoder().encode(body)
     const stream = new ReadableStream<Uint8Array>({
