@@ -96,3 +96,18 @@ describe('Cloudflare Worker preview storage gate', () => {
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('.workers.dev/','.workers.dev:8443/'))).toBe(false)
   })
 })
+
+describe('Cloudflare production administrator bootstrap gate', () => {
+  it('accepts only the dedicated HTTPS Finance Hub production hostname', () => {
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/login')).toBe(true)
+  })
+
+  it('rejects preview, alternate hosts, HTTP, credentials and nonstandard ports', () => {
+    expect(isApprovedCloudflareProductionRequest('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/login')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://oxfordbusinessgroup.co.za/login')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('http://finance.oxfordbusinessgroup.co.za/login')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://user:pass@finance.oxfordbusinessgroup.co.za/login')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za:8443/login')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('not a URL')).toBe(false)
+  })
+})
