@@ -37,6 +37,27 @@ export function assertOxfordAuthEmailConfigured() {
   configuration()
 }
 
+/**
+ * Keep the first-administrator registration window restricted to the configured
+ * mailbox. Ordinary customer registration stays closed until applications are enabled.
+ */
+export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
+  const email = recipient.trim().toLowerCase()
+  const bootstrapEnabled = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true'
+  const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+
+  if (bootstrapEnabled) {
+    if (!bootstrapEmail || email !== bootstrapEmail) {
+      throw new Error('Initial Oxford registration is restricted to the designated administrator mailbox.')
+    }
+    return
+  }
+
+  if (getServerEnv('OXFORD_APPLICATIONS_ENABLED') !== 'true') {
+    throw new Error('Customer registration is not currently available.')
+  }
+}
+
 /** Check the Preview recipient before creating a user or recovery challenge. */
 export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
   const request = getRequest()
