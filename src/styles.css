@@ -160,17 +160,5 @@ h1, h2, h3 {
 }
 
 .finance-category-slide {
-  opacity: 0;
-  animation-name: finance-category-fade;
-  animation-duration: 10s;
-  animation-iteration-count: infinite;
-  animation-timing-function: ease-in-out;
-}
-@keyframes finance-category-fade {
-  0%, 17% { opacity: 1; }
-  20%, 100% { opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .finance-category-slide { animation: none; }
-  .finance-category-slide:first-child { opacity: 1; }
+  opacity: 1;
 }
