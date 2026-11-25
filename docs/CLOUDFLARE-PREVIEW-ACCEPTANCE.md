@@ -49,15 +49,14 @@ The latest Preview deployment's own environment (not the separate Production or 
 - `OXFORD_APPLICATIONS_ENABLED=true`
 - `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`
 - `OXFORD_EMAIL_DELIVERY_ENABLED=true`
+- `SUPABASE_URL=https://wgcnawtnkblivfirclvz.supabase.co`
+- `SUPABASE_BUCKET=oxford-customer-documents`
+- `OXFORD_PII_ENCRYPTION_KEY` encrypted secret present
 - `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`
 - Initial Super Administrator and notification recipient both restricted to the approved Oxford-owned Preview mailbox.
 - Approved sender name/address configured.
 
-The latest Preview deployment does **not** contain these required bindings:
-
-- `SUPABASE_SECRET_KEY` (the only remaining required Supabase binding)
-
-Preview-only remediation applied on deployment 44: a newly generated 32-byte PII encryption key is installed as an encrypted secret, and the correct Supabase project URL and private bucket name are configured. The existing Brevo secret and Hyperdrive binding were preserved. The remaining missing binding is the Supabase secret/service key. The upload feature flag remains off until that key is added and end-to-end authorization tests pass. Do not copy production or legacy Netlify secrets into Preview.
+The latest branch-specific Preview deployment (deployment 48, `83898182-6838-43f9-8808-c3ec9a62b9df`) confirms `OXFORD_PII_ENCRYPTION_KEY` is present as an encrypted secret, and the correct `SUPABASE_URL` and `SUPABASE_BUCKET` are present. It does **not** contain `SUPABASE_SECRET_KEY` in its own environment. A separate base Worker script settings check shows a secret with that name exists on the base script, but that does not prove it is bound to this branch-specific Preview deployment. Add a dedicated branch Preview secret before attempting storage tests. The upload feature flag remains off until the secret is bound and end-to-end authorization tests pass. Do not copy production or legacy Netlify secrets into Preview.
 
 No verification email has been sent and no Super Administrator has been created. The approved mailbox is allow-listed, but the actual verification/bootstrap path remains untested.
 
@@ -85,7 +84,7 @@ Read-only inspection confirmed the existing `oxford-customer-documents` bucket:
 - Allowed MIME types: PDF, JPEG and PNG.
 - A restrictive `storage.objects` policy denies direct client access by `anon` and `authenticated` roles for this bucket.
 
-The application route's current server-mediated upload validation is stricter at 4 MiB and checks the file signature. This is intentional; do not raise it to the bucket limit without a separately reviewed upload design. No file has been uploaded. Because the Preview Worker is missing its Supabase and PII secrets, upload, download, signed access, cleanup and recovery have not been tested.
+The application route's current server-mediated upload validation is stricter at 4 MiB and checks the file signature. This is intentional; do not raise it to the bucket limit without a separately reviewed upload design. No file has been uploaded. Because the branch-specific Preview deployment is missing its Supabase secret key, upload, download, signed access, cleanup and recovery have not been tested. The PII encryption secret is present.
 
 Supabase advisory checks returned informational RLS-enabled/no-policy notices for five public tables, one unindexed foreign key on `application_documents.customer_id`, and four unused indexes. The restrictive storage policy is deny-by-default for direct client access. Reassess the advisory findings after synthetic traffic and before production.
 
@@ -137,3 +136,11 @@ Unit tests passing do not establish the live provider integrations or the full l
 
 - A no-compute Neon checkpoint branch was created from the isolated Preview database: `br-hidden-pine-bge4ifgv` (`v3-preview-pre-acceptance-checkpoint-20261125`). This is a Preview rollback checkpoint, not a production backup.
 - Brevo account connectivity was verified read-only: SMTP relay enabled and the configured Oxford sender is active. No email was sent.
+
+
+## Follow-up configuration check — 25 November 2026
+
+- Build `41947f8f-b8a0-4188-ade1-39a1ff503daa` completed successfully and deployed Preview deployment 48 (`83898182-6838-43f9-8808-c3ec9a62b9df`).
+- Latest branch deployment flags are `OXFORD_DOCUMENT_UPLOADS_ENABLED=false` and `OXFORD_EMAIL_DELIVERY_ENABLED=true`. Use the branch-specific Preview deployment configuration, not the separate base Worker settings endpoint, when checking these values.
+- `SUPABASE_URL`, `SUPABASE_BUCKET`, and the PII encryption secret are present in the branch-specific Preview deployment. `SUPABASE_SECRET_KEY` is visible only in the base Worker script's secret-name list, not the branch deployment's environment. It must be set for the branch Preview environment with `wrangler preview secret put SUPABASE_SECRET_KEY --name work/v3-cloudflare-native-auth`; enter a dedicated Supabase secret key at the terminal prompt, never in chat or source control.
+- A no-compute Neon checkpoint branch exists: `br-hidden-pine-bge4ifgv` (`v3-preview-pre-acceptance-checkpoint-20261125`), cloned from the isolated Preview database. It is not a production backup.
