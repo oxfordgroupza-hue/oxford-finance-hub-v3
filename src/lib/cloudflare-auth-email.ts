@@ -37,6 +37,17 @@ export function assertOxfordAuthEmailConfigured() {
   configuration()
 }
 
+/** Check the Preview recipient before creating a user or recovery challenge. */
+export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
+  const request = getRequest()
+  if (!isApprovedCloudflarePreviewRequest(request.url)) return
+  const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
+  const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+  if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
+    throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
+  }
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character)
 }
@@ -51,11 +62,7 @@ export async function sendOxfordAuthEmail(input: {
   const request = getRequest()
   const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   if (isApprovedCloudflarePreviewRequest(request.url)) {
-    const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
-    const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
-    if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || input.to.trim().toLowerCase() !== allowedRecipient) {
-      throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
-    }
+    assertOxfordAuthEmailRecipientAllowed(input.to)
     const requestedUrl = new URL(input.url)
     if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
   }
