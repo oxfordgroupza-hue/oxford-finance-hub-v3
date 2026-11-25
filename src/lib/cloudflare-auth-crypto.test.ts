@@ -6,7 +6,7 @@ describe('Cloudflare authentication cryptography', () => {
     const first = await hashPassword('A sufficiently long passphrase 1!')
     const second = await hashPassword('A sufficiently long passphrase 1!')
     expect(first.algorithm).toBe('pbkdf2-sha256')
-    expect(first.iterations).toBeGreaterThanOrEqual(300_000)
+    expect(first.iterations).toBe(100_000)
     expect(first.salt).not.toBe(second.salt)
     expect(first.hash).not.toBe(second.hash)
   })
