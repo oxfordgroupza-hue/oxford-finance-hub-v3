@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { ArrowRight, Briefcase, FileCheck2, Handshake, LayoutDashboard, ShieldCheck, User2, Waypoints } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -9,16 +10,18 @@ import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 import { getRequest } from '@tanstack/react-start/server'
 import { getServerEnv } from '@/lib/server-runtime-env'
 
+const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
+  const request = getRequest()
+  const previewHost = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  const previewApplicationsEnabled = previewHost &&
+    process.env.CONTEXT === 'cloudflare-preview' &&
+    getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  const publicConfig = await getPublicSiteConfigWithFallback()
+  return { ...publicConfig, previewApplicationsEnabled }
+})
+
 export const Route = createFileRoute('/')({
-  loader: async () => {
-    const request = getRequest()
-    const previewHost = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-    const previewApplicationsEnabled = previewHost &&
-      process.env.CONTEXT === 'cloudflare-preview' &&
-      getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
-    const publicConfig = await getPublicSiteConfigWithFallback()
-    return { ...publicConfig, previewApplicationsEnabled }
-  },
+  loader: () => getHomePageData(),
   component: Home,
 })
 
