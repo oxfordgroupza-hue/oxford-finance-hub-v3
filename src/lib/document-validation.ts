@@ -4,7 +4,7 @@ export const MAX_DOCUMENT_REQUEST_BYTES = MAX_FUNCTION_UPLOAD_BYTES + 128 * 1024
 
 export function validateDocumentRequestContentLength(contentLength: string | null): string | null {
   if (contentLength === null) return null
-  if (!/^\\d+$/.test(contentLength)) return 'The upload request has an invalid content length.'
+  if (!/^[0-9]+$/.test(contentLength)) return 'The upload request has an invalid content length.'
   const requestBytes = Number(contentLength)
   if (!Number.isSafeInteger(requestBytes) || requestBytes < 1) return 'The upload request has an invalid content length.'
   if (requestBytes > MAX_DOCUMENT_REQUEST_BYTES) return 'The upload request exceeds the secure upload limit.'
@@ -56,4 +56,39 @@ export function validateDocumentUpload(input: DocumentUploadValidation): string 
 export function sanitizeDocumentFilename(name: string): string {
   const leafName = name.split(/[\\/]/).pop() ?? ''
   return leafName.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 100) || 'document'
+}
+
+
+/**
+ * Reads multipart bodies under a strict byte ceiling before parsing them.
+ * This protects requests that omit Content-Length (for example, streamed HTTP/2 bodies).
+ */
+export async function parseBoundedDocumentFormData(request: Request): Promise<FormData> {
+  const contentType = request.headers.get('content-type') ?? ''
+  if (!contentType.toLowerCase().startsWith('multipart/form-data;')) {
+    throw new Error('The upload request must use multipart form data.')
+  }
+  if (!request.body) throw new Error('The upload request is empty.')
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      totalBytes += value.byteLength
+      if (totalBytes > MAX_DOCUMENT_REQUEST_BYTES) {
+        await reader.cancel()
+        throw new RangeError('The upload request exceeds the secure upload limit.')
+      }
+      chunks.push(value)
+    }
+  } catch (error) {
+    try { await reader.cancel() } catch { /* The stream may already be closed. */ }
+    throw error
+  }
+
+  const body = new Blob(chunks, { type: contentType })
+  return await new Response(body, { headers: { 'content-type': contentType } }).formData()
 }
