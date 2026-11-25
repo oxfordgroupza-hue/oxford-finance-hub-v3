@@ -12,7 +12,7 @@ import { getRequest } from '@tanstack/react-start/server'
 import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
-  const previewApplicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' &&
+  const previewApplicationsEnabled = getServerEnv('CONTEXT') === 'cloudflare-preview' &&
     isApprovedCloudflarePreviewRequest(getRequest().url) &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   const publicConfig = await getPublicSiteConfigWithFallback()
