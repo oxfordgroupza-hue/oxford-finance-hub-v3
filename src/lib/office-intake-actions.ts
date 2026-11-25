@@ -26,6 +26,7 @@ import { partnerApplicantIntakeInput } from './partner-intake-validation'
 import { createOfficeInvitationToken } from './office-intake-security'
 import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
 import { hashOfficeInvitationToken } from './office-intake-security'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -52,7 +53,7 @@ async function requireIntakeOffice() {
 
 function previewOrigin() {
   const url = new URL(getRequest().url)
-  if (url.hostname !== 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev') {
+  if (!isApprovedCloudflarePreviewRequest(url.toString())) {
     throw new Error('Applicant invitations are available only in the approved Cloudflare preview environment.')
   }
   return url.origin
