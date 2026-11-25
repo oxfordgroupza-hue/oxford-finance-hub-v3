@@ -3,7 +3,7 @@
 **Assessment date:** 25 November 2026  
 **Repository:** `oxfordgroupza-hue/oxford-finance-hub-v3`  
 **Active branch:** `work/v3-cloudflare-native-auth`  
-**Latest source commit:** `a45c87be0a86635827314059ab592315784da44a`  
+**Latest source commit:** `d238cd95dde7c5fac34e36e8200107accbff33a`  
 **PR:** [#9 — Cloudflare-native authentication and private document API preview](https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/9)  
 **Release verdict:** **NOT READY for public recruitment or real applicant submissions.**
 
@@ -35,7 +35,7 @@ The latest branch source includes:
 
 **Build evidence:**
 - Last completed full build before the bounded-stream parser: Cloudflare build `b89bab04-9fec-4121-b1f0-860eb171b9df`, commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`, outcome success.
-- Latest source commit `a45c87be0a86635827314059ab592315784da44a` has Cloudflare build `d5c0f7a4-d6ef-4f77-b51f-6f44e57f53fe`; outcome is queued at the time this report was prepared. The multipart parser regression test now runs in Vitest's Node Web API environment to avoid jsdom's incomplete multipart implementation.
+- Latest branch commit `d238cd95dde7c5fac34e36e8200107accbff33a` has manual Cloudflare Preview build `c0b3e2ef-106a-4209-967e-3d42004b1bcb`; outcome remains queued at the time this report was refreshed. The multipart parser regression test now runs in Vitest's Node Web API environment to avoid jsdom's incomplete multipart implementation.
 - Do not treat the latest stream-parser changes as accepted until this exact build completes Vite, Wrangler type generation, TypeScript, the full Vitest suite and ESLint.
 
 ## 3. Provider and database verification
