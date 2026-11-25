@@ -1,5 +1,5 @@
-export function isSameOriginRequest(origin: string | null, requestUrl: string): boolean {
-  if (!origin) return true
+export function isSameOriginRequest(origin: string | null, requestUrl: string, requireOrigin = false): boolean {
+  if (!origin) return !requireOrigin
 
   try {
     return new URL(origin).origin === new URL(requestUrl).origin
