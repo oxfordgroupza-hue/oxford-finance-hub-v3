@@ -1,7 +1,7 @@
 ﻿import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { getServerEnv } from './server-runtime-env'
-import { isApprovedCloudflarePreviewRequest as isApprovedCloudflarePreviewOrigin } from './document-storage-security'
+import { isApprovedCloudflareRuntimeRequest } from './document-storage-security'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -57,18 +57,18 @@ const consentVersion = '2026-11-08-v1'
  * private Supabase Storage integration and launch acceptance tests are complete.
  * This flag is server-only; browser code cannot enable application processing.
  */
-function isApprovedCloudflarePreviewRequest() {
+function isApprovedCloudflareRuntime() {
   const request = getRequest()
-  return getServerEnv('CONTEXT') === 'cloudflare-preview' &&
-    isApprovedCloudflarePreviewOrigin(request.url)
+  return isApprovedCloudflareRuntimeRequest(request.url, getServerEnv('CONTEXT'))
 }
 
 function assertApplicationProcessingEnabled() {
   // Intake remains disabled unless the deployment-specific server-side flag is
   // explicitly enabled. Cloudflare is additionally pinned to its preview host.
-  const enabled = getServerEnv('CONTEXT') === 'deploy-preview'
+  const context = getServerEnv('CONTEXT')
+  const enabled = context === 'deploy-preview'
     ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
-    : isApprovedCloudflarePreviewRequest() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+    : isApprovedCloudflareRuntime() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   if (!enabled) {
     throw new Error('Online applications and saved drafts are temporarily unavailable while Oxford completes secure platform verification. Please contact Oxford Business Group for assistance.')
   }
@@ -77,7 +77,7 @@ function assertApplicationProcessingEnabled() {
 /** Existing encrypted drafts may be edited only on an approved non-production preview host. */
 function assertExistingDraftEditingEnabled() {
   const allowed = getServerEnv('CONTEXT') === 'deploy-preview' || (
-    isApprovedCloudflarePreviewRequest() &&
+    isApprovedCloudflareRuntime() &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true' &&
     Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY'))
   )
