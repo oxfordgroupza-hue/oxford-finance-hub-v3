@@ -291,7 +291,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     bootstrapEnabled: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true',
     email,
     bootstrapEmail,
-    isDeployPreview: new URL(getRequest().url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+    isDeployPreview: new URL(getRequest().url).hostname === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
     isProduction: false,
     hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
     emailConfirmed: Boolean(account.emailVerifiedAt),
