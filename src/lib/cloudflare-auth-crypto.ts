@@ -1,4 +1,4 @@
-﻿const PASSWORD_ITERATIONS = 310_000
+const PASSWORD_ITERATIONS = 100_000
 const PASSWORD_KEY_LENGTH = 256
 const PASSWORD_SALT_BYTES = 16
 const SESSION_TOKEN_BYTES = 32
@@ -48,7 +48,7 @@ export async function verifyPassword(password: string, stored: {
   hash: string
 }): Promise<boolean> {
   if (stored.algorithm !== 'pbkdf2-sha256' || !Number.isInteger(stored.iterations) ||
-      stored.iterations < 100_000 || stored.iterations > 1_000_000) return false
+      stored.iterations < 100_000 || stored.iterations > 100_000) return false
   let salt: Uint8Array
   let expected: Uint8Array
   try {
@@ -73,4 +73,3 @@ export async function hashOpaqueToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(token).buffer as ArrayBuffer)
   return toBase64Url(new Uint8Array(digest))
 }
-
