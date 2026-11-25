@@ -59,14 +59,14 @@ const consentVersion = '2026-11-08-v1'
  */
 function isApprovedCloudflarePreviewRequest() {
   const request = getRequest()
-  return process.env.CONTEXT === 'cloudflare-preview' &&
+  return getServerEnv('CONTEXT') === 'cloudflare-preview' &&
     isApprovedCloudflarePreviewOrigin(request.url)
 }
 
 function assertApplicationProcessingEnabled() {
   // Intake remains disabled unless the deployment-specific server-side flag is
   // explicitly enabled. Cloudflare is additionally pinned to its preview host.
-  const enabled = process.env.CONTEXT === 'deploy-preview'
+  const enabled = getServerEnv('CONTEXT') === 'deploy-preview'
     ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
     : isApprovedCloudflarePreviewRequest() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   if (!enabled) {
@@ -76,7 +76,7 @@ function assertApplicationProcessingEnabled() {
 
 /** Existing encrypted drafts may be edited only on an approved non-production preview host. */
 function assertExistingDraftEditingEnabled() {
-  const allowed = process.env.CONTEXT === 'deploy-preview' || (
+  const allowed = getServerEnv('CONTEXT') === 'deploy-preview' || (
     isApprovedCloudflarePreviewRequest() &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true' &&
     Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY'))
