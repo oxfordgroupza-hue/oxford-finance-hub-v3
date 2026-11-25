@@ -1,4 +1,5 @@
-export function isSameOriginRequest(origin: string | null, requestUrl: string, requireOrigin = false): boolean {
+export function isSameOriginRequest(origin: string | null, requestUrl: string, requireOrigin = false, secFetchSite: string | null = null): boolean {
+  if (secFetchSite?.toLowerCase() === 'cross-site') return false
   if (!origin) return !requireOrigin
 
   try {
