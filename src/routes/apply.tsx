@@ -51,7 +51,7 @@ function ApplyPage() {
       <PageHero
         eyebrow="Finance application"
         title={<>Apply for <span className="text-gold-gradient italic">finance</span></>}
-        intro="A guided finance application for individuals and businesses. Online submissions and document uploads will reopen after secure application and document services have been verified."
+        intro={previewApplicationsEnabled ? 'A guided test application for individuals and businesses. Use synthetic information and dummy documents only in this isolated preview.' : 'A guided finance application for individuals and businesses. Online submissions and document uploads will reopen after secure application and document services have been verified.'}
         image="hero.png"
       />
       <div className="mx-auto max-w-content px-4 py-14 sm:px-6">
