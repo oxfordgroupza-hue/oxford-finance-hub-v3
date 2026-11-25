@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getRequest } from '@tanstack/react-start/server'
+import { createServerFn } from '@tanstack/react-start'
 import { getServerEnv } from '@/lib/server-runtime-env'
 import { PageHero } from '@/components/site/PageHero'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
@@ -32,6 +32,7 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 }
 
 const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
+  const { getRequest } = await import('@tanstack/react-start/server')
   const request = getRequest()
   const previewOnly = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   const applicationsEnabled = previewOnly && process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
