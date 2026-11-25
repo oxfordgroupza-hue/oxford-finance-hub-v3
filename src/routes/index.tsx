@@ -126,7 +126,7 @@ function Home() {
               <f.icon className="mt-1 size-5 shrink-0 text-gold" aria-hidden="true" />
               <div>
                 <h2 className="font-sans text-sm font-semibold tracking-wide">{f.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{previewApplicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : previewApplicationsEnabled && f.title === 'Private document handling' ? 'Private uploads are enabled for synthetic preview testing only.' : f.body}</p>
               </div>
             </div>
           ))}
