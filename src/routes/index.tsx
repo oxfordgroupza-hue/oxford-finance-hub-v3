@@ -32,27 +32,10 @@ const featureStrip = [
 ]
 
 const categorySlides: Record<string, { file: string; alt: string }[]> = {
-  vehicle: [
-    { file: 'vehicle-g63.jpg', alt: 'White Mercedes-Benz G 63 AMG' },
-    { file: 'vehicle-mclaren.jpg', alt: 'Green McLaren 750S Spider featured in the supplied Car and Classic listing' },
-  ],
-  'commercial-asset': [
-    { file: 'commercial.png', alt: 'Commercial asset finance' },
-    { file: 'commercial-asset-added.jpg', alt: 'Commercial truck for asset finance' },
-  ],
-  equipment: [
-    { file: 'equipment-solar.jpg', alt: 'Solar panels and wind turbines for renewable energy projects' },
-    { file: 'equipment-grader.jpg', alt: 'Yellow Bell 670G motor grader' },
-    { file: 'equipment-excavator.jpg', alt: 'Excavator at work on a construction site' },
-    { file: 'equipment-dialysis.jpg', alt: 'Hemodialysis dialysis machine on a clean white background' },
-    { file: 'equipment-dental.jpg', alt: 'Modern empty dental consultation room with a dental chair and no people' },
-  ],
-  other: [
-    { file: 'other-villa.jpg', alt: 'Family-friendly Constantia villa' },
-    { file: 'other-private-asset.jpg', alt: 'Private aviation and luxury asset' },
-    { file: 'other-yacht.jpg', alt: 'Luxury yacht' },
-    { file: 'other-helicopter.jpg', alt: 'Hill Helicopters aircraft' },
-  ],
+  vehicle: [{ file: 'vehicle.png', alt: 'Illustrative vehicle finance asset' }],
+  'commercial-asset': [{ file: 'commercial.png', alt: 'Illustrative commercial and industrial asset' }],
+  equipment: [{ file: 'equipment.png', alt: 'Illustrative machinery and equipment' }],
+  other: [{ file: 'about.png', alt: 'Illustrative specialised finance asset' }],
 }
 
 const steps = [
