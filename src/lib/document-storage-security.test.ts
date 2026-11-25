@@ -78,7 +78,7 @@ describe('deploy-preview-only storage gate', () => {
 
 
 describe('Cloudflare Worker preview storage gate', () => {
-  const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
+  const cloudflarePreviewUrl = 'https://production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
 
   it('accepts only the exact HTTPS Cloudflare preview hostname', async () => {
     const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
@@ -109,7 +109,7 @@ describe('Cloudflare production runtime gate', () => {
   })
 
   it('rejects preview hosts, lookalike hosts, HTTP, credentials and nonstandard ports', () => {
-    expect(isApprovedCloudflareProductionRequest('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev')).toBe(false)
     expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za.example.com')).toBe(false)
     expect(isApprovedCloudflareProductionRequest(productionUrl.replace('https://', 'http://'))).toBe(false)
     expect(isApprovedCloudflareProductionRequest(productionUrl.replace('://', '://user:pass@'))).toBe(false)

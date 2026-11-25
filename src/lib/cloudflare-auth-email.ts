@@ -81,7 +81,7 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  const previewHost = 'production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   if (isApprovedCloudflarePreviewRequest(request.url)) {
     assertOxfordAuthEmailRecipientAllowed(input.to)
     const requestedUrl = new URL(input.url)

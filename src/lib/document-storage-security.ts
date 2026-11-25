@@ -62,7 +62,7 @@ export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean 
   try {
     const parsed = new URL(requestUrl)
     return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
-      parsed.hostname.toLowerCase() === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+      parsed.hostname.toLowerCase() === 'production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   } catch {
     return false
   }

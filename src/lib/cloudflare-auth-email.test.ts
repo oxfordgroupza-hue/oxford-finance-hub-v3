@@ -13,7 +13,7 @@ const values: Record<string, string | undefined> = {}
 beforeEach(() => {
   for (const key of Object.keys(values)) delete values[key]
   vi.mocked(getServerEnv).mockImplementation((name: string) => values[name])
-  vi.mocked(getRequest).mockReturnValue(new Request('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
+  vi.mocked(getRequest).mockReturnValue(new Request('https://production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
   vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(true)
 })
 
