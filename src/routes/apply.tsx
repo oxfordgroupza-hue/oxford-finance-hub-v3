@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getServerEnv } from '@/lib/server-runtime-env'
+import { getRequest } from '@tanstack/react-start/server'
+import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
 import { PageHero } from '@/components/site/PageHero'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -32,7 +34,9 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 }
 
 const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
-  const applicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  const applicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' &&
+    isApprovedCloudflarePreviewRequest(getRequest().url) &&
+    getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   return { previewApplicationsEnabled: applicationsEnabled }
 })
 
@@ -65,15 +69,14 @@ function ApplyPage() {
         ) : draft ? (
           <>
             <PreviewNotice className="mb-10">
-              You are resuming a saved draft in this Deploy Preview. Draft changes are restricted to the preview environment; final submission and document uploads remain disabled until Oxford completes security verification.
+              You are resuming a saved draft in this Deploy Preview. Draft changes are restricted to the preview environment; document uploads remain disabled until Oxford completes private-storage acceptance.
             </PreviewNotice>
             <ApplicationWizard initialDraftId={draft} />
           </>
         ) : previewApplicationsEnabled ? (
           <>
             <PreviewNotice className="mb-10">
-              Preview testing only. Use synthetic test information and dummy documents. Do not enter real identity,
-              banking, personal or financial information. Submissions are stored only in the isolated preview database.
+              Preview testing only. Use synthetic test information. Do not enter real identity, banking, personal or financial information. Submissions are stored only in the isolated preview database. Document uploads remain disabled.
             </PreviewNotice>
             <ApplicationWizard initialType={type} initialCategory={category} referralFromLink={ref} />
           </>
