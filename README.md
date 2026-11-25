@@ -1,3 +1,7 @@
+> **Current release status (25 November 2026): NOT READY for public recruitment or real applicant submissions.** The current evidence and remaining gates are tracked in [Release Readiness](docs/RELEASE_READINESS.md). Production remains untouched; Preview is synthetic-data-only. The latest code commit is `fc6d21ce54897901f5cb0305005151623edc2f10`; its bounded multipart parser build is still pending. The last successful full build predates that parser change.
+
+---
+
 # Oxford Finance Hub V3
 
 Oxford Finance Hub is the finance-intermediary platform of Oxford Business Group (Pty) Ltd, operating in South Africa.
