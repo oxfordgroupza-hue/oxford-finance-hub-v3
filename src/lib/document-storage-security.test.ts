@@ -3,6 +3,7 @@ import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
   isApprovedDeployPreviewRequest,
+  isApprovedCloudflareProductionRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from './document-storage-security'
