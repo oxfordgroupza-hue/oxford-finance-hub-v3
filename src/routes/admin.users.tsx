@@ -123,6 +123,7 @@ function AdminUsersPage() {
           <div><p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-[#c7a45a]">Oxford Business Group</p><h1 className="mt-1 font-serif text-3xl">User & access administration</h1></div>
           <div className="flex items-center gap-4">
             <Link to="/admin" className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-[#d8bd7c]"><ArrowLeft className="size-4" /> Super Admin</Link>
+            <Link to="/admin/staff-invitations" className="text-sm text-[#d8bd7c] hover:underline">Invite staff</Link>
             <WorkspaceSignOutButton />
           </div>
         </div>
