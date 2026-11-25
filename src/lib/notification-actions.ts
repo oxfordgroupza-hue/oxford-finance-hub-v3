@@ -7,6 +7,7 @@ import { auditEvents, customerPreferences, customers, notifications, users } fro
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -20,8 +21,7 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  const host = new URL(getRequest().url).hostname
-  return host === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev' && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
+  return isApprovedCloudflarePreviewRequest(getRequest().url) && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
 }
 
 function configured() {
@@ -225,8 +225,7 @@ export const processNotificationQueue = createServerFn({ method: 'POST' }).handl
 
     try {
       const recipient = await resolveRecipient(item)
-      const requestHost = new URL(getRequest().url).hostname
-      if (requestHost === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev') {
+      if (isApprovedCloudflarePreviewRequest(getRequest().url)) {
         const allowedRecipient = validEmail(getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
         if (!allowedRecipient || recipient?.toLowerCase() !== allowedRecipient.toLowerCase()) {
           await db.update(notifications).set({ status: 'skipped', lastError: 'Preview delivery is restricted to the configured Oxford test recipient.', updatedAt: new Date() }).where(eq(notifications.id, item.id))
