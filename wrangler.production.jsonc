@@ -10,7 +10,7 @@
   "observability": {
     "enabled": true
   },
-  "workers_dev": true,
+  "workers_dev": false,
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
