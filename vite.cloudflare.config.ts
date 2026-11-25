@@ -7,6 +7,9 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
+const cloudflareBuildContext = process.env.OXFORD_BUILD_CONTEXT === 'cloudflare-production'
+  ? 'cloudflare-production'
+  : 'cloudflare-preview'
 
 const databaseBoundary = {
   name: 'cloudflare-database-runtime-boundary',
@@ -29,7 +32,7 @@ export default defineConfig({
   define: {
     // Mark this build as a dedicated Cloudflare preview; server-side gates still require
     // the exact preview hostname and explicit runtime feature flags.
-    'process.env.CONTEXT': JSON.stringify('cloudflare-preview'),
+    'process.env.CONTEXT': JSON.stringify(cloudflareBuildContext),
   },
   resolve: { tsconfigPaths: true },
   plugins: [
