@@ -23,7 +23,7 @@ import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-per
 import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
 import { applicationDocumentStoragePath } from '../../src/lib/application-document-storage'
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
-import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, validateDocumentUpload } from '../../src/lib/document-validation'
+import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
 import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
@@ -283,7 +283,13 @@ export async function handleCloudflareOxfordApi(request: Request) {
       // Reject known oversized multipart bodies before parsing FormData.
       const requestLengthError = validateDocumentRequestContentLength(request.headers.get('content-length'))
       if (requestLengthError) throw new HttpError(requestLengthError, 413)
-      const form = await request.formData()
+      let form: FormData
+      try {
+        form = await parseBoundedDocumentFormData(request)
+      } catch (error) {
+        if (error instanceof RangeError) throw new HttpError(error.message, 413)
+        throw new HttpError('The multipart upload could not be parsed.', 400)
+      }
       const applicationId = String(form.get('applicationId') || '')
       const rawType = String(form.get('documentKey') || '')
       const file = form.get('file')
