@@ -71,7 +71,7 @@ export async function parseBoundedDocumentFormData(request: Request): Promise<Fo
   if (!request.body) throw new Error('The upload request is empty.')
 
   const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
+  const chunks: ArrayBuffer[] = []
   let totalBytes = 0
   try {
     while (true) {
@@ -82,7 +82,9 @@ export async function parseBoundedDocumentFormData(request: Request): Promise<Fo
         await reader.cancel()
         throw new RangeError('The upload request exceeds the secure upload limit.')
       }
-      chunks.push(value)
+      const chunkBuffer = new ArrayBuffer(value.byteLength)
+      new Uint8Array(chunkBuffer).set(value)
+      chunks.push(chunkBuffer)
     }
   } catch (error) {
     try { await reader.cancel() } catch { /* The stream may already be closed. */ }
