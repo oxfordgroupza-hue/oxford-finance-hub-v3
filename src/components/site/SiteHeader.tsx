@@ -118,7 +118,7 @@ setAuthenticated(false)
             </Link>
           )}
           <Button asChild size="sm" className="rounded-sm px-5 tracking-wide">
-            <Link to="/apply">Applications paused</Link>
+            <Link to="/apply">Apply for finance</Link>
           </Button>
         </nav>
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -162,7 +162,7 @@ setAuthenticated(false)
                 </Link>
               )}
               <Button asChild className="mt-6" size="lg">
-                <Link to="/apply" onClick={() => setMobileMenuOpen(false)}>Applications paused</Link>
+                <Link to="/apply" onClick={() => setMobileMenuOpen(false)}>Apply for finance</Link>
               </Button>
             </nav>
           </SheetContent>
