@@ -28,4 +28,9 @@ describe('same-origin request validation', () => {
   it('rejects state-changing requests without an Origin header', () => {
     expect(isSameOriginRequest(null, requestUrl, true)).toBe(false)
   })
+
+  it('rejects requests explicitly marked as cross-site even with a matching Origin', () => {
+    expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'cross-site')).toBe(false)
+    expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'same-origin')).toBe(true)
+  })
 })
