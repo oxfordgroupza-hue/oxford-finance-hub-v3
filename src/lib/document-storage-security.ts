@@ -51,3 +51,14 @@ export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean 
     return false
   }
 }
+
+/** Accept production-only bootstrap requests from the dedicated Finance Hub hostname. */
+export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
+  try {
+    const parsed = new URL(requestUrl)
+    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
+      parsed.hostname.toLowerCase() === 'finance.oxfordbusinessgroup.co.za'
+  } catch {
+    return false
+  }
+}
