@@ -1,3 +1,7 @@
+> **Superseding status note — 25 November 2026:** The earlier statements below that Preview secrets are not configured and that email/bootstrap flags must remain false are historical. The current isolated Cloudflare Preview has the Neon Hyperdrive binding and encrypted `BREVO_API_KEY`, `OXFORD_PII_ENCRYPTION_KEY` and `SUPABASE_SECRET_KEY` bindings. Preview `OXFORD_EMAIL_DELIVERY_ENABLED` and `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED` are enabled with the approved Oxford-owned mailbox restriction. No email has been sent and no Super Administrator account has been created. Production settings remain unchanged. The owner must set their own password through Preview registration, verify email and sign in to trigger the one-time bootstrap. Full lifecycle acceptance remains outstanding. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+
+---
+
 ﻿# Cloudflare-native authentication migration
 
 Status: approved for isolated Cloudflare preview development; production remains unchanged.
