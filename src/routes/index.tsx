@@ -10,11 +10,7 @@ import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 import { getServerEnv } from '@/lib/server-runtime-env'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getRequest } = await import('@tanstack/react-start/server')
-  const request = getRequest()
-  const previewHost = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  const previewApplicationsEnabled = previewHost &&
-    process.env.CONTEXT === 'cloudflare-preview' &&
+  const previewApplicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   const publicConfig = await getPublicSiteConfigWithFallback()
   return { ...publicConfig, previewApplicationsEnabled }
