@@ -71,26 +71,29 @@ export async function parseBoundedDocumentFormData(request: Request): Promise<Fo
   if (!request.body) throw new Error('The upload request is empty.')
 
   const reader = request.body.getReader()
-  const chunks: ArrayBuffer[] = []
+  // A single fixed-capacity buffer prevents an attacker from creating millions
+  // of tiny stream chunks and exhausting memory through per-chunk allocations.
+  const buffer = new Uint8Array(MAX_DOCUMENT_REQUEST_BYTES)
   let totalBytes = 0
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      totalBytes += value.byteLength
-      if (totalBytes > MAX_DOCUMENT_REQUEST_BYTES) {
+      if (value.byteLength > MAX_DOCUMENT_REQUEST_BYTES - totalBytes) {
         await reader.cancel()
         throw new RangeError('The upload request exceeds the secure upload limit.')
       }
-      const chunkBuffer = new ArrayBuffer(value.byteLength)
-      new Uint8Array(chunkBuffer).set(value)
-      chunks.push(chunkBuffer)
+      buffer.set(value, totalBytes)
+      totalBytes += value.byteLength
     }
   } catch (error) {
     try { await reader.cancel() } catch { /* The stream may already be closed. */ }
     throw error
   }
 
-  const body = new Blob(chunks, { type: contentType })
+  // Copy only the received bytes into an exact-sized backing buffer for Blob.
+  const exactBody = new ArrayBuffer(totalBytes)
+  new Uint8Array(exactBody).set(buffer.subarray(0, totalBytes))
+  const body = new Blob([exactBody], { type: contentType })
   return await new Response(body, { headers: { 'content-type': contentType } }).formData()
 }
