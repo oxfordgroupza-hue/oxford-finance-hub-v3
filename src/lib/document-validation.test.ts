@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_DOCUMENT_REQUEST_BYTES,
   MAX_FUNCTION_UPLOAD_BYTES,
+  parseBoundedDocumentFormData,
   sanitizeDocumentFilename,
   validateDocumentFileSize,
   validateDocumentRequestContentLength,
@@ -26,6 +27,29 @@ describe('validateDocumentRequestContentLength', () => {
     expect(validateDocumentRequestContentLength('unknown')).toContain('invalid')
     expect(validateDocumentRequestContentLength('0')).toContain('invalid')
     expect(validateDocumentRequestContentLength('9'.repeat(30))).toContain('invalid')
+  })
+})
+
+describe('parseBoundedDocumentFormData', () => {
+  it('parses a bounded multipart request when Content-Length is absent', async () => {
+    const fields = new FormData()
+    fields.set('applicationId', base.applicationId)
+    fields.set('documentKey', 'id')
+    const request = new Request('https://example.test/upload', { method: 'POST', body: fields })
+    expect(request.headers.get('content-length')).toBeNull()
+    const parsed = await parseBoundedDocumentFormData(request)
+    expect(parsed.get('applicationId')).toBe(base.applicationId)
+    expect(parsed.get('documentKey')).toBe('id')
+  })
+
+  it('rejects streamed multipart bodies over the byte ceiling', async () => {
+    const body = new Blob(['x'.repeat(MAX_DOCUMENT_REQUEST_BYTES + 1)])
+    const request = new Request('https://example.test/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=test-boundary' },
+      body,
+    })
+    await expect(parseBoundedDocumentFormData(request)).rejects.toThrow(/exceeds the secure upload limit/)
   })
 })
 
