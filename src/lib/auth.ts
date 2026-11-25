@@ -3,7 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getCookies, getRequest, setCookie } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { verifyPassword, hashPassword, createOpaqueToken, hashOpaqueToken } from './cloudflare-auth-crypto'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 
 function verifyRequestOrigin(request: Request) {
   const origin = request.headers.get('origin')
@@ -295,7 +295,7 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     email,
     bootstrapEmail,
     isDeployPreview: isApprovedCloudflarePreviewRequest(getRequest().url),
-    isProduction: false,
+    isProduction: getServerEnv('CONTEXT') === 'cloudflare-production' && isApprovedCloudflareProductionRequest(getRequest().url),
     hasActiveSuperAdminElsewhere: Boolean(activeSuperAdminAssignment),
     emailConfirmed: Boolean(account.emailVerifiedAt),
     accountStatus: account.status,
