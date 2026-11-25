@@ -263,7 +263,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
         encryptionConfigured: Boolean(process.env.OXFORD_PII_ENCRYPTION_KEY),
         // Preview-only guard: a production env-var mistake cannot enable uploads.
         documentUploadsEnabled: isDeployPreviewRequest(request, context) &&
-          process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED === 'true' && storageVerified,
+          String(process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED ?? '') === 'true' && storageVerified,
         liveApplicationsEnabled: false,
         authoritativeDatabase: 'netlify',
       })
