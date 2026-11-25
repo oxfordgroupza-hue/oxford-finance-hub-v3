@@ -2,7 +2,7 @@
 
 **Last verified:** 25 November 2026  
 **Branch:** `work/v3-cloudflare-native-auth`  
-**Branch HEAD:** `d0768fafc31dba1eb85feb929e878b2817ceb7f1`  
+**Branch HEAD:** `9eb44d4f1cb7cbc482a81467b0c756b78feffcac`  
 **Preview:** https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
 **Latest immutable deployment:** https://5996df01-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
 **Production:** unchanged. Draft PR #9 remains unmerged.
@@ -13,7 +13,18 @@
 
 The approved target architecture is Cloudflare Workers + Oxford-owned Cloudflare-native authentication + Neon PostgreSQL + private Supabase Storage + Brevo transactional email. Netlify remains rollback/reference only during migration. This approval does not authorise production cutover.
 
-## Latest automated build — PASS
+## Latest automated build — PASS (staff invitation implementation)
+
+- Build ID: `c9f04dd4-5790-44af-971a-4d9dcbf5158b`
+- Preview deployment number: `45`
+- Preview deployment ID: `3f7f004a-ee33-4dc6-8e96-d5ff69f67d14`
+- Commit included the staff invitation and activation workflow.
+- TypeScript: passed.
+- Vitest: **39 test files, 215 tests passed, 0 failed**.
+- ESLint: **0 errors, 2 warnings** (unused disable directives in generated `worker-configuration.d.ts`).
+- Wrangler Preview deployment: succeeded.
+
+A follow-up build (`41947f8f-b8a0-4188-ade1-39a1ff503daa`) was queued after adding the Supabase URL and bucket to `wrangler.jsonc` so these non-secret settings remain reproducible from source. Its result is pending.
 
 - Cloudflare Build: `18870e2a-51c8-4b88-aeaf-87bc23e37537`
 - Preview deployment number: `39`
@@ -116,8 +127,13 @@ Unit tests passing do not establish the live provider integrations or the full l
 
 ## Remediation activity — 25 November 2026
 
-- Preview deployment 44 (`71794f88-11da-4a1c-adaf-6e87b13174f3`) was created with an encrypted, newly generated PII encryption key and the Supabase URL/bucket settings. The Brevo secret remained present.
+- Preview deployment 44 (`71794f88-11da-4a1c-adaf-6e87b13174f3`) was created during configuration repair. Active Worker settings subsequently confirmed the PII key, Supabase secret, URL and bucket bindings are all configured; no secret values were read or exposed.
+- Preview deployment 45 (`3f7f004a-ee33-4dc6-8e96-d5ff69f67d14`) successfully deployed the staff invitation code. Its build passed TypeScript, all 215 tests and ESLint with zero errors.
+- Added `SUPABASE_URL` and `SUPABASE_BUCKET` to `wrangler.jsonc` Preview vars to keep non-secret configuration in source control.
 - Staff invitation actions, the Super Administrator invitation-management page, the staff activation page and a dedicated email template were added to `work/v3-cloudflare-native-auth`.
 - Build `c9f04dd4-5790-44af-971a-4d9dcbf5158b` was queued for validation. It has not yet started in the build service at the time of this note.
-- Supabase secret/service key is not exposed by the connected Supabase management integration; only publishable/anon keys are available. Do not substitute a publishable key because the storage bucket intentionally denies direct client access.
+- The active Cloudflare Worker already has `SUPABASE_SECRET_KEY` configured as an encrypted secret. The connected Supabase integration exposes publishable keys only, so no secret value was retrieved or copied. Do not substitute a publishable key because the storage bucket intentionally denies direct client access.
 - No staff invitation email was sent, no staff account was created, and no customer or application data was added.
+
+- A no-compute Neon checkpoint branch was created from the isolated Preview database: `br-hidden-pine-bge4ifgv` (`v3-preview-pre-acceptance-checkpoint-20261125`). This is a Preview rollback checkpoint, not a production backup.
+- Brevo account connectivity was verified read-only: SMTP relay enabled and the configured Oxford sender is active. No email was sent.
