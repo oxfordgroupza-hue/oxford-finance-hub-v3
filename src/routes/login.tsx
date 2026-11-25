@@ -6,12 +6,14 @@ import { getAuthorizationSnapshot, loginWithPassword, registerCustomer, requestP
 type AuthMode = 'login' | 'signup' | 'recovery' | 'reset'
 
 export const Route = createFileRoute('/login')({
+  validateSearch: (search: Record<string, unknown>) => ({ signup: search.signup === '1' }),
   head: () => ({ meta: [{ title: 'Sign in | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
   component: LoginPage,
 })
 
 function LoginPage() {
-  const [mode, setMode] = useState<AuthMode>('login')
+  const { signup } = Route.useSearch()
+  const [mode, setMode] = useState<AuthMode>(() => signup ? 'signup' : 'login')
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
