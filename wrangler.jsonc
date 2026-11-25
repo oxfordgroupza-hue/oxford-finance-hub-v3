@@ -3,11 +3,21 @@
   "name": "oxford-finance-hub-v3-preview",
   "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-11-24",
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true
+  },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
       "id": "6dd54a2875c646608281c9e0e67a380e"
     }
-  ]
+  ],
+  "previews": {
+    "hyperdrive": [
+      {
+        "binding": "HYPERDRIVE",
+        "id": "6dd54a2875c646608281c9e0e67a380e"
+      }
+    ]
+  }
 }
