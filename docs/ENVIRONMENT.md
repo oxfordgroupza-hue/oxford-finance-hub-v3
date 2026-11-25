@@ -1,3 +1,9 @@
+## Current-state addendum — 25 November 2026
+
+The detailed current state is in [RELEASE_READINESS.md](RELEASE_READINESS.md). Preview currently has the Neon Hyperdrive binding and encrypted Supabase, PII-encryption and Brevo secrets. Preview applications are enabled only for synthetic tests on the approved Preview host. Document uploads remain disabled. Email delivery is enabled only for the approved Oxford-owned Preview recipient; no verification email has been sent and no Super Administrator account exists. Production Worker settings, secrets, database, DNS and custom domain remain unchanged.
+
+---
+
 # V3 environment configuration
 
 **Last checked:** 25 November 2026. Names only; never commit or print secret values.
