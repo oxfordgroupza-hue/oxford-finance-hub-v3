@@ -32,10 +32,7 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 }
 
 const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getRequest } = await import('@tanstack/react-start/server')
-  const request = getRequest()
-  const previewOnly = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  const applicationsEnabled = previewOnly && process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  const applicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   return { previewApplicationsEnabled: applicationsEnabled }
 })
 
