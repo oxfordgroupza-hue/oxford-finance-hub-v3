@@ -48,7 +48,7 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   if (new URL(request.url).hostname === previewHost) {
     const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
     const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
