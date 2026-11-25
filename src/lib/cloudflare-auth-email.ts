@@ -1,10 +1,13 @@
 ﻿import { getServerEnv } from './server-runtime-env'
+import { getRequest } from '@tanstack/react-start/server'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
   OXFORD_NOTIFICATION_FROM_EMAIL?: string
   OXFORD_NOTIFICATION_FROM_NAME?: string
   OXFORD_EMAIL_DELIVERY_ENABLED?: string
+  OXFORD_NOTIFICATION_ADMIN_EMAIL?: string
+  OXFORD_INITIAL_SUPER_ADMIN_EMAIL?: string
 }
 
 function configuration() {
@@ -13,6 +16,8 @@ function configuration() {
     OXFORD_NOTIFICATION_FROM_EMAIL: getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL'),
     OXFORD_NOTIFICATION_FROM_NAME: getServerEnv('OXFORD_NOTIFICATION_FROM_NAME'),
     OXFORD_EMAIL_DELIVERY_ENABLED: getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED'),
+    OXFORD_NOTIFICATION_ADMIN_EMAIL: getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'),
+    OXFORD_INITIAL_SUPER_ADMIN_EMAIL: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL'),
   }
   // Fail closed: authentication emails must obey the same explicit preview/production
   // delivery switch as every other Oxford notification. Missing means disabled.
@@ -42,6 +47,17 @@ export async function sendOxfordAuthEmail(input: {
   purpose: 'verification' | 'recovery'
 }) {
   const config = configuration()
+  const request = getRequest()
+  const previewHost = 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  if (new URL(request.url).hostname === previewHost) {
+    const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
+    const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+    if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || input.to.trim().toLowerCase() !== allowedRecipient) {
+      throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
+    }
+    const requestedUrl = new URL(input.url)
+    if (requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
+  }
   const target = new URL(input.url)
   if (target.protocol !== 'https:' || target.username || target.password) {
     throw new Error('The Oxford account link is not a secure HTTPS URL.')
