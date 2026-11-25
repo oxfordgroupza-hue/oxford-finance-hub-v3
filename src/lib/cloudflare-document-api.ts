@@ -238,7 +238,7 @@ function isDeployPreviewRequest(request: Request) {
 export async function handleCloudflareOxfordApi(request: Request) {
   try {
     const origin = request.headers.get('origin')
-    if (!isSameOriginRequest(origin, request.url)) throw new HttpError('Origin not allowed.', 403)
+    if (!isSameOriginRequest(origin, request.url, request.method === 'POST')) throw new HttpError('Origin not allowed.', 403)
 
     const url = new URL(request.url)
     const action = url.searchParams.get('action')
