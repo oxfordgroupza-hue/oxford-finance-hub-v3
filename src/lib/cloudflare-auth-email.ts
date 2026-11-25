@@ -1,5 +1,6 @@
 ﻿import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -49,14 +50,14 @@ export async function sendOxfordAuthEmail(input: {
   const config = configuration()
   const request = getRequest()
   const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  if (new URL(request.url).hostname === previewHost) {
+  if (isApprovedCloudflarePreviewRequest(request.url)) {
     const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
     const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
     if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || input.to.trim().toLowerCase() !== allowedRecipient) {
       throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
     }
     const requestedUrl = new URL(input.url)
-    if (requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
+    if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
   }
   const target = new URL(input.url)
   if (target.protocol !== 'https:' || target.username || target.password) {
