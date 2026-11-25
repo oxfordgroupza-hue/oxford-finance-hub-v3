@@ -52,6 +52,14 @@ describe('Oxford authentication email delivery gate', () => {
 
     expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
   })
+
+  it('normalizes surrounding whitespace on existing provider credentials and sender values', () => {
+    values.OXFORD_EMAIL_DELIVERY_ENABLED = 'true'
+    values.BREVO_API_KEY = '  existing-test-key\\n'
+    values.OXFORD_NOTIFICATION_FROM_EMAIL = ' sender@example.com '
+
+    expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
+  })
 })
 
 describe('Oxford authentication email recipient restrictions', () => {
