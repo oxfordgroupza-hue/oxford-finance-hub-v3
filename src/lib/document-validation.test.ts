@@ -34,9 +34,9 @@ describe('parseBoundedDocumentFormData', () => {
   it('parses a bounded multipart request when Content-Length is absent', async () => {
     const boundary = '----oxford-preview-test-boundary'
     const body = [
-      `--${boundary}\\r\\nContent-Disposition: form-data; name="applicationId"\\r\\n\\r\\n${base.applicationId}\\r\\n`,
-      `--${boundary}\\r\\nContent-Disposition: form-data; name="documentKey"\\r\\n\\r\\nid\\r\\n`,
-      `--${boundary}--\\r\\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="applicationId"\r\n\r\n${base.applicationId}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="documentKey"\r\n\r\nid\r\n`,
+      `--${boundary}--\r\n`,
     ].join('')
     const request = new Request('https://example.test/upload', {
       method: 'POST',
