@@ -33,4 +33,20 @@ describe('same-origin request validation', () => {
     expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'cross-site')).toBe(false)
     expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'same-origin')).toBe(true)
   })
+
+  it('allows cross-site top-level navigation only for the read-only health action', () => {
+    const healthUrl = 'https://finance.oxfordbusinessgroup.co.za/api/oxford-api?action=health'
+    expect(isSameOriginRequest(null, healthUrl, false, 'cross-site')).toBe(true)
+    expect(isSameOriginRequest(null, healthUrl, false, null)).toBe(true)
+  })
+
+  it('rejects a mismatched Origin for the health action', () => {
+    const healthUrl = 'https://finance.oxfordbusinessgroup.co.za/api/oxford-api?action=health'
+    expect(isSameOriginRequest('https://attacker.example', healthUrl, false, 'cross-site')).toBe(false)
+  })
+
+  it('continues to reject cross-site requests for other API actions', () => {
+    const apiUrl = 'https://finance.oxfordbusinessgroup.co.za/api/oxford-api?action=list-documents'
+    expect(isSameOriginRequest(null, apiUrl, false, 'cross-site')).toBe(false)
+  })
 })
