@@ -21,7 +21,11 @@ describe('same-origin request validation', () => {
     expect(isSameOriginRequest('not-an-origin', requestUrl)).toBe(false)
   })
 
-  it('allows requests without an Origin header for non-browser callers', () => {
+  it('allows requests without an Origin header for non-browser read-only callers', () => {
     expect(isSameOriginRequest(null, requestUrl)).toBe(true)
+  })
+
+  it('rejects state-changing requests without an Origin header', () => {
+    expect(isSameOriginRequest(null, requestUrl, true)).toBe(false)
   })
 })
