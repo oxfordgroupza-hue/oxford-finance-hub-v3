@@ -23,7 +23,7 @@ import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-per
 import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
 import { applicationDocumentStoragePath } from '../../src/lib/application-document-storage'
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
-import { sanitizeDocumentFilename, validateDocumentUpload } from '../../src/lib/document-validation'
+import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
 import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
@@ -285,6 +285,8 @@ export async function handleCloudflareOxfordApi(request: Request) {
       const rawType = String(form.get('documentKey') || '')
       const file = form.get('file')
       if (!(file instanceof File)) throw new HttpError('A valid application and file are required.', 400)
+      const sizeError = validateDocumentFileSize(file.size)
+      if (sizeError) throw new HttpError(sizeError, 400)
       const documentType = rawType.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
       if (!ALLOWED_DOCUMENT_KEYS.has(documentType)) throw new HttpError('Select a valid document checklist item.', 400)
       const bytes = await file.arrayBuffer()
