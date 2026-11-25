@@ -1,3 +1,9 @@
+## Current-state addendum — 25 November 2026
+
+Read [RELEASE_READINESS.md](RELEASE_READINESS.md) for the full release assessment. A fresh read-only check found no Neon snapshot schedule for either the isolated Preview branch or the project default branch, no listed Neon snapshots, and no migration-history table in the Preview database. The existing no-compute checkpoint branch is not an independent backup. Do not claim database backup or restore readiness until provider retention, an independent backup, and a restore drill are verified. Production remains untouched.
+
+---
+
 # Backup and recovery — Oxford Finance Hub V3
 
 **Status: NOT YET ACCEPTED.** This document records the current recovery boundary and the work required; it does not claim a tested backup.
