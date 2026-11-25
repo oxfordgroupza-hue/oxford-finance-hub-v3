@@ -66,19 +66,30 @@ export const registerCustomer = createServerFn({ method: 'POST' })
     const email=data.email.trim().toLowerCase()
     assertOxfordCustomerRegistrationAllowed(email)
     assertOxfordAuthEmailRecipientAllowed(email)
-    const [{db},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('../../db/schema')])
+    const [{db},{and,eq,isNull},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const credentials=await hashPassword(data.password)
     const token=createOpaqueToken();const now=new Date()
-    const account=await db.transaction(async (tx) => {
+    const registration=await db.transaction(async (tx) => {
       const [created]=await tx.insert(users).values({email,displayName:data.fullName.trim(),accountType:'customer',status:'invited'}).onConflictDoNothing().returning({id:users.id})
-      if(!created)return null
-      await tx.insert(authCredentials).values({userId:created.id,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
-      await tx.insert(authChallenges).values({userId:created.id,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
-      return created
+      let userId=created?.id
+      let recipientName=data.fullName.trim()
+      if(!created){
+        const [existing]=await tx.select({id:users.id,displayName:users.displayName,status:users.status,accountType:users.accountType,emailVerifiedAt:users.emailVerifiedAt}).from(users).where(eq(users.email,email)).limit(1)
+        // A previous email-provider failure can leave the initial account invited.
+        // Permit only that same unverified, invited account to request a fresh link.
+        if(!existing||existing.status!=='invited'||existing.accountType!=='customer'||existing.emailVerifiedAt)return null
+        userId=existing.id
+        recipientName=existing.displayName||recipientName
+        await tx.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,userId),eq(authChallenges.purpose,'email_verification'),isNull(authChallenges.consumedAt)))
+      }else{
+        await tx.insert(authCredentials).values({userId,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
+      }
+      await tx.insert(authChallenges).values({userId,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
+      return {userId,name:recipientName}
     })
-    if(!account)return {accepted:true as const}
+    if(!registration)return {accepted:true as const}
     const verificationUrl=new URL('/login',request.url);verificationUrl.searchParams.set('verify',token)
-    await sendOxfordAuthEmail({to:email,name:data.fullName.trim(),url:verificationUrl.toString(),purpose:'verification'})
+    await sendOxfordAuthEmail({to:email,name:registration.name,url:verificationUrl.toString(),purpose:'verification'})
     return {accepted:true as const}
   })
 
