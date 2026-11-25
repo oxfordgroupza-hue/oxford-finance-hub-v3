@@ -2,7 +2,7 @@
 import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
 import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
-import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed } from './cloudflare-auth-email'
+import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed, assertOxfordCustomerRegistrationAllowed } from './cloudflare-auth-email'
 
 vi.mock('./server-runtime-env', () => ({ getServerEnv: vi.fn() }))
 vi.mock('@tanstack/react-start/server', () => ({ getRequest: vi.fn() }))
@@ -78,5 +78,40 @@ describe('Oxford authentication email recipient restrictions', () => {
     vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
 
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).not.toThrow()
+  })
+})
+
+describe('Oxford customer registration gate', () => {
+  it('allows only the designated mailbox during the one-time administrator window', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'true'
+    values.OXFORD_INITIAL_SUPER_ADMIN_EMAIL = 'oxfordbusinessgroup@outlook.com'
+    values.OXFORD_APPLICATIONS_ENABLED = 'false'
+
+    expect(() => assertOxfordCustomerRegistrationAllowed(' OXFORDBUSINESSGROUP@OUTLOOK.COM ')).not.toThrow()
+    expect(() => assertOxfordCustomerRegistrationAllowed('other@example.com')).toThrow(
+      'Initial Oxford registration is restricted to the designated administrator mailbox.',
+    )
+  })
+
+  it('fails closed when the bootstrap mailbox is missing', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'true'
+
+    expect(() => assertOxfordCustomerRegistrationAllowed('oxfordbusinessgroup@outlook.com')).toThrow(
+      'Initial Oxford registration is restricted to the designated administrator mailbox.',
+    )
+  })
+
+  it('blocks public customer registration while applications are disabled', () => {
+    values.OXFORD_APPLICATIONS_ENABLED = 'false'
+
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).toThrow(
+      'Customer registration is not currently available.',
+    )
+  })
+
+  it('allows ordinary customer registration after applications are enabled', () => {
+    values.OXFORD_APPLICATIONS_ENABLED = 'true'
+
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).not.toThrow()
   })
 })
