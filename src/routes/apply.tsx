@@ -34,7 +34,7 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 }
 
 const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
-  const applicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' &&
+  const applicationsEnabled = getServerEnv('CONTEXT') === 'cloudflare-preview' &&
     isApprovedCloudflarePreviewRequest(getRequest().url) &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   return { previewApplicationsEnabled: applicationsEnabled }
