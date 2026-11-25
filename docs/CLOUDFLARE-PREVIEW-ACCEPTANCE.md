@@ -7,11 +7,20 @@
 ## Verified source and deployment state — 25 November 2026
 
 - Cloudflare Worker preview build succeeded for commit `6494a3b5ddd66a1aa02c3d9a02f4dbc6e62e647b` (build `f7bb225f-d8ca-44bb-b581-281c69e1392f`).
-- Preview feature flags in the branch's `wrangler.jsonc`: applications enabled for synthetic preview testing; document uploads disabled; email delivery disabled; initial Super Administrator bootstrap disabled.
+- Preview feature flags in the branch's `wrangler.jsonc`: applications enabled for synthetic preview testing; document uploads disabled; email delivery disabled pending a Preview-specific Brevo secret; initial Super Administrator bootstrap enabled for the designated mailbox only.
 - A shared origin validator now accepts only the exact HTTPS Cloudflare preview hostname, with no credentials or nonstandard port. It is used by the application route, application actions, applicant-intake invitation origin, authentication email guard, notification delivery, document API and initial administrator bootstrap.
 - The homepage and application page now identify the preview correctly and state that document uploads remain disabled.
 - No administrator account has been created. No email has been sent. No application has been submitted. No document has been uploaded.
+- The approved sender is active in Brevo, but `wrangler preview secret list --name work/v3-cloudflare-native-auth` returned no Preview secrets. Production Worker secrets are not copied into Previews. Do not reuse a production API key; create a dedicated Preview key and add it with Wrangler's Preview secret command. Until that is done, `OXFORD_EMAIL_DELIVERY_ENABLED` remains `false`.
 - The preview database is isolated from production. Use synthetic data and dummy files only.
+
+## Validation results
+
+- Cloudflare Preview build succeeded for commit `46da11978176391c7842702f936b5b6a2617937a`.
+- Local Cloudflare build succeeded on the validation worktree.
+- Vitest: 39 test files and 212 tests passed after generating the route tree.
+- TypeScript and ESLint passed on commit `74360df4e092d1c9cda5a4ab8d3c6b185d97fb4b` after running `wrangler types`.
+- A subsequent change moved Preview-context checks to the Cloudflare runtime environment binding because the live application page was still displaying the paused state. The Preview build for that latest change is queued; runtime confirmation and rerunning the full suite on the latest branch head remain outstanding.
 
 ## Acceptance still outstanding
 
