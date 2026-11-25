@@ -1,6 +1,6 @@
 ﻿import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -69,6 +69,11 @@ export async function sendOxfordAuthEmail(input: {
   const target = new URL(input.url)
   if (target.protocol !== 'https:' || target.username || target.password) {
     throw new Error('The Oxford account link is not a secure HTTPS URL.')
+  }
+  if (getServerEnv('CONTEXT') === 'cloudflare-production') {
+    if (!isApprovedCloudflareProductionRequest(request.url) || target.origin !== new URL(request.url).origin) {
+      throw new Error('Production account links must remain on the approved Oxford Finance Hub domain.')
+    }
   }
   const recovery = input.purpose === 'recovery'
   const staffInvitation = input.purpose === 'staff_invitation'
