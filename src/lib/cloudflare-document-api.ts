@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm'
 import { db } from '../../db'
 import {
   applicationDocuments,
@@ -76,6 +76,8 @@ async function storage(path: string, init: RequestInit = {}) {
   const { url, key } = storageConfig()
   const response = await fetch(`${url}/storage/v1/${path}`, {
     ...init,
+    // Supabase publishable/secret API keys are opaque API keys, not JWTs.
+    // Send the secret key only in apikey; never mislabel it as a Bearer JWT.
     headers: {
       ...(init.headers || {}),
       apikey: key,
@@ -245,19 +247,12 @@ export async function handleCloudflareOxfordApi(request: Request) {
       if (storageConfigured) {
         try { storageVerified = await verifyStorageBucket() } catch { storageVerified = false }
       }
-      let databaseVerified = false
-      try {
-        await db.execute(sql`select 1 as ok`)
-        databaseVerified = true
-      } catch {
-        databaseVerified = false
-      }
       return json({
         configured: storageConfigured,
         bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
-        databaseVerified,
+        // Preview-only guard: a production env-var mistake cannot enable uploads.
         documentUploadsEnabled: isApprovedCloudflareRequest(request) &&
           getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true' && storageVerified,
         liveApplicationsEnabled: isApprovedCloudflareRequest(request) && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true',
@@ -275,4 +270,299 @@ export async function handleCloudflareOxfordApi(request: Request) {
     }
 
     if (request.method === 'POST' && action === 'upload-document') {
-      if (!isApprovedClo}
+      if (!isApprovedCloudflareRequest(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
+        throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
+      }
+      // Partners use a narrower referral-ownership and document-type policy below.
+      const requiredPermission = requiredDocumentUploadPermission(account.account.accountType as 'customer' | 'partner' | 'office')
+      if (requiredPermission && !account.isSuperAdmin && !account.permissions.has(requiredPermission)) {
+        throw new HttpError('Your account does not have permission to upload application documents.', 403)
+      }
+
+      // Reject known oversized multipart bodies before parsing FormData.
+      const requestLengthError = validateDocumentRequestContentLength(request.headers.get('content-length'))
+      if (requestLengthError) throw new HttpError(requestLengthError, 413)
+      let form: FormData
+      try {
+        form = await parseBoundedDocumentFormData(request)
+      } catch (error) {
+        if (error instanceof RangeError) throw new HttpError(error.message, 413)
+        throw new HttpError('The multipart upload could not be parsed.', 400)
+      }
+      const applicationId = String(form.get('applicationId') || '')
+      const rawType = String(form.get('documentKey') || '')
+      const file = form.get('file')
+      if (!(file instanceof File)) throw new HttpError('A valid application and file are required.', 400)
+      const sizeError = validateDocumentFileSize(file.size)
+      if (sizeError) throw new HttpError(sizeError, 400)
+      const documentType = rawType.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
+      if (!ALLOWED_DOCUMENT_KEYS.has(documentType)) throw new HttpError('Select a valid document checklist item.', 400)
+      const bytes = await file.arrayBuffer()
+      const validationError = validateDocumentUpload({
+        applicationId,
+        documentType,
+        fileSize: file.size,
+        mimeType: file.type,
+        signature: new Uint8Array(bytes.slice(0, 8)),
+      })
+      if (validationError) throw new HttpError(validationError, 400)
+
+      let application: Awaited<ReturnType<typeof applicationAccess>>
+      if (account.account.accountType === 'partner') {
+        // Partners can always upload the supplier quotation to their own referral.
+        // Super Admin may additionally enable non-sensitive supplier supporting files.
+        // Neither path grants access to list or download the applicant's private documents.
+        const [partnerApplication] = await db.select({
+          id: financeApplications.id,
+          reference: financeApplications.reference,
+          customerId: financeApplications.customerId,
+          applicantType: financeApplications.applicantType,
+          category: financeApplications.category,
+          canUploadSupportingDocuments: partnerRegistrations.canUploadSupportingDocuments,
+          profile: customers.profile,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          businessName: customers.businessName,
+        }).from(financeApplications)
+          .innerJoin(customers, eq(financeApplications.customerId, customers.id))
+          .innerJoin(referrals, eq(referrals.applicationId, financeApplications.id))
+          .innerJoin(partnerRegistrations, eq(partnerRegistrations.userId, referrals.partnerUserId))
+          .where(and(
+            eq(financeApplications.id, applicationId),
+            eq(referrals.partnerUserId, account.account.id),
+            eq(partnerRegistrations.status, 'Approved'),
+          )).limit(1)
+        if (partnerApplication) {
+          if (!isPartnerDocumentTypeAllowed(documentType, partnerApplication.canUploadSupportingDocuments)) {
+            throw new HttpError('Your partner account is not permitted to upload this document type.', 403)
+          }
+          application = partnerApplication
+        } else {
+          throw new HttpError('Application not found or access denied.', 404)
+        }
+      } else {
+        application = await applicationAccess(applicationId, account, customer?.id ?? null)
+      }
+      const digest = await crypto.subtle.digest('SHA-256', bytes)
+      const hash = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('')
+      const idempotencyKey = `document:${application.id}:${documentType}:${hash}`
+      const [existing] = await db.select({
+        id: applicationDocuments.id,
+        originalName: applicationDocuments.originalName,
+        sizeBytes: applicationDocuments.sizeBytes,
+      }).from(applicationDocuments).where(and(
+        eq(applicationDocuments.applicationId, application.id),
+        eq(applicationDocuments.documentType, documentType),
+        eq(applicationDocuments.checksum, hash),
+      )).limit(1)
+      if (existing) return json({ id: existing.id, filename: existing.originalName, size: existing.sizeBytes, duplicate: true })
+
+      const existingDocs = await db.select({ id: applicationDocuments.id }).from(applicationDocuments)
+        .where(eq(applicationDocuments.applicationId, application.id)).limit(MAX_DOCUMENTS_PER_APPLICATION)
+      if (existingDocs.length >= MAX_DOCUMENTS_PER_APPLICATION) {
+        throw new HttpError(`An application may contain no more than ${MAX_DOCUMENTS_PER_APPLICATION} documents.`, 400)
+      }
+
+      const bucketVerified = await verifyStorageBucket().catch(() => false)
+      if (!bucketVerified) throw new HttpError('The private document bucket could not be verified. Uploads remain disabled.', 503)
+      const { bucket } = storageConfig()
+      let operationId: string | null = null
+      const [operation] = await db.insert(integrationOperations).values({
+        provider: 'supabase-storage',
+        operation: 'upload_application_document',
+        idempotencyKey,
+        status: 'pending',
+        attempts: 1,
+        requestMetadata: { applicationId: application.id, documentType, sizeBytes: file.size, checksum: hash },
+      }).onConflictDoNothing().returning({ id: integrationOperations.id })
+      if (operation) {
+        operationId = operation.id
+      } else {
+        const [retry] = await db.select({
+          id: integrationOperations.id,
+          status: integrationOperations.status,
+          attempts: integrationOperations.attempts,
+          updatedAt: integrationOperations.updatedAt,
+        }).from(integrationOperations).where(eq(integrationOperations.idempotencyKey, idempotencyKey)).limit(1)
+        if (retry?.status === 'completed') {
+          const [completed] = await db.select({
+            id: applicationDocuments.id,
+            originalName: applicationDocuments.originalName,
+            sizeBytes: applicationDocuments.sizeBytes,
+          }).from(applicationDocuments).where(and(
+            eq(applicationDocuments.applicationId, application.id),
+            eq(applicationDocuments.documentType, documentType),
+            eq(applicationDocuments.checksum, hash),
+          )).limit(1)
+          if (completed) return json({ id: completed.id, filename: completed.originalName, size: completed.sizeBytes, duplicate: true })
+        }
+        const staleBefore = new Date(Date.now() - 15 * 60 * 1000)
+        if (retry?.status === 'pending' && retry.attempts < 5 && retry.updatedAt < staleBefore) {
+          const [claimed] = await db.update(integrationOperations).set({
+            attempts: retry.attempts + 1,
+            lastError: 'Recovered an interrupted upload attempt.',
+            updatedAt: new Date(),
+          }).where(and(
+            eq(integrationOperations.id, retry.id),
+            eq(integrationOperations.status, 'pending'),
+            lt(integrationOperations.updatedAt, staleBefore),
+          )).returning({ id: integrationOperations.id })
+          operationId = claimed?.id ?? null
+        }
+        if (retry?.status === 'failed' && retry.attempts < 5) {
+          const [claimed] = await db.update(integrationOperations).set({
+            status: 'pending',
+            attempts: retry.attempts + 1,
+            lastError: null,
+            updatedAt: new Date(),
+          }).where(and(
+            eq(integrationOperations.id, retry.id),
+            eq(integrationOperations.status, 'failed'),
+          )).returning({ id: integrationOperations.id })
+          operationId = claimed?.id ?? null
+        }
+        if (!operationId) throw new HttpError('This document is already being processed. Please wait before retrying.', 409)
+      }
+
+      const activeOperationId = operationId
+      if (!activeOperationId) throw new HttpError('This document is already being processed. Please wait before retrying.', 409)
+
+      const ext = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/jpeg' ? 'jpg' : 'png'
+      const profile = application.profile ?? {}
+      const pii = typeof profile.piiCiphertext === 'string' ? decryptApplicantData(profile.piiCiphertext) : {}
+      const applicantName = [pii.firstName ?? application.firstName, pii.lastName ?? application.lastName].filter(Boolean).join(' ') || String(pii.contactName ?? application.businessName ?? 'Applicant')
+      const path = applicationDocumentStoragePath({
+        applicantType: application.applicantType,
+        applicantName,
+        applicationReference: application.reference,
+        documentType,
+        fileName: `${documentType}-${hash.slice(0, 24)}.${ext}`,
+      })
+      try {
+        await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, {
+          method: 'POST',
+          headers: { 'content-type': file.type, 'x-upsert': 'true' },
+          body: bytes,
+        })
+
+        let documentId = ''
+        await db.transaction(async (tx) => {
+          const [document] = await tx.insert(applicationDocuments).values({
+            applicationId: application.id,
+            customerId: application.customerId,
+            documentType,
+            originalName: sanitizeDocumentFilename(file.name),
+            mimeType: file.type,
+            sizeBytes: file.size,
+            status: 'Received',
+            provider: 'supabase-storage',
+            storagePath: path,
+            checksum: hash,
+            uploadedAt: new Date(),
+            metadata: { uploadedBy: account.account.id },
+          }).returning({ id: applicationDocuments.id })
+          if (!document) throw new Error('Document metadata could not be saved.')
+          documentId = document.id
+          await tx.update(integrationOperations).set({
+            status: 'completed',
+            resultMetadata: { documentId: document.id, storagePath: path },
+            updatedAt: new Date(),
+          }).where(eq(integrationOperations.id, activeOperationId))
+          await tx.insert(auditEvents).values({
+            actorUserId: account.account.id,
+            event: 'application.document_uploaded',
+            resource: 'application_document',
+            resourceId: document.id,
+            details: { applicationId: application.id, documentType, sizeBytes: file.size },
+          })
+        })
+        return json({ id: documentId, filename: sanitizeDocumentFilename(file.name), size: file.size }, 201)
+      } catch (error) {
+        await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, { method: 'DELETE' }).catch(() => null)
+        await db.update(integrationOperations).set({
+          status: 'failed',
+          lastError: 'Document upload or metadata persistence failed.',
+          updatedAt: new Date(),
+        }).where(eq(integrationOperations.id, activeOperationId)).catch(() => null)
+        throw error
+      }
+    }
+
+    if (request.method === 'GET' && action === 'list-documents') {
+      const applicationId = url.searchParams.get('applicationId') || ''
+      if (!/^[0-9a-f-]{36}$/i.test(applicationId)) throw new HttpError('A valid application ID is required.', 400)
+      const application = await applicationAccess(applicationId, account, customer?.id ?? null)
+      const rows = await db.select({
+        id: applicationDocuments.id,
+        documentType: applicationDocuments.documentType,
+        filename: applicationDocuments.originalName,
+        contentType: applicationDocuments.mimeType,
+        size: applicationDocuments.sizeBytes,
+        status: applicationDocuments.status,
+        uploadedAt: applicationDocuments.uploadedAt,
+      }).from(applicationDocuments).where(eq(applicationDocuments.applicationId, application.id))
+        .orderBy(desc(applicationDocuments.createdAt))
+      return json({ documents: rows })
+    }
+
+    if (request.method === 'POST' && action === 'download-document') {
+      if (!isApplicant && !account.isSuperAdmin && !account.permissions.has('documents.download')) {
+        throw new HttpError('Your office role does not permit document downloads.', 403)
+      }
+      if (isApplicant && !account.permissions.has('own_documents.download')) {
+        throw new HttpError('Your account does not permit document downloads.', 403)
+      }
+      const body = await request.json() as Row
+      const documentId = String(body.documentId || '')
+      if (!/^[0-9a-f-]{36}$/i.test(documentId)) throw new HttpError('A valid document ID is required.', 400)
+      const [document] = await db.select({
+        id: applicationDocuments.id,
+        applicationId: applicationDocuments.applicationId,
+        customerId: applicationDocuments.customerId,
+        storagePath: applicationDocuments.storagePath,
+      }).from(applicationDocuments).where(eq(applicationDocuments.id, documentId)).limit(1)
+      if (!document?.storagePath) throw new HttpError('Document not found.', 404)
+      const application = await applicationAccess(document.applicationId, account, customer?.id ?? null)
+      if (application.customerId !== document.customerId) throw new HttpError('Document not found or access denied.', 404)
+      const { bucket, url: projectUrl } = storageConfig()
+      const signed = await storage(`object/sign/${encodeURIComponent(bucket)}/${storageObjectPath(document.storagePath)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 60 }),
+      }) as Row
+      const signedUrl = signed.signedURL || signed.signedUrl
+      if (typeof signedUrl !== 'string') throw new HttpError('Could not create a temporary document link.', 502)
+      await db.insert(auditEvents).values({
+        actorUserId: account.account.id,
+        event: 'application.document_accessed',
+        resource: 'application_document',
+        resourceId: document.id,
+        details: { applicationId: application.id },
+      })
+      return json({ url: signedUrl.startsWith('http') ? signedUrl : `${projectUrl}/storage/v1${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}` })
+    }
+
+    if (request.method === 'GET' && action === 'my-applications') {
+      if (!isApplicant || !customer || !account.permissions.has('own_applications.view')) {
+        throw new HttpError('Customer account required.', 403)
+      }
+      const rows = await db.select({
+        id: financeApplications.id,
+        reference: financeApplications.reference,
+        applicantType: financeApplications.applicantType,
+        category: financeApplications.category,
+        status: financeApplications.status,
+        submittedAt: financeApplications.submittedAt,
+        updatedAt: financeApplications.updatedAt,
+      }).from(financeApplications).where(eq(financeApplications.customerId, customer.id))
+        .orderBy(desc(financeApplications.submittedAt))
+      return json({ applications: rows })
+    }
+
+    return json({ error: 'Unknown action.' }, 404)
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500
+    const message = error instanceof HttpError ? error.message : 'The requested document operation could not be completed.'
+    return json({ error: message }, status)
+  }
+}
