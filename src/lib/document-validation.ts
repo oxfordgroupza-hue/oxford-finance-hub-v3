@@ -16,12 +16,18 @@ export type DocumentUploadValidation = {
   signature: Uint8Array
 }
 
+export function validateDocumentFileSize(fileSize: number): string | null {
+  if (!Number.isSafeInteger(fileSize) || fileSize < 1 || fileSize > MAX_FUNCTION_UPLOAD_BYTES) {
+    return 'Files must be between 1 byte and 4 MB for secure server-mediated uploads.'
+  }
+  return null
+}
+
 export function validateDocumentUpload(input: DocumentUploadValidation): string | null {
   if (!/^[0-9a-f-]{36}$/i.test(input.applicationId)) return 'A valid application is required.'
   if (!input.documentType || input.documentType.length > 40) return 'Select a valid document checklist item.'
-  if (!Number.isSafeInteger(input.fileSize) || input.fileSize < 1 || input.fileSize > MAX_FUNCTION_UPLOAD_BYTES) {
-    return 'Files must be between 1 byte and 4 MB for secure server-mediated uploads.'
-  }
+  const sizeError = validateDocumentFileSize(input.fileSize)
+  if (sizeError) return sizeError
   if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(input.mimeType as AllowedDocumentMimeType)) {
     return 'Only PDF, JPEG and PNG files are accepted.'
   }
