@@ -135,7 +135,7 @@ function LoginPage() {
     }
   }
 
-  const title = mode === 'signup' ? 'Create a customer account'
+  const title = mode === 'signup' ? 'Create your account'
     : mode === 'recovery' ? 'Recover your account'
         : mode === 'reset' ? 'Set a new password'
           : 'Welcome back'
