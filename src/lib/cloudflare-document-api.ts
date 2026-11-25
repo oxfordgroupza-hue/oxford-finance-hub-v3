@@ -23,7 +23,7 @@ import { isPartnerDocumentTypeAllowed } from '../../src/lib/partner-document-per
 import { requiredDocumentUploadPermission } from '../../src/lib/document-upload-authorization'
 import { applicationDocumentStoragePath } from '../../src/lib/application-document-storage'
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
-import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentUpload } from '../../src/lib/document-validation'
+import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
 import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
@@ -280,6 +280,9 @@ export async function handleCloudflareOxfordApi(request: Request) {
         throw new HttpError('Your account does not have permission to upload application documents.', 403)
       }
 
+      // Reject known oversized multipart bodies before parsing FormData.
+      const requestLengthError = validateDocumentRequestContentLength(request.headers.get('content-length'))
+      if (requestLengthError) throw new HttpError(requestLengthError, 413)
       const form = await request.formData()
       const applicationId = String(form.get('applicationId') || '')
       const rawType = String(form.get('documentKey') || '')
