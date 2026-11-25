@@ -25,12 +25,14 @@ function configuration() {
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
     throw new Error('Oxford account email delivery is disabled for this environment.')
   }
-  const apiKey = runtime.BREVO_API_KEY
-  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL
+  // Cloudflare secrets are pasted as text; normalize accidental surrounding whitespace
+  // without changing the underlying credential or exposing it to logs.
+  const apiKey = runtime.BREVO_API_KEY?.trim()
+  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL?.trim()
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
     throw new Error('Oxford account email delivery is not configured for this Cloudflare environment.')
   }
-  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME || 'Oxford Finance Hub' }
+  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME?.trim() || 'Oxford Finance Hub' }
 }
 
 export function assertOxfordAuthEmailConfigured() {
