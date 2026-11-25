@@ -62,9 +62,10 @@ export const registerCustomer = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254), fullName: z.string().trim().min(2).max(120), password: z.string().min(12).max(1024) }).parse(input))
   .handler(async ({ data }) => {
     const request=getRequest();verifyRequestOrigin(request)
-    const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
-    const [{db},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('../../db/schema')])
+    const {assertOxfordAuthEmailConfigured,assertOxfordAuthEmailRecipientAllowed,sendOxfordAuthEmail}=await import('./cloudflare-auth-email');assertOxfordAuthEmailConfigured()
     const email=data.email.trim().toLowerCase()
+    assertOxfordAuthEmailRecipientAllowed(email)
+    const [{db},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('../../db/schema')])
     const credentials=await hashPassword(data.password)
     const token=createOpaqueToken();const now=new Date()
     const account=await db.transaction(async (tx) => {
@@ -85,10 +86,11 @@ export const requestPasswordRecovery = createServerFn({ method: 'POST' })
   .validator((input: unknown) => z.object({ email: z.string().trim().email().max(254) }).parse(input))
   .handler(async ({ data }) => {
     const request=getRequest();verifyRequestOrigin(request)
-    const {assertOxfordAuthEmailConfigured,sendOxfordAuthEmail}=await import('./cloudflare-auth-email')
+    const {assertOxfordAuthEmailConfigured,assertOxfordAuthEmailRecipientAllowed,sendOxfordAuthEmail}=await import('./cloudflare-auth-email')
     assertOxfordAuthEmailConfigured()
-    const [{db},{and,eq,isNull},{users,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const email=data.email.trim().toLowerCase()
+    assertOxfordAuthEmailRecipientAllowed(email)
+    const [{db},{and,eq,isNull},{users,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const [account]=await db.select({id:users.id,email:users.email,displayName:users.displayName,status:users.status,accountType:users.accountType}).from(users).where(eq(users.email,email)).limit(1)
     if(account&&(account.status==='active'||(account.status==='invited'&&account.accountType==='customer'))){
       const purpose=account.status==='active'?'password_recovery':'email_verification'
