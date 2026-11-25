@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { getRequest } from '@tanstack/react-start/server'
+import { getServerEnv } from '@/lib/server-runtime-env'
 import { PageHero } from '@/components/site/PageHero'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -31,12 +33,19 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 
 export const Route = createFileRoute('/apply')({
   validateSearch,
+  loader: () => {
+    const request = getRequest()
+    const previewOnly = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+    const applicationsEnabled = previewOnly && process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+    return { previewApplicationsEnabled: applicationsEnabled }
+  },
   head: () => ({ meta: [{ title: 'Apply for finance | Oxford Finance Hub' }] }),
   component: ApplyPage,
 })
 
 function ApplyPage() {
-  const { draft, application } = Route.useSearch()
+  const { draft, application, type, category, ref } = Route.useSearch()
+  const { previewApplicationsEnabled } = Route.useLoaderData()
   return (
     <SiteLayout>
       <PageHero
@@ -59,6 +68,14 @@ function ApplyPage() {
               You are resuming a saved draft in this Deploy Preview. Draft changes are restricted to the preview environment; final submission and document uploads remain disabled until Oxford completes security verification.
             </PreviewNotice>
             <ApplicationWizard initialDraftId={draft} />
+          </>
+        ) : previewApplicationsEnabled ? (
+          <>
+            <PreviewNotice className="mb-10">
+              Preview testing only. Use synthetic test information and dummy documents. Do not enter real identity,
+              banking, personal or financial information. Submissions are stored only in the isolated preview database.
+            </PreviewNotice>
+            <ApplicationWizard initialType={type} initialCategory={category} referralFromLink={ref} />
           </>
         ) : (
         <>
