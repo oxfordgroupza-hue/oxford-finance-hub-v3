@@ -1,4 +1,15 @@
 export const MAX_FUNCTION_UPLOAD_BYTES = 4 * 1024 * 1024
+// Allow bounded multipart fields and headers around the single 4 MB document.
+export const MAX_DOCUMENT_REQUEST_BYTES = MAX_FUNCTION_UPLOAD_BYTES + 128 * 1024
+
+export function validateDocumentRequestContentLength(contentLength: string | null): string | null {
+  if (contentLength === null) return null
+  if (!/^\\d+$/.test(contentLength)) return 'The upload request has an invalid content length.'
+  const requestBytes = Number(contentLength)
+  if (!Number.isSafeInteger(requestBytes) || requestBytes < 1) return 'The upload request has an invalid content length.'
+  if (requestBytes > MAX_DOCUMENT_REQUEST_BYTES) return 'The upload request exceeds the secure upload limit.'
+  return null
+}
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
   'application/pdf',
