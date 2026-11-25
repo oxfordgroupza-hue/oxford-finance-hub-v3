@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_FUNCTION_UPLOAD_BYTES,
   sanitizeDocumentFilename,
+  validateDocumentFileSize,
   validateDocumentUpload,
 } from './document-validation'
 
@@ -10,6 +11,20 @@ const base = {
   documentType: 'id',
   fileSize: 128,
 }
+
+describe('validateDocumentFileSize', () => {
+  it('accepts non-empty files up to the upload limit', () => {
+    expect(validateDocumentFileSize(1)).toBeNull()
+    expect(validateDocumentFileSize(MAX_FUNCTION_UPLOAD_BYTES)).toBeNull()
+  })
+
+  it('rejects empty, oversized and unsafe file sizes before reading file contents', () => {
+    expect(validateDocumentFileSize(0)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(MAX_FUNCTION_UPLOAD_BYTES + 1)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(Number.NaN)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(Number.POSITIVE_INFINITY)).toContain('between 1 byte and 4 MB')
+  })
+})
 
 describe('validateDocumentUpload', () => {
   it('accepts PDF, JPEG and PNG files with matching signatures', () => {
