@@ -7,10 +7,10 @@ import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { applicantTypes, documentCollectionNotice, financeCategories, intermediaryDisclaimer } from '@/lib/finance-config'
 import { img, imgSrcSet } from '@/lib/images'
 import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
-import { getRequest } from '@tanstack/react-start/server'
 import { getServerEnv } from '@/lib/server-runtime-env'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
+  const { getRequest } = await import('@tanstack/react-start/server')
   const request = getRequest()
   const previewHost = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
   const previewApplicationsEnabled = previewHost &&
