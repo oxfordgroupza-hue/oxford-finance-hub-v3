@@ -42,6 +42,22 @@ export function isApprovedDeployPreviewRequest(
     /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
 
+export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
+  try {
+    const parsed = new URL(requestUrl)
+    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
+      parsed.hostname.toLowerCase() === 'finance.oxfordbusinessgroup.co.za'
+  } catch {
+    return false
+  }
+}
+
+export function isApprovedCloudflareRuntimeRequest(requestUrl: string, context: string | undefined): boolean {
+  if (context === 'cloudflare-preview') return isApprovedCloudflarePreviewRequest(requestUrl)
+  if (context === 'cloudflare-production') return isApprovedCloudflareProductionRequest(requestUrl)
+  return false
+}
+
 export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
   try {
     const parsed = new URL(requestUrl)
