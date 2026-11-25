@@ -3,6 +3,8 @@ import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
   isApprovedDeployPreviewRequest,
+  isApprovedCloudflareProductionRequest,
+  isApprovedCloudflareRuntimeRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from './document-storage-security'
@@ -94,5 +96,28 @@ describe('Cloudflare Worker preview storage gate', () => {
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('https://','http://'))).toBe(false)
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('://','://user:pass@'))).toBe(false)
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('.workers.dev/','.workers.dev:8443/'))).toBe(false)
+  })
+})
+
+
+describe('Cloudflare production runtime gate', () => {
+  const productionUrl = 'https://finance.oxfordbusinessgroup.co.za/api/oxford'
+
+  it('accepts only the canonical HTTPS production hostname', () => {
+    expect(isApprovedCloudflareProductionRequest(productionUrl)).toBe(true)
+    expect(isApprovedCloudflareRuntimeRequest(productionUrl, 'cloudflare-production')).toBe(true)
+  })
+
+  it('rejects preview hosts, lookalike hosts, HTTP, credentials and nonstandard ports', () => {
+    expect(isApprovedCloudflareProductionRequest('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za.example.com')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest(productionUrl.replace('https://', 'http://'))).toBe(false)
+    expect(isApprovedCloudflareProductionRequest(productionUrl.replace('://', '://user:pass@'))).toBe(false)
+    expect(isApprovedCloudflareProductionRequest(productionUrl.replace('.co.za/', '.co.za:8443/'))).toBe(false)
+  })
+
+  it('does not allow a production hostname under a preview context or unknown context', () => {
+    expect(isApprovedCloudflareRuntimeRequest(productionUrl, 'cloudflare-preview')).toBe(false)
+    expect(isApprovedCloudflareRuntimeRequest(productionUrl, undefined)).toBe(false)
   })
 })
