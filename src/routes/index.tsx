@@ -8,9 +8,12 @@ import { applicantTypes, documentCollectionNotice, financeCategories, intermedia
 import { img, imgSrcSet } from '@/lib/images'
 import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 import { getServerEnv } from '@/lib/server-runtime-env'
+import { getRequest } from '@tanstack/react-start/server'
+import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
   const previewApplicationsEnabled = process.env.CONTEXT === 'cloudflare-preview' &&
+    isApprovedCloudflarePreviewRequest(getRequest().url) &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   const publicConfig = await getPublicSiteConfigWithFallback()
   return { ...publicConfig, previewApplicationsEnabled }
@@ -125,7 +128,7 @@ function Home() {
               <f.icon className="mt-1 size-5 shrink-0 text-gold" aria-hidden="true" />
               <div>
                 <h2 className="font-sans text-sm font-semibold tracking-wide">{f.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{previewApplicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : previewApplicationsEnabled && f.title === 'Private document handling' ? 'Private uploads are enabled for synthetic preview testing only.' : f.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{previewApplicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : previewApplicationsEnabled && f.title === 'Private document handling' ? 'Private document uploads remain disabled while the isolated preview storage checks are completed.' : f.body}</p>
               </div>
             </div>
           ))}
