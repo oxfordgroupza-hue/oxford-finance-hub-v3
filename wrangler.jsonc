@@ -58,7 +58,8 @@
         "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
         "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
         "SUPABASE_BUCKET": "oxford-customer-documents"
-      }
+      },
+      "workers_dev": false
     }
   }
 }
