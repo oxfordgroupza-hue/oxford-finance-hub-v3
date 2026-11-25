@@ -1,3 +1,9 @@
+## Current-state addendum — 25 November 2026
+
+See [RELEASE_READINESS.md](RELEASE_READINESS.md) for current evidence and blockers. The last successful full build was `b89bab04-9fec-4121-b1f0-860eb171b9df` for commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`. The newer bounded multipart stream parser and its regression tests have not yet passed a complete Cloudflare build. Intermediate build failures exposed a TypeScript BlobPart type mismatch and a malformed multipart test fixture; the source was corrected and a new build queued. Do not record the newer source as passed until its own build completes Vite, Wrangler type generation, TypeScript, Vitest and ESLint.
+
+---
+
 # V3 testing and acceptance evidence
 
 ## Full Preview build command
