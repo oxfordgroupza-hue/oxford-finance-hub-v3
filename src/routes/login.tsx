@@ -6,7 +6,7 @@ import { getAuthorizationSnapshot, loginWithPassword, registerCustomer, requestP
 type AuthMode = 'login' | 'signup' | 'recovery' | 'reset'
 
 export const Route = createFileRoute('/login')({
-  validateSearch: (search: Record<string, unknown>) => ({ signup: search.signup === '1' }),
+  validateSearch: (search: Record<string, unknown>): { signup?: boolean } => search.signup === '1' ? { signup: true } : {},
   head: () => ({ meta: [{ title: 'Sign in | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
   component: LoginPage,
 })
