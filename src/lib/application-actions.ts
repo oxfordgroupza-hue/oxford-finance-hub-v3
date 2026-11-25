@@ -67,7 +67,7 @@ function assertApplicationProcessingEnabled() {
   // explicitly enabled. Cloudflare is additionally pinned to its preview host.
   const context = getServerEnv('CONTEXT')
   const enabled = context === 'deploy-preview'
-    ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
+    ? String(process.env.OXFORD_APPLICATIONS_ENABLED ?? '') === 'true'
     : isApprovedCloudflareRuntime() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   if (!enabled) {
     throw new Error('Online applications and saved drafts are temporarily unavailable while Oxford completes secure platform verification. Please contact Oxford Business Group for assistance.')
