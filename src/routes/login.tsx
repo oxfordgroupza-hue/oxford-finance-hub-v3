@@ -20,10 +20,10 @@ function LoginPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const continueToWorkspace = useCallback(async () => {
+  const continueToWorkspace = useCallback(async (silent = false) => {
     const session = await getAuthorizationSnapshot()
     if (!session.authenticated) {
-      setMessage('Your Oxford session could not be confirmed. Please sign in again.')
+      if (!silent) setMessage('Your Oxford session could not be confirmed. Please sign in again.')
       return
     }
     if (session.authenticated && 'emailVerificationRequired' in session && session.emailVerificationRequired) {
@@ -84,7 +84,22 @@ function LoginPage() {
         if (active) setError('The secure Oxford sign-in service is temporarily unavailable. Please try again shortly.')
       }
     })()
-    return () => { active = false }
+    // A login page may remain open in another tab while the user verifies email
+    // or signs in elsewhere. Re-check the server session when this tab becomes active.
+    const resumeIfAuthenticated = () => {
+      if (active && document.visibilityState === 'visible') {
+        void continueToWorkspace(true).catch(() => {
+          // Keep the current screen usable if the session check is temporarily unavailable.
+        })
+      }
+    }
+    window.addEventListener('focus', resumeIfAuthenticated)
+    document.addEventListener('visibilitychange', resumeIfAuthenticated)
+    return () => {
+      active = false
+      window.removeEventListener('focus', resumeIfAuthenticated)
+      document.removeEventListener('visibilitychange', resumeIfAuthenticated)
+    }
   }, [continueToWorkspace])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
