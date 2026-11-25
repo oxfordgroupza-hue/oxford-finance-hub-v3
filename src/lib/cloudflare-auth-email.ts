@@ -105,7 +105,7 @@ export async function sendOxfordAuthEmail(input: {
     ? 'A password recovery request was received for your Oxford Finance Hub account. If you made this request, use the secure link below. If you did not request it, you can ignore this email.'
     : staffInvitation
       ? 'Oxford Business Group has invited you to join its Finance Hub office team. Use the secure link below to create your password and activate your account. This invitation expires after 72 hours and can only be used once.'
-      : 'Please verify this email address to activate your Oxford Finance Hub customer account.'
+      : 'Please verify this email address to activate your Oxford Finance Hub account.'
   const htmlContent = `<!doctype html><html><body style="margin:0;background:#101010;color:#f4f1e9;font-family:Arial,sans-serif"><div style="max-width:600px;margin:32px auto;padding:32px;background:#181818;border:1px solid #8c713d"><p style="color:#d7b96f;letter-spacing:2px;font-size:12px">OXFORD FINANCE HUB</p><h1 style="font-size:25px">${heading}</h1><p>Hello ${escapeHtml(input.name)},</p><p style="line-height:1.6;color:#d0cec8">${message}</p><p style="margin:30px 0"><a href="${escapeHtml(target.toString())}" style="background:#c7a45a;color:#111;padding:14px 22px;text-decoration:none;font-weight:bold">${action}</a></p><p style="font-size:12px;color:#aaa">This link is single-use and expires shortly. If the button does not work, copy this address into your browser:<br>${escapeHtml(target.toString())}</p><p style="font-size:12px;color:#888">Oxford Business Group</p></div></body></html>`
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
