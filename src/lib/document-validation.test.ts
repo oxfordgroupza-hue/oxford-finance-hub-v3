@@ -32,10 +32,17 @@ describe('validateDocumentRequestContentLength', () => {
 
 describe('parseBoundedDocumentFormData', () => {
   it('parses a bounded multipart request when Content-Length is absent', async () => {
-    const fields = new FormData()
-    fields.set('applicationId', base.applicationId)
-    fields.set('documentKey', 'id')
-    const request = new Request('https://example.test/upload', { method: 'POST', body: fields })
+    const boundary = '----oxford-preview-test-boundary'
+    const body = [
+      `--${boundary}\\r\\nContent-Disposition: form-data; name="applicationId"\\r\\n\\r\\n${base.applicationId}\\r\\n`,
+      `--${boundary}\\r\\nContent-Disposition: form-data; name="documentKey"\\r\\n\\r\\nid\\r\\n`,
+      `--${boundary}--\\r\\n`,
+    ].join('')
+    const request = new Request('https://example.test/upload', {
+      method: 'POST',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      body,
+    })
     expect(request.headers.get('content-length')).toBeNull()
     const parsed = await parseBoundedDocumentFormData(request)
     expect(parsed.get('applicationId')).toBe(base.applicationId)
