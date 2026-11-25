@@ -47,6 +47,35 @@ describe('access-control catalogue', () => {
     )
   })
 
+  it('preserves the tested office and customer role permission boundaries', () => {
+    const administrator = roleTemplates.find((role) => role.key === 'administrator')
+    const officeStaff = roleTemplates.find((role) => role.key === 'office_staff')
+    const reviewer = roleTemplates.find((role) => role.key === 'application_reviewer')
+    const customer = roleTemplates.find((role) => role.key === 'customer')
+
+    expect(administrator?.permissions).toEqual(officePermissionKeys.filter((key) => key !== 'office.manage'))
+
+    expect(officeStaff?.permissions).toEqual(expect.arrayContaining([
+      'applications.view', 'applications.create', 'applications.edit', 'applications.assign',
+      'documents.view', 'documents.create', 'documents.download',
+    ]))
+    expect(officeStaff?.permissions).not.toContain('applications.approve')
+
+    expect(reviewer?.permissions).toEqual(expect.arrayContaining([
+      'applications.view', 'applications.edit', 'applications.approve',
+      'documents.view', 'documents.download', 'documents.approve',
+    ]))
+    expect(reviewer?.permissions).not.toContain('applications.assign')
+
+    expect(customer?.permissions).toEqual(expect.arrayContaining([
+      'own_applications.view', 'own_applications.create',
+      'own_documents.view', 'own_documents.create', 'own_documents.download',
+      'own_profile.view', 'own_profile.edit',
+    ]))
+    expect(customer?.permissions).not.toContain('applications.view')
+    expect(customer?.permissions).not.toContain('customers.view')
+  })
+
   it('keeps Customer Support limited to support operations', () => {
     const supportRole = roleTemplates.find((role) => role.key === 'customer_support')
     expect(supportRole?.permissions).toEqual(expect.arrayContaining([
