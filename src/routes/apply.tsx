@@ -31,14 +31,16 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
   return { type, category, ref, draft, application }
 }
 
+const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
+  const request = getRequest()
+  const previewOnly = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  const applicationsEnabled = previewOnly && process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  return { previewApplicationsEnabled: applicationsEnabled }
+})
+
 export const Route = createFileRoute('/apply')({
   validateSearch,
-  loader: () => {
-    const request = getRequest()
-    const previewOnly = new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-    const applicationsEnabled = previewOnly && process.env.CONTEXT === 'cloudflare-preview' && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
-    return { previewApplicationsEnabled: applicationsEnabled }
-  },
+  loader: () => getApplyPreviewAccess(),
   head: () => ({ meta: [{ title: 'Apply for finance | Oxford Finance Hub' }] }),
   component: ApplyPage,
 })
