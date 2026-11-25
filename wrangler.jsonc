@@ -3,6 +3,10 @@
   "name": "oxford-finance-hub-v3-preview",
   "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-11-24",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
+  ],
   "observability": {
     "enabled": true
   },
