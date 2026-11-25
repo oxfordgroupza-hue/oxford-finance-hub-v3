@@ -21,7 +21,7 @@
       "CONTEXT": "cloudflare-preview",
       "OXFORD_APPLICATIONS_ENABLED": "true",
       "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
-      "OXFORD_EMAIL_DELIVERY_ENABLED": "false",
+      "OXFORD_EMAIL_DELIVERY_ENABLED": "true",
       "OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED": "true",
       "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
       "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
