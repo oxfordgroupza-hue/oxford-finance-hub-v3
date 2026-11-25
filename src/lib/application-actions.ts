@@ -1,6 +1,7 @@
 ﻿import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { getServerEnv } from './server-runtime-env'
+import { isApprovedCloudflarePreviewRequest as isApprovedCloudflarePreviewOrigin } from './document-storage-security'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -59,7 +60,7 @@ const consentVersion = '2026-11-08-v1'
 function isApprovedCloudflarePreviewRequest() {
   const request = getRequest()
   return process.env.CONTEXT === 'cloudflare-preview' &&
-    new URL(request.url).hostname === 'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+    isApprovedCloudflarePreviewOrigin(request.url)
 }
 
 function assertApplicationProcessingEnabled() {
