@@ -8,22 +8,23 @@ pnpm cf:build && pnpm exec wrangler types worker-configuration.d.ts && pnpm type
 
 ## Latest full source validation
 
-Build `3f1b78c4-f4ac-4954-9672-8c982a1e2ce9`, commit `26c693231afd394f5b74b907a0f3d50df8e803f8`:
+Build `dfeff3fd-211a-4a13-b8c0-ed46513f6056`, commit `aebe9893af6cf4bd9e6d2b535575172ab8c6d064`, Preview deployment 61:
 - Vite Cloudflare build: passed.
 - Wrangler type generation: passed.
 - TypeScript: passed.
 - Vitest: 39 files, 216 tests passed, 0 failed.
 - ESLint: 0 errors, 2 warnings in generated `worker-configuration.d.ts`.
+- Preview deployment: succeeded.
 
-A later documentation-only commit was also built successfully. New bundled-image source changes are pending their next full Preview build; do not treat them as validated until that build completes.
+The build emitted the local Oxford hero, vehicle, equipment and about image assets. The image helper now imports those assets into the Cloudflare client bundle rather than relying on dynamically referenced public paths. Category cards use a single static image and no longer fade to transparent.
 
-## Runtime checks completed
+## Runtime checks completed on the preceding Preview deployment
 
 - Health endpoint: HTTP 200; Supabase configured, bucket configured, storage verified, PII encryption configured, Neon authoritative.
 - Same-origin unauthenticated document API POST: HTTP 401 as expected.
 - 17 routes checked: public routes render; unauthenticated dashboard/Office/Admin/Partner routes redirect to login.
 - Desktop/tablet/mobile smoke check found no horizontal overflow on the tested routes.
-- The same visual smoke check exposed missing finance images; the source has since been changed to bundle local assets. Verify those images again after the next deployment.
+- The initial visual smoke check found broken image paths. The source fix is built and deployed in deployment 61; post-deployment visual confirmation remains outstanding because the browser-rendering service is rate-limited.
 
 ## Still required
 
@@ -36,7 +37,7 @@ A later documentation-only commit was also built successfully. New bundled-image
 - Brevo delivery/failure tests to the approved Preview mailbox.
 - PBKDF2 Worker benchmark.
 - Backup/restore test.
-- Changed-files-only Prettier check, accessibility and responsive acceptance.
+- Changed-files-only Prettier check, accessibility and visual responsive acceptance.
 - Final security and qualified legal/compliance review.
 
 Use synthetic Preview identities and dummy documents only. No production or real customer data may be used in acceptance tests.

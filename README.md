@@ -15,14 +15,20 @@ Oxford Finance Hub is the finance-intermediary platform of Oxford Business Group
 
 ## Current development boundary
 
-The active development branch is `work/v3-cloudflare-native-auth` and its Cloudflare Preview is isolated from production. The preview Neon branch contains schema and reference data but no customer or application records. Production hosting, DNS, database, secrets and customer processing remain untouched.
+- Active branch: `work/v3-cloudflare-native-auth`.
+- Stable Preview reference: https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
+- Latest immutable Preview deployment: https://9d173fa4-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
+- Preview Neon branch: isolated `cloudflare-preview`.
+- Production hosting, DNS, database, secrets and customer processing remain untouched.
 
-Preview feature flags and secrets are environment-specific. Document uploads remain disabled. Email is restricted to the approved preview mailbox. Do not send real customer communications, create real applications, upload real documents, process payments or settlements, or use production data in Preview.
+Preview secrets are environment-specific. Document uploads remain disabled. Email is restricted to the approved Preview mailbox. Do not send real customer communications, create real applications, upload real documents, process payments or settlements, or use production data in Preview.
 
 ## Validation and release
 
-A previous Cloudflare Preview build completed successfully with TypeScript, 215 automated tests and ESLint passing. This is not comprehensive end-to-end acceptance and does not establish release readiness. Repository-wide Prettier validation remains outstanding (181 files were reported by the attempted check); avoid unrelated mass-formatting.
+Latest full Preview build: **39 test files, 216 tests passed, TypeScript passed, ESLint zero errors** (two warnings in generated Worker types). The latest deployment includes locally bundled finance imagery.
 
-The release remains blocked until the full role, permission, partner-isolation, application, document-security, fee/VAT, audit, notification and operational workflows have been completed and comprehensively tested. Keep release gates fail-closed. Do not merge the draft pull request, bind the production custom domain, change production resources or cut over without separate explicit approval.
+This is not comprehensive end-to-end acceptance and does not establish release readiness. Authentication/bootstrap, all role permissions, all application journeys, document security, email delivery, backup/restore, changed-files formatting, visual acceptance and qualified legal review remain open.
 
-See [the accepted architecture decision](docs/architecture/ADR-001-CLOUDFLARE-NEON-AUTH.md), [project plan](PLAN.md), [recovery findings](docs/recovery/M0-INITIAL-FINDINGS.md), [recovery baseline](docs/architecture/RECOVERY-BASELINE.md) and [contributor rules](AGENTS.md).
+See [Preview acceptance](docs/CLOUDFLARE-PREVIEW-ACCEPTANCE.md), [testing evidence](docs/TESTING.md), [known issues](docs/KNOWN_ISSUES.md), [security baseline](docs/SECURITY.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [accepted architecture decision](docs/architecture/ADR-001-CLOUDFLARE-NEON-AUTH.md), [project plan](PLAN.md) and [contributor rules](AGENTS.md).
+
+Keep PR #9 draft and unmerged. Do not bind the production custom domain, change production resources or cut over without separate explicit approval.

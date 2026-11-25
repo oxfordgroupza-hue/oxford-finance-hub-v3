@@ -5,7 +5,7 @@
 ## Runtime and integration
 
 - Cloudflare-native auth code is present and unit-tested, but signup, email verification, recovery, login/logout, session revocation and bootstrap have not completed end-to-end acceptance.
-- No Super Administrator account exists in Preview. The initial bootstrap is allow-listed to the approved Oxford-owned mailbox.
+- No Super Administrator account exists in Preview. Initial bootstrap is allow-listed to the approved Oxford-owned mailbox.
 - PBKDF2 Worker runtime performance has not been benchmarked.
 - Staff invitation/activation requires end-to-end verification.
 - Supabase health and private bucket verification pass; uploads remain disabled and no files have been uploaded.
@@ -22,10 +22,10 @@
 
 ## Quality
 
-- Latest source build before the image remediation passed 39 test files / 216 tests, TypeScript and ESLint (0 errors, 2 generated-file warnings).
+- Latest source build passed 39 test files / 216 tests, TypeScript and ESLint (0 errors, 2 generated-file warnings).
 - Changed-files-only Prettier check remains outstanding.
-- Responsive smoke checks found no horizontal overflow, but finance imagery was missing in Preview. The source now bundles local assets; verify the new build before marking this fixed.
-- Legal/compliance review of POPIA, FICA, NCA, privacy notices, retention and complaints is outstanding.
+- Responsive smoke checks found no horizontal overflow. The prior image paths were broken; source now imports local assets and deployment 61 includes the bundled files. Final browser visual confirmation remains outstanding due temporary browser-rendering service rate limiting.
+- Qualified legal/compliance review of POPIA, FICA, NCA, privacy notices, retention and complaints is outstanding.
 
 ## Production controls
 
