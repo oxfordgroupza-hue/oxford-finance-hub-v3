@@ -36,7 +36,10 @@ export default defineConfig({
   },
   resolve: { tsconfigPaths: true },
   plugins: [
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    cloudflare({
+      configPath: cloudflareBuildContext === 'cloudflare-production' ? './wrangler.production.jsonc' : './wrangler.jsonc',
+      viteEnvironment: { name: 'ssr' },
+    }),
     databaseBoundary,
     tailwindcss(),
     tanstackStart(),
