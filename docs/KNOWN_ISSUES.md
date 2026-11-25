@@ -1,3 +1,16 @@
+## Current-state addendum — 25 November 2026
+
+The authoritative, detailed current release assessment is [RELEASE_READINESS.md](RELEASE_READINESS.md). Additional blockers confirmed in this pass:
+
+- The latest bounded multipart streaming parser has not yet passed its Cloudflare build; do not enable uploads.
+- Neon Preview has no migration-history table. Existing SQL migration files are under the legacy Netlify path; a verified Neon baseline/repeatable migration process is required.
+- No explicit Neon snapshot schedule was found for the Preview or default branch; no snapshot or restore test was verified.
+- Neon Preview has zero users. The owner-controlled Super Administrator registration, email verification and first sign-in/bootstrap have not happened.
+- Preview email is limited to the approved Oxford-owned mailbox. It is not a production staff-recruitment mail configuration.
+- The current Preview application form is for synthetic testing only. Real submissions and documents remain unavailable.
+
+---
+
 # V3 known issues and release blockers
 
 **Release status: not ready for production.**
