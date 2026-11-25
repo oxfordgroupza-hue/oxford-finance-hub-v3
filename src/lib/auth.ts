@@ -71,7 +71,7 @@ export const registerCustomer = createServerFn({ method: 'POST' })
     const token=createOpaqueToken();const now=new Date()
     const registration=await db.transaction(async (tx) => {
       const [created]=await tx.insert(users).values({email,displayName:data.fullName.trim(),accountType:'customer',status:'invited'}).onConflictDoNothing().returning({id:users.id})
-      let userId=created?.id
+      let userId: string
       let recipientName=data.fullName.trim()
       if(!created){
         const [existing]=await tx.select({id:users.id,displayName:users.displayName,status:users.status,accountType:users.accountType,emailVerifiedAt:users.emailVerifiedAt}).from(users).where(eq(users.email,email)).limit(1)
@@ -82,6 +82,7 @@ export const registerCustomer = createServerFn({ method: 'POST' })
         recipientName=existing.displayName||recipientName
         await tx.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,userId),eq(authChallenges.purpose,'email_verification'),isNull(authChallenges.consumedAt)))
       }else{
+        userId=created.id
         await tx.insert(authCredentials).values({userId,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations})
       }
       await tx.insert(authChallenges).values({userId,purpose:'email_verification',tokenHash:await hashOpaqueToken(token),expiresAt:new Date(now.getTime()+30*60*1000)})
