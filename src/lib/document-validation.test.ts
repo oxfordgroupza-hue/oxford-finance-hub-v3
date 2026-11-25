@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_DOCUMENT_REQUEST_BYTES,
   MAX_FUNCTION_UPLOAD_BYTES,
   sanitizeDocumentFilename,
   validateDocumentFileSize,
+  validateDocumentRequestContentLength,
   validateDocumentUpload,
 } from './document-validation'
 
@@ -11,6 +13,21 @@ const base = {
   documentType: 'id',
   fileSize: 128,
 }
+
+describe('validateDocumentRequestContentLength', () => {
+  it('allows absent length and bounded multipart requests', () => {
+    expect(validateDocumentRequestContentLength(null)).toBeNull()
+    expect(validateDocumentRequestContentLength('1')).toBeNull()
+    expect(validateDocumentRequestContentLength(String(MAX_DOCUMENT_REQUEST_BYTES))).toBeNull()
+  })
+
+  it('rejects oversized, malformed and unsafe request lengths', () => {
+    expect(validateDocumentRequestContentLength(String(MAX_DOCUMENT_REQUEST_BYTES + 1))).toContain('exceeds')
+    expect(validateDocumentRequestContentLength('unknown')).toContain('invalid')
+    expect(validateDocumentRequestContentLength('0')).toContain('invalid')
+    expect(validateDocumentRequestContentLength('9'.repeat(30))).toContain('invalid')
+  })
+})
 
 describe('validateDocumentFileSize', () => {
   it('accepts non-empty files up to the upload limit', () => {
