@@ -149,7 +149,9 @@ function LoginPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c7a45a]">Oxford Finance Hub</p>
           <h1 className="mt-3 font-serif text-4xl text-white">{title}</h1>
           <p className="mt-3 text-sm leading-6 text-white/65">
-            Secure access for customers and authorised Oxford office personnel.
+            {mode === 'signup'
+              ? 'Initial administrator setup is restricted to the designated Oxford mailbox. Use the approved administrator email address.'
+              : 'Secure access for customers and authorised Oxford office personnel.'}
           </p>
 
           {message && <div role="status" className="mt-6 rounded-lg border border-[#c7a45a]/30 bg-[#c7a45a]/10 p-3 text-sm text-[#ead7a8]">{message}</div>}
@@ -181,12 +183,12 @@ function LoginPage() {
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
+              <a href="/login?signup=1" className="text-[#d7b96f] hover:text-white">Set up Oxford administrator account</a>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
           {mode !== 'login' && (
-            <button type="button" onClick={() => { setMode('login'); setError(''); setMessage('') }} className="mt-6 text-sm text-[#d7b96f] hover:text-white">Return to sign in</button>
+            <a href="/login" className="mt-6 inline-block text-sm text-[#d7b96f] hover:text-white">Return to sign in</a>
           )}
         </div>
       </section>
