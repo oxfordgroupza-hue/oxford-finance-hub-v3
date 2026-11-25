@@ -1,3 +1,9 @@
+## Current-state addendum — 25 November 2026
+
+The document API now validates a supplied Content-Length before parsing and reads multipart bodies through a strict byte-bounded stream before calling FormData parsing, so requests without Content-Length are bounded as well. The latest Cloudflare build for this code is still pending; uploads remain disabled. Neon Preview currently has no migration-history table and no verified backup/restore schedule. The full role isolation, authentication lifecycle and document acceptance matrices remain outstanding. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+
+---
+
 # Security and privacy baseline
 
 **Status:** engineering controls are implemented in source and partially covered by automated tests. Full end-to-end acceptance and qualified legal review remain outstanding.
