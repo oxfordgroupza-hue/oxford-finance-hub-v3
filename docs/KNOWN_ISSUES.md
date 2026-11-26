@@ -1,14 +1,10 @@
-## Current-state addendum — 25 November 2026
+## Current-state addendum — 26 November 2026
 
-The authoritative, detailed current release assessment is [RELEASE_READINESS.md](RELEASE_READINESS.md). Additional blockers confirmed in this pass:
+The bounded multipart parser is now included in the current successful Cloudflare Build and Preview deployment (branch head `045d5b1`). The 25 November statement that this build was still pending is historical.
 
-- The latest bounded multipart streaming parser has not yet passed its Cloudflare build; do not enable uploads.
-- Neon Preview has no migration-history table. Existing SQL migration files are under the legacy Netlify path; a verified Neon baseline/repeatable migration process is required.
-- No explicit Neon snapshot schedule was found for the Preview or default branch; no snapshot or restore test was verified.
-- Neon Preview has zero users. The owner-controlled Super Administrator registration, email verification and first sign-in/bootstrap have not happened.
-- Preview email is limited to the approved Oxford-owned mailbox. It is not a production staff-recruitment mail configuration.
-- The current Preview application form is for synthetic testing only. Real submissions and documents remain unavailable.
+Current source review also confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and implemented staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake gate is host-restricted and feature-flagged. Older review notes describing these source items as absent are stale; their full end-to-end acceptance remains open.
 
+Production is not untouched: the restricted Worker and finance custom domain are already attached. Applications and document uploads remain disabled. The Neon production branch has no automatic snapshot schedule or accepted restore drill.
 ---
 
 # V3 known issues and release blockers
@@ -42,4 +38,4 @@ The authoritative, detailed current release assessment is [RELEASE_READINESS.md]
 
 ## Production controls
 
-PR #9 remains draft and unmerged. Production Worker, secrets, database, DNS, `finance.oxfordbusinessgroup.co.za`, Netlify rollback and live processing remain untouched. Production release requires separate explicit approval.
+PR #9 remains draft and unmerged. The production Worker, finance custom domain and production Neon branch are already present. Production application intake and document uploads remain disabled; no further production changes without separate approval. Production release requires separate explicit approval.
