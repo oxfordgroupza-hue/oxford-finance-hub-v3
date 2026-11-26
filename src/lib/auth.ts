@@ -177,7 +177,7 @@ export const verifyCustomerEmail = createServerFn({ method: 'POST' })
 
 export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handler(async () => {
   const [
-    { and, eq, gt, isNull, ne },
+    { and, eq, gt, inArray, isNull, ne },
     { db },
     schema,
     { canBootstrapInitialSuperAdmin, evaluateEffectivePermissions, isSuspended, permissionCatalogue, roleTemplates, SUPER_ADMIN_ROLE_KEY },
@@ -211,20 +211,37 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
 
   const email = sessionUser.email?.trim().toLowerCase() ?? ''
   const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')
-  // Always repair the permission catalogue on an authenticated session. Identity
-  // event hooks are best-effort; login must not depend on a signup/login hook having
-  // completed successfully.
-  await db.insert(permissions).values(permissionCatalogue.map((p) => ({
-    key: p.key,
-    resource: p.resource,
-    action: p.action,
-    scope: p.scope,
-    label: p.label,
-    accountTypes: [...p.accountTypes],
-  }))).onConflictDoNothing()
+  // Read the access-control catalogue first. Repair only missing rows so ordinary
+  // authenticated requests do not repeatedly write the entire system catalogue.
+  const existingPermissions = await db.select({ id: permissions.id, key: permissions.key })
+    .from(permissions)
+  const permissionIds = new Map(existingPermissions.map((row) => [row.key, row.id]))
+  const missingPermissions = permissionCatalogue.filter((item) => !permissionIds.has(item.key))
+  if (missingPermissions.length) {
+    const inserted = await db.insert(permissions).values(missingPermissions.map((item) => ({
+      key: item.key,
+      resource: item.resource,
+      action: item.action,
+      scope: item.scope,
+      label: item.label,
+      accountTypes: [...item.accountTypes],
+    }))).onConflictDoNothing().returning({ id: permissions.id, key: permissions.key })
+    for (const row of inserted) permissionIds.set(row.key, row.id)
+    if (missingPermissions.length !== inserted.length) {
+      const refreshed = await db.select({ id: permissions.id, key: permissions.key }).from(permissions)
+      for (const row of refreshed) permissionIds.set(row.key, row.id)
+    }
+  }
 
-  for (const template of roleTemplates) {
-    await db.insert(roles).values({
+  const existingSystemRoles = await db.select({
+    id: roles.id, key: roles.key, name: roles.name, description: roles.description,
+    audience: roles.audience, isSystem: roles.isSystem, isReserved: roles.isReserved, isActive: roles.isActive,
+  }).from(roles).where(eq(roles.isSystem, true))
+  const roleIds = new Map(existingSystemRoles.map((row) => [row.key, row.id]))
+  const existingRoleKeys = new Set(existingSystemRoles.map((row) => row.key))
+  const missingRoles = roleTemplates.filter((template) => !existingRoleKeys.has(template.key))
+  if (missingRoles.length) {
+    const inserted = await db.insert(roles).values(missingRoles.map((template) => ({
       key: template.key,
       name: template.name,
       description: template.description,
@@ -232,13 +249,23 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
       isSystem: true,
       isReserved: template.reserved,
       isActive: true,
-    }).onConflictDoNothing()
+    }))).onConflictDoNothing().returning({ id: roles.id, key: roles.key })
+    for (const row of inserted) roleIds.set(row.key, row.id)
+    if (missingRoles.length !== inserted.length) {
+      const refreshed = await db.select({ id: roles.id, key: roles.key }).from(roles).where(eq(roles.isSystem, true))
+      for (const row of refreshed) roleIds.set(row.key, row.id)
+    }
   }
 
-  // The reserved Super Administrator role is a security invariant. Repair stale
-  // metadata left by earlier previews instead of trusting an old row's flags.
+  // Preserve the reserved Super Administrator invariant, but write only when stale.
   const superAdminTemplate = roleTemplates.find((template) => template.key === SUPER_ADMIN_ROLE_KEY)
-  if (superAdminTemplate) {
+  const currentSuperAdminRole = existingSystemRoles.find((role) => role.key === SUPER_ADMIN_ROLE_KEY)
+  if (superAdminTemplate && currentSuperAdminRole && (
+    currentSuperAdminRole.name !== superAdminTemplate.name ||
+    currentSuperAdminRole.description !== superAdminTemplate.description ||
+    currentSuperAdminRole.audience !== superAdminTemplate.audience ||
+    !currentSuperAdminRole.isSystem || !currentSuperAdminRole.isReserved || !currentSuperAdminRole.isActive
+  )) {
     await db.update(roles).set({
       name: superAdminTemplate.name,
       description: superAdminTemplate.description,
@@ -246,24 +273,28 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
       isSystem: true,
       isReserved: true,
       isActive: true,
-    }).where(eq(roles.key, SUPER_ADMIN_ROLE_KEY))
+    }).where(eq(roles.id, currentSuperAdminRole.id))
   }
 
-  const systemRoles = await db.select({ id: roles.id, key: roles.key })
-    .from(roles).where(eq(roles.isSystem, true))
-  const permissionRows = await db.select({ id: permissions.id, key: permissions.key }).from(permissions)
-  const roleIds = new Map(systemRoles.map((r) => [r.key, r.id]))
-  const permissionIds = new Map(permissionRows.map((p) => [p.key, p.id]))
-  const catalogueAssignments = roleTemplates.filter((t) => !t.reserved).flatMap((t) =>
-    t.permissions.map((key) => {
-      const roleId = roleIds.get(t.key)
+  const catalogueAssignments = roleTemplates.filter((template) => !template.reserved).flatMap((template) =>
+    template.permissions.map((key) => {
+      const roleId = roleIds.get(template.key)
       const permissionId = permissionIds.get(key)
-      if (!roleId || !permissionId) throw new Error(`Access-control catalogue incomplete: ${t.key} / ${key}`)
+      if (!roleId || !permissionId) throw new Error(`Access-control catalogue incomplete: ${template.key} / ${key}`)
       return { roleId, permissionId }
     }),
   )
   if (catalogueAssignments.length) {
-    await db.insert(rolePermissions).values(catalogueAssignments).onConflictDoNothing()
+    const relevantRoleIds = [...new Set(catalogueAssignments.map((row) => row.roleId))]
+    const existingAssignments = relevantRoleIds.length ? await db.select({
+      roleId: rolePermissions.roleId,
+      permissionId: rolePermissions.permissionId,
+    }).from(rolePermissions).where(inArray(rolePermissions.roleId, relevantRoleIds)) : []
+    const assigned = new Set(existingAssignments.map((row) => `${row.roleId}:${row.permissionId}`))
+    const missingAssignments = catalogueAssignments.filter((row) => !assigned.has(`${row.roleId}:${row.permissionId}`))
+    if (missingAssignments.length) {
+      await db.insert(rolePermissions).values(missingAssignments).onConflictDoNothing()
+    }
   }
 
   let [account] = await db.select().from(users)
@@ -355,7 +386,12 @@ export const getAuthorizationSnapshot = createServerFn({ method: 'GET' }).handle
     const [baselineRole] = await db.select({ id: roles.id })
       .from(roles).where(eq(roles.key, baselineRoleKey)).limit(1)
     if (baselineRole) {
-      await db.insert(staffRoles).values({ userId: account.id, roleId: baselineRole.id }).onConflictDoNothing()
+      const [baselineAssignment] = await db.select({ id: staffRoles.id }).from(staffRoles)
+        .where(and(eq(staffRoles.userId, account.id), eq(staffRoles.roleId, baselineRole.id), isNull(staffRoles.revokedAt)))
+        .limit(1)
+      if (!baselineAssignment) {
+        await db.insert(staffRoles).values({ userId: account.id, roleId: baselineRole.id }).onConflictDoNothing()
+      }
     }
   }
 
