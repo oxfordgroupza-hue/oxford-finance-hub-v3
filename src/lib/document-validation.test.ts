@@ -120,9 +120,18 @@ describe('validateDocumentUpload', () => {
     expect(validateDocumentUpload({ ...base, fileSize: Number.NaN, mimeType: 'application/pdf', signature: new TextEncoder().encode('%PDF-') })).toContain('between 1 byte and 4 MB')
   })
 
-  it('rejects invalid application IDs and document keys', () => {
-    expect(validateDocumentUpload({ ...base, applicationId: 'not-a-uuid', mimeType: 'application/pdf', signature: new TextEncoder().encode('%PDF-') })).toBe('A valid application is required.')
-    expect(validateDocumentUpload({ ...base, documentType: '', mimeType: 'application/pdf', signature: new TextEncoder().encode('%PDF-') })).toBe('Select a valid document checklist item.')
+  it('accepts a valid saved draft ID for pre-submission uploads', () => {
+    const draftBase = { documentType: base.documentType, fileSize: base.fileSize }
+    expect(validateDocumentUpload({ ...draftBase, draftId: '123e4567-e89b-12d3-a456-426614174001', mimeType: 'application/pdf', signature: new TextEncoder().encode('%PDF-1.7') })).toBeNull()
+  })
+
+  it('requires exactly one valid application or draft ID and a valid document key', () => {
+    const valid = { ...base, mimeType: 'application/pdf', signature: new TextEncoder().encode('%PDF-') }
+    expect(validateDocumentUpload({ ...valid, applicationId: 'not-a-uuid' })).toBe('A valid application or saved draft is required.')
+    expect(validateDocumentUpload({ ...valid, draftId: '123e4567-e89b-12d3-a456-426614174001' })).toBe('A valid application or saved draft is required.')
+    expect(validateDocumentUpload({ ...valid, applicationId: undefined, draftId: 'not-a-uuid' })).toBe('A valid application or saved draft is required.')
+    expect(validateDocumentUpload({ ...valid, applicationId: 'not-a-uuid', draftId: '123e4567-e89b-12d3-a456-426614174001' })).toBe('A valid application or saved draft is required.')
+    expect(validateDocumentUpload({ ...valid, documentType: '' })).toBe('Select a valid document checklist item.')
   })
 })
 
