@@ -65,7 +65,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     setError('')
     setNotice('')
     try {
-      const prepared = await optimiseDocumentForUpload(file)
+      const prepared = await optimiseDocumentFile(file)
       setBusyLabel('Uploading…')
       const form = new FormData()
       form.set('applicationId', applicationId)
