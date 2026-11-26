@@ -26,7 +26,7 @@ Oxford Finance Hub is the finance-intermediary platform of Oxford Business Group
 - Preview Neon branch: isolated cloudflare-preview.
 - Production Worker and custom domain are already attached. Its Neon connection targets production-2026-11-25; production application intake and document uploads are disabled. Do not describe production as untouched. No further production changes are authorised without separate approval.
 
-Preview secrets are environment-specific. Document uploads remain disabled. Email is restricted to the approved Preview mailbox. Do not send real customer communications, create real applications, upload real documents, process payments or settlements, or use production data in Preview.
+Preview application processing is enabled only for synthetic acceptance tests on the isolated Neon Preview branch. Document uploads remain disabled. Email is restricted to the approved Preview mailbox. Do not send real customer communications, create real applicant records, upload real documents, process payments or settlements, or use production data in Preview.
 
 ## Validation and release
 
