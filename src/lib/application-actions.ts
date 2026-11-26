@@ -1,7 +1,7 @@
 ﻿import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { getServerEnv } from './server-runtime-env'
-import { isApprovedCloudflarePreviewRequest as isApprovedCloudflarePreviewOrigin } from './document-storage-security'
+import { isApprovedCloudflareRuntimeRequest } from './document-storage-security'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -53,14 +53,13 @@ type SerializableRecord = { [key: string]: SerializableJson }
 const consentVersion = '2026-11-08-v1'
 
 /**
- * Fail closed until the Netlify Database + Netlify Identity application flow,
- * private Supabase Storage integration and launch acceptance tests are complete.
+ * Fail closed unless the canonical Cloudflare runtime host, server-side intake flag,
+ * and the required encrypted-data configuration are present.
  * This flag is server-only; browser code cannot enable application processing.
  */
-function isApprovedCloudflarePreviewRequest() {
+function isApprovedCloudflareRuntime() {
   const request = getRequest()
-  return getServerEnv('CONTEXT') === 'cloudflare-preview' &&
-    isApprovedCloudflarePreviewOrigin(request.url)
+  return isApprovedCloudflareRuntimeRequest(request.url, getServerEnv('CONTEXT'))
 }
 
 function assertApplicationProcessingEnabled() {
@@ -68,21 +67,21 @@ function assertApplicationProcessingEnabled() {
   // explicitly enabled. Cloudflare is additionally pinned to its preview host.
   const enabled = getServerEnv('CONTEXT') === 'deploy-preview'
     ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
-    : isApprovedCloudflarePreviewRequest() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+    : isApprovedCloudflareRuntime() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   if (!enabled) {
     throw new Error('Online applications and saved drafts are temporarily unavailable while Oxford completes secure platform verification. Please contact Oxford Business Group for assistance.')
   }
 }
 
-/** Existing encrypted drafts may be edited only on an approved non-production preview host. */
+/** Existing encrypted drafts may be edited only on an approved Cloudflare host with intake enabled. */
 function assertExistingDraftEditingEnabled() {
   const allowed = getServerEnv('CONTEXT') === 'deploy-preview' || (
-    isApprovedCloudflarePreviewRequest() &&
+    isApprovedCloudflareRuntime() &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true' &&
     Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY'))
   )
   if (!allowed) {
-    throw new Error('Saved draft editing is available only in the secure preview while Oxford completes platform verification.')
+    throw new Error('Saved draft editing is unavailable until Oxford enables the verified application environment.')
   }
 }
 
