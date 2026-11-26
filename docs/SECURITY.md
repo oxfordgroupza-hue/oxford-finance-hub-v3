@@ -1,16 +1,58 @@
-# Security model
+## Current-state addendum — 25 November 2026
 
-## Identity and sessions
-Oxford-owned authentication runs in the Cloudflare Worker. Passwords are stored as salted hashes. Sessions use opaque tokens stored as hashes, secure HTTP-only cookies, short lifetimes and server-side revocation. Email verification and recovery use short-lived, single-use challenges stored as hashes.
+The document API now validates a supplied Content-Length before parsing and reads multipart bodies through a strict byte-bounded stream before calling FormData parsing, so requests without Content-Length are bounded as well. The latest Cloudflare build for this code is still pending; uploads remain disabled. Neon Preview currently has no migration-history table and no verified backup/restore schedule. The full role isolation, authentication lifecycle and document acceptance matrices remain outstanding. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
-## Authorization
-Access is enforced server-side through the role and permission catalogue. Account-type ceilings, least privilege, suspensions, reserved roles and partner/customer record scoping are mandatory. The Super Administrator bootstrap is one-time and fail-closed.
+---
 
-## Data protection
-Applicant personal information is encrypted where required. Private documents are stored in the private Supabase bucket and served only after server-side authorization. Never expose document URLs publicly or place personal information in logs.
+# Security and privacy baseline
 
-## Runtime boundaries
-The Cloudflare Worker is the only production runtime. Preview and Production use separate bindings and database branches. Origin checks, approved-host checks and explicit feature flags are required for sensitive operations.
+**Status:** engineering controls are implemented in source and partially covered by automated tests. Full end-to-end acceptance and qualified legal review remain outstanding.
 
-## Production controls
-Application intake, document uploads and notification delivery remain disabled until security, operational and legal acceptance is complete. Never weaken controls to make a test pass.
+## Authoritative boundaries
+
+- Authentication: Oxford-owned Cloudflare-native authentication.
+- Relational data and authorization records: Neon PostgreSQL.
+- File bytes: private Supabase Storage only.
+- Application runtime: Cloudflare Workers.
+- Transactional email: Brevo, server-side and recipient-gated.
+- Cloudflare Workers is the sole runtime and deployment platform.
+
+## Authentication and sessions
+
+- PBKDF2-HMAC-SHA-256 password hashing, 310,000 iterations and unique salts.
+- Opaque session and challenge tokens are stored as hashes.
+- Secure HttpOnly `__Host-oxford_session` cookie with bounded 12-hour session lifetime.
+- Server-side session expiry/revocation and account status checks.
+- Origin validation on state-changing document API requests.
+- Login lockout fields and account suspension controls.
+- Never log passwords, raw tokens, secret values or full provider error bodies.
+
+The cryptographic helpers and origin-validation tests pass. Worker runtime PBKDF2 benchmarking and the full signup/verification/recovery/login/logout lifecycle still need acceptance.
+
+## Authorization and isolation
+
+- Every sensitive server function must derive permissions from the authenticated Neon account.
+- Account-type ceilings prevent customer/partner accounts from acquiring Office permissions.
+- Suspended/disabled accounts are blocked.
+- Customer ownership, partner referral scope, Office assignment and effective permissions are enforced server-side.
+- Super Administrator permissions derive from the Office permission catalogue; bootstrap is restricted to the designated verified Preview mailbox and Preview context.
+- Audit sensitive permission, application, document and settlement operations without storing PII or secrets in audit payloads.
+
+All seven role templates and the permission evaluator have unit coverage. The complete seven-role route/server-function matrix is not yet accepted.
+
+## Document security
+
+- Supabase bucket `oxford-customer-documents` is private.
+- Direct client access is denied by the bucket's storage-object policy.
+- Server validates ownership/assignment, document key, declared MIME, file signature, size and document count.
+- Application upload route cap: 4 MiB. Per-application maximum: 20 documents.
+- Downloads require server authorization and short-lived signed access.
+- No public or permanent document URLs.
+
+Runtime bucket verification passed. Uploads remain disabled until upload/download, isolation, expiry, retry and recovery tests pass.
+
+## Data protection and compliance
+
+Use synthetic Preview data only. Minimise applicant data, keep private documents out of ordinary email/WhatsApp, and define retention, deletion, export and recovery procedures before real data is accumulated.
+
+This document describes engineering controls. It is not a POPIA, FICA, NCA or other legal certification. Qualified professional review is required before production use.
