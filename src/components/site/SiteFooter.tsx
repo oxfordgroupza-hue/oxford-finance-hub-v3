@@ -8,6 +8,8 @@ const columns = [
     links: [
       { to: '/solutions', label: 'Finance solutions' },
       { to: '/apply', label: 'Apply for finance' },
+      { to: '/rent-to-own', label: 'Rent-to-own equipment' },
+      { to: '/equipment-rental-finance', label: 'Equipment rental finance' },
       { to: '/readiness', label: 'Application readiness' },
       { to: '/dashboard', label: 'My dashboard' },
     ],

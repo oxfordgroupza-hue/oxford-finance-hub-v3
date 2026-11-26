@@ -27,6 +27,9 @@ const databaseBoundary = {
 }
 
 export default defineConfig({
+  // Assets must resolve from the Worker origin on every route, including
+  // nested paths such as /solutions/ and /equipment-rental-finance/.
+  base: '/',
   define: {
     // Mark this build as a dedicated Cloudflare preview; server-side gates still require
     // the exact preview hostname and explicit runtime feature flags.
