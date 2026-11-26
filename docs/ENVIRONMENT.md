@@ -1,7 +1,10 @@
-## Current-state addendum — 25 November 2026
+## Current-state addendum — 26 November 2026
 
-The detailed current state is in [RELEASE_READINESS.md](RELEASE_READINESS.md). Preview currently has the Neon Hyperdrive binding and encrypted Supabase, PII-encryption and Brevo secrets. Preview applications are enabled only for synthetic tests on the approved Preview host. Document uploads remain disabled. Email delivery is enabled only for the approved Oxford-owned Preview recipient; no verification email has been sent and no Super Administrator account exists. Production Worker settings, secrets, database, DNS and custom domain remain unchanged.
+**Preview:** `CONTEXT=cloudflare-preview`; applications are enabled only on the approved branch Preview host for synthetic testing; document uploads are disabled; email delivery is enabled with an approved-recipient restriction; one-time Super Administrator bootstrap is enabled for the designated owner mailbox.
 
+**Production:** `oxford-finance-hub-v3-production` is deployed at 100% Worker traffic and attached to `finance.oxfordbusinessgroup.co.za`. Its flags are `OXFORD_APPLICATIONS_ENABLED=false`, `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`, `OXFORD_EMAIL_DELIVERY_ENABLED=true`, and `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`. Its Hyperdrive binding targets Neon branch `production-2026-11-25`, not default `main`. No production setting was changed during this audit.
+
+Supabase bucket `oxford-customer-documents` is private, limited to 10 MiB per object by provider configuration, and currently has zero objects. The five legacy public tables have RLS enabled and zero rows. Never record secret values in this document.
 ---
 
 # V3 environment configuration
