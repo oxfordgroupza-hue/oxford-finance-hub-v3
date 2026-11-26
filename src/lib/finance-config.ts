@@ -45,7 +45,7 @@ export const financeCategories: FinanceCategory[] = [
     description:
       'Finance for new and pre-owned passenger vehicles, bakkies and light commercial vehicles, for private or business use.',
     examples: ['Passenger vehicles', 'Bakkies & LDVs', 'Fleet replacements'],
-    image: 'vehicle.png',
+    image: 'vehicle-g63.jpg',
     icon: Car,
   },
   {
@@ -56,7 +56,7 @@ export const financeCategories: FinanceCategory[] = [
     description:
       'Structured finance for yellow metal, machinery, agricultural, medical and specialised operational equipment.',
     examples: ['Earthmoving & plant', 'Agricultural machinery', 'Medical & technical equipment'],
-    image: 'equipment.png',
+    image: 'equipment-excavator.jpg',
     icon: Package,
   },
   {
@@ -67,7 +67,7 @@ export const financeCategories: FinanceCategory[] = [
     description:
       'Finance for heavy commercial vehicles, trailers, logistics fleets and other income-generating commercial assets.',
     examples: ['Trucks & trailers', 'Logistics fleets', 'Income-generating assets'],
-    image: 'commercial.png',
+    image: 'commercial-asset-added.jpg',
     icon: Truck,
   },
   {
@@ -78,7 +78,7 @@ export const financeCategories: FinanceCategory[] = [
     description:
       'Requirements that fall outside the standard categories. Describe what you need and our team will assess suitable provider options.',
     examples: ['Specialised assets', 'Mixed asset packages', 'Bespoke requirements'],
-    image: 'about.png',
+    image: 'other-villa.jpg',
     icon: Building2,
   },
 ]
