@@ -1,3 +1,20 @@
+## Current-state reconciliation — 26 November 2026
+
+**Release verdict remains NOT READY for real applicant submissions or document uploads.** This update supersedes conflicting 25 November status statements below.
+
+- **Production is not untouched.** Cloudflare has an active `oxford-finance-hub-v3-production` Worker, version 15 serving 100% of Worker traffic, with `finance.oxfordbusinessgroup.co.za` attached. The public homepage returns HTTP 200 and displays the paused-application notice.
+- Production flags are deliberately restrictive: `OXFORD_APPLICATIONS_ENABLED=false` and `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`. `OXFORD_EMAIL_DELIVERY_ENABLED=true` and `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true` are configured. This audit did not create accounts, submit forms, send emails or change production settings.
+- The production Worker's Hyperdrive connection targets Neon branch `production-2026-11-25`, a child of `cloudflare-preview`; it is not the project's default `main` branch.
+- **Latest development Preview:** branch head `045d5b1d6015ef02513e1694d660d9ea8823f23b`; Cloudflare Workers Build `0fa45b27-03c3-4c79-9e4b-807d907928f5` completed successfully on 26 November; Preview deployment succeeded at `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. Stable branch Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`.
+- Preview GET checks for `/`, `/apply` and `/login` returned HTTP 200. No application form was submitted.
+- PR #9 remains **draft and unmerged**. Cloudflare Workers Builds is the active validation pipeline; do not buy GitHub Actions runners or paid CI.
+- Current source review confirms customer registration and recovery challenge changes use database transactions, failed-login increments use an atomic SQL expression, and staff invitation creation/acceptance handlers plus the activation route exist. Cloudflare Preview intake is host-restricted and feature-flagged. The earlier review comment describing these items as absent is stale; full end-to-end acceptance remains outstanding.
+- Neon has no automatic snapshot schedule on the production, Preview or default branch. One manual snapshot exists on default `main`; production safety/prelaunch checkpoint branches exist, but no independent backup or restore drill has been accepted.
+- Supabase's `oxford-customer-documents` bucket is private and currently contains zero objects. The five legacy public tables have RLS enabled and zero rows; the security advisor's no-policy notices are informational for these unused legacy tables.
+
+Do not enable live applications, document uploads, settlements or payouts, or make further production changes without the separate release approval required by the project plan.
+
+---
 # Oxford Finance Hub V3 — release readiness report
 
 **Assessment date:** 25 November 2026  
@@ -18,7 +35,7 @@ This report distinguishes source implementation, automated test evidence, provid
 - **Brevo:** transactional email.
 - **Netlify:** retained rollback/reference environment during migration; not the V3 identity or database authority.
 
-The intended public destination is `finance.oxfordbusinessgroup.co.za`. Production Worker settings, production database, DNS, secrets and domain attachment have not been changed.
+The public destination is `finance.oxfordbusinessgroup.co.za`. As of the 26 November reconciliation above, the production Worker and custom domain are already attached; applications and document uploads remain disabled. No further production changes are authorised without separate approval.
 
 ## 2. Current code and build state
 
