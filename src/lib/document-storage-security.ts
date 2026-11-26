@@ -42,23 +42,39 @@ export function isApprovedDeployPreviewRequest(
     /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
 
-export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
+const APPROVED_CLOUDFLARE_PREVIEW_HOSTS = new Set([
+  'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+  'recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+  'release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+  'launch-v3-reconciled-2026-11-26-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+])
+
+function isApprovedHttpsHost(requestUrl: string, hostname: string): boolean {
   try {
     const parsed = new URL(requestUrl)
     return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
-      parsed.hostname.toLowerCase() === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+      parsed.hostname.toLowerCase() === hostname
   } catch {
     return false
   }
 }
 
-/** Accept production-only bootstrap requests from the dedicated Finance Hub hostname. */
-export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
+export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
   try {
     const parsed = new URL(requestUrl)
     return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
-      parsed.hostname.toLowerCase() === 'finance.oxfordbusinessgroup.co.za'
+      APPROVED_CLOUDFLARE_PREVIEW_HOSTS.has(parsed.hostname.toLowerCase())
   } catch {
     return false
   }
+}
+
+export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
+  return isApprovedHttpsHost(requestUrl, 'finance.oxfordbusinessgroup.co.za')
+}
+
+export function isApprovedCloudflareRuntimeRequest(requestUrl: string, context: string | undefined): boolean {
+  if (context === 'cloudflare-preview') return isApprovedCloudflarePreviewRequest(requestUrl)
+  if (context === 'cloudflare-production') return isApprovedCloudflareProductionRequest(requestUrl)
+  return false
 }
