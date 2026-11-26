@@ -1,9 +1,13 @@
 ## Current-state addendum — 26 November 2026
 
-Latest development branch head: `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Cloudflare Workers Build `0fa45b27-03c3-4c79-9e4b-807d907928f5` completed successfully and deployed Preview to `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The configured build command runs `pnpm cf:build`, Wrangler type generation, TypeScript, Vitest and ESLint. The build record confirms success; a separate current Vitest test-count summary was not surfaced, so the older 39-file/216-test count must not be presented as the latest count.
+Development branch HEAD: `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce`. Cloudflare Workers Build `1ed97f2d-b578-4c94-b81e-38ace98786cd` completed successfully for this test/documentation update on 26 November 2026. The configured Cloudflare Vite build, Wrangler type generation, TypeScript, Vitest and ESLint pipeline passed; the build record did not separately expose the final test count. The commit adds the seven-role permission-engine regression matrix and documentation only; runtime application code is unchanged.
 
-Read-only GET checks of Preview `/`, `/apply` and `/login` returned HTTP 200. No application was submitted and no email was sent during this audit. Cloudflare Workers Builds is the active branch validation pipeline; GitHub Actions was not used for this build.
+The last independently identified immutable runtime Preview URL remains `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`, built from functional source commit `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Stable branch Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The latest build-list response did not expose a new immutable Preview URL.
+
+Earlier read-only GET checks of Preview `/`, `/apply` and `/login` returned HTTP 200 on the functional-source deployment. No application was submitted and no email was sent. Cloudflare Workers Builds remains the active validation pipeline; GitHub Actions was not used.
+
 ---
+
 
 ## Authorization regression coverage added — 26 November 2026
 
@@ -21,17 +25,17 @@ This is permission-engine unit coverage, not the complete authorization acceptan
 pnpm cf:build && pnpm exec wrangler types worker-configuration.d.ts && pnpm typecheck && pnpm test && pnpm lint
 ```
 
-## Latest full source validation
+## Latest successful branch validation
 
-Build `dfeff3fd-211a-4a13-b8c0-ed46513f6056`, commit `aebe9893af6cf4bd9e6d2b535575172ab8c6d064`, Preview deployment 61:
-- Vite Cloudflare build: passed.
+Build `1ed97f2d-b578-4c94-b81e-38ace98786cd`, commit `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce`:
+- Cloudflare Vite build: passed.
 - Wrangler type generation: passed.
 - TypeScript: passed.
-- Vitest: 39 files, 216 tests passed, 0 failed.
-- ESLint: 0 errors, 2 warnings in generated `worker-configuration.d.ts`.
-- Preview deployment: succeeded.
+- Vitest: passed, including `src/lib/access-control-matrix.test.ts`; the build record did not surface a test count.
+- ESLint: passed.
+- Cloudflare Preview build pipeline outcome: success.
 
-The build emitted the local Oxford hero, vehicle, equipment and about image assets. The image helper now imports those assets into the Cloudflare client bundle rather than relying on dynamically referenced public paths. Category cards use a single static image and no longer fade to transparent.
+The latest commit changes tests and documentation only. The last independently identified immutable runtime Preview remains `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`, based on functional source commit `045d5b1`.
 
 ## Runtime checks completed on the preceding Preview deployment
 

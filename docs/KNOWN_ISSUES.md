@@ -1,8 +1,8 @@
 ## Current-state addendum — 26 November 2026
 
-The bounded multipart parser is now included in the current successful Cloudflare Build and Preview deployment (branch head `045d5b1`). The 25 November statement that this build was still pending is historical.
+The bounded multipart parser is included in the successful functional-source Cloudflare Build for commit `045d5b1`. Development branch head `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce` subsequently passed Cloudflare Build `1ed97f2d-b578-4c94-b81e-38ace98786cd` after adding the seven-role permission-engine regression matrix. The configured build, type generation, TypeScript, Vitest and ESLint pipeline passed; the test count was not surfaced. Direct-route/server-function authorization acceptance remains open.
 
-Current source review also confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and implemented staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake gate is host-restricted and feature-flagged. Older review notes describing these source items as absent are stale; their full end-to-end acceptance remains open.
+Current source review confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake gate is host-restricted and feature-flagged. Full end-to-end acceptance remains open.
 
 Production is not untouched: the restricted Worker and finance custom domain are already attached. Applications and document uploads remain disabled. The Neon production branch has no automatic snapshot schedule or accepted restore drill.
 ---
@@ -31,7 +31,7 @@ Production is not untouched: the restricted Worker and finance custom domain are
 
 ## Quality
 
-- Latest source build passed 39 test files / 216 tests, TypeScript and ESLint (0 errors, 2 generated-file warnings).
+- Latest branch build `1ed97f2d-b578-4c94-b81e-38ace98786cd` passed the configured pipeline; a separate test count was not surfaced. The 39-file/216-test result is historical.
 - Changed-files-only Prettier check remains outstanding.
 - Responsive smoke checks found no horizontal overflow. The prior image paths were broken; source now imports local assets and deployment 61 includes the bundled files. Final browser visual confirmation remains outstanding due temporary browser-rendering service rate limiting.
 - Qualified legal/compliance review of POPIA, FICA, NCA, privacy notices, retention and complaints is outstanding.

@@ -1,14 +1,12 @@
 ## Current-state reconciliation — 26 November 2026
 
-- Branch HEAD: `045d5b1d6015ef02513e1694d660d9ea8823f23b`.
-- Latest Cloudflare Workers Build: `0fa45b27-03c3-4c79-9e4b-807d907928f5`, outcome **success**.
-- Latest Preview deployment: `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`; deployment succeeded.
-- Stable Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`.
-- GET checks for `/`, `/apply` and `/login` returned HTTP 200. No forms were submitted.
-- Production is a restricted public shell already deployed on `finance.oxfordbusinessgroup.co.za`; application and document-upload flags are false. Do not describe production as unchanged. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
-- The 25 November build/deployment evidence below is historical; the 26 November build above is the latest verified Preview result.
+- Development branch HEAD: `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce`. Cloudflare Workers Build `1ed97f2d-b578-4c94-b81e-38ace98786cd` completed successfully for this test/documentation update on 26 November 2026. The configured Cloudflare Vite build, Wrangler type generation, TypeScript, Vitest and ESLint pipeline passed; the build record did not separately expose the final test count. The commit adds the seven-role permission-engine regression matrix and documentation only; runtime application code is unchanged. The last independently identified immutable runtime Preview URL remains `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`, built from functional source commit `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Stable branch Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The latest build-list response did not expose a new immutable Preview URL.
+- Earlier GET checks for `/`, `/apply` and `/login` returned HTTP 200 on the functional-source Preview. No forms were submitted.
+- Production remains a restricted public shell on `finance.oxfordbusinessgroup.co.za`; application and document-upload flags are false.
+- PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has continued with subsequent reconciliation and test commits outside that merge. Do not reopen PR #9 or merge into `main` without explicit approval.
 
 ---
+
 
 # Oxford Finance Hub V3 — Preview acceptance and release gate
 

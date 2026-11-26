@@ -1,6 +1,8 @@
 ## Current-state reconciliation — 26 November 2026
 
-The 25 November milestone snapshot below is superseded where it conflicts with the verified state: the restricted production Worker and `finance.oxfordbusinessgroup.co.za` custom domain are already active, but production application intake and document uploads remain disabled. Latest development branch head is `045d5b1`; Cloudflare Build and Preview deployment succeeded. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval. See [Release Readiness](docs/RELEASE_READINESS.md) for exact Worker flags, Neon branch mapping and outstanding release gates.
+The 25 November milestone snapshot below is superseded where it conflicts with the verified state: the restricted production Worker and `finance.oxfordbusinessgroup.co.za` custom domain are active, but production application intake and document uploads remain disabled. Development branch HEAD: `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce`. Cloudflare Workers Build `1ed97f2d-b578-4c94-b81e-38ace98786cd` completed successfully for this test/documentation update on 26 November 2026. The configured Cloudflare Vite build, Wrangler type generation, TypeScript, Vitest and ESLint pipeline passed; the build record did not separately expose the final test count. The commit adds the seven-role permission-engine regression matrix and documentation only; runtime application code is unchanged.
+
+The last independently identified immutable runtime Preview URL remains `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`, built from functional source commit `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Stable branch Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The latest build-list response did not expose a new immutable Preview URL. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has continued with reconciliation and test commits outside that merge. Do not reopen PR #9 or merge into `main` without explicit approval. See [Release Readiness](docs/RELEASE_READINESS.md) for the release gates.
 
 # Oxford Finance Hub V3 — delivery plan and milestone status
 
@@ -8,7 +10,7 @@ The 25 November milestone snapshot below is superseded where it conflicts with t
 **Current release verdict:** **NOT READY for public recruitment or real applicant submissions.**  
 **Authoritative current evidence:** [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md)  
 **Active branch:** `work/v3-cloudflare-native-auth`  
-PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
+PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has continued with subsequent reconciliation and test commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
 
 ## Milestone status
 
@@ -27,7 +29,7 @@ PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (m
 | M10 | Internal credit assessment | **Assessment source present; human review only.** No bureau integration or automated approve/decline decision is represented. Active ruleset approval and end-to-end tests remain required. |
 | M11 | Private document storage | **Provider configured; acceptance pending.** Supabase bucket is private and empty. Uploads are disabled. Upload/download, isolation, expiry, retries and recovery have not passed acceptance. |
 | M12 | Notifications and automation | **Preview configuration present; delivery acceptance pending.** Brevo is restricted to the approved Oxford-owned Preview mailbox. No email has been sent; WhatsApp delivery is not enabled. |
-| M13 | Security and QA | **Partially complete.** Automated security helpers and tests exist. Latest bounded multipart stream-parser build is pending; full auth, role, document and workflow tests remain open. |
+| M13 | Security and QA | **Partially complete.** The bounded multipart parser is included in the successful functional-source Preview build. A seven-role permission-engine regression matrix now passes the configured Cloudflare build; authenticated direct-route/server-function, document and workflow acceptance remain open. |
 | M14 | Staging and acceptance | **Preview infrastructure present; release acceptance incomplete.** Neon, Cloudflare Preview and private storage are configured. No user journey has passed the complete authenticated acceptance matrix. |
 | M15 | Production | **Restricted public shell already deployed; full release not accepted.** Production Worker and finance custom domain are attached, but application intake and document uploads are disabled. No further production changes or feature activation without separate explicit approval. |
 
@@ -69,6 +71,6 @@ PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (m
 
 ## Production boundary
 
-The production Worker and finance custom domain are already attached. No further production deployment, production database migration, production secret change, DNS/custom-domain change, live application intake, document upload, customer/partner communication, settlement transfer or payout execution is permitted without separate explicit approval. Keep PR #9 draft and unmerged. Use synthetic identities and dummy documents only in Preview.
+The production Worker and finance custom domain are already attached. No further production deployment, production database migration, production secret change, DNS/custom-domain change, live application intake, document upload, customer/partner communication, settlement transfer or payout execution is permitted without separate explicit approval. PR #9 was already merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. Do not reopen it or merge into `main` without explicit approval. Use synthetic identities and dummy documents only in Preview.
 
 This plan records engineering delivery status. It is not legal or regulatory certification.
