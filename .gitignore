@@ -31,4 +31,3 @@ Thumbs.db
 .wrangler/
 .dev.vars*
 worker-configuration.d.ts
-.wrangler-dry-run/
