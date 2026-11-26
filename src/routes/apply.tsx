@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getServerEnv } from '@/lib/server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflareApplicationRequest } from '@/lib/document-storage-security'
+import { isApprovedCloudflareRuntimeRequest } from '@/lib/document-storage-security'
 import { PageHero } from '@/components/site/PageHero'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -35,7 +35,7 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
 
 const getApplyAccess = createServerFn({ method: 'GET' }).handler(async () => {
   const context = getServerEnv('CONTEXT')
-  const approvedOrigin = isApprovedCloudflareApplicationRequest(getRequest().url, context)
+  const approvedOrigin = isApprovedCloudflareRuntimeRequest(getRequest().url, context)
   const applicationsEnabled = approvedOrigin &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   return {
