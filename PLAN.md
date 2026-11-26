@@ -2,7 +2,7 @@
 
 The restricted Production Worker and finance custom domain are already active. Production applications and document uploads remain disabled. PR #13 contains the reconciled Cloudflare-native release candidate and remains draft pending full validation and end-to-end acceptance. The Production build trigger now selects the dedicated production Wrangler configuration and runs typecheck, tests and lint before deployment. No Production deployment occurred during this audit.
 
-The current candidate adds seven-role permission regression coverage, Preview/Production host and email-delivery safeguards, notification delivery policy, retry-safe pending-account credentials, generated-type lint exclusions and a repeatable CI workflow. See [release readiness](docs/RELEASE_READINESS.md) and [testing](docs/TESTING.md).
+The current candidate adds seven-role permission regression coverage, Preview/Production host and email-delivery safeguards, notification delivery policy, retry-safe pending-account credentials, generated-type lint exclusions and full Cloudflare Workers Build validation. See [release readiness](docs/RELEASE_READINESS.md) and [testing](docs/TESTING.md).
 
 ---
 
