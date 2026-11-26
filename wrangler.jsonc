@@ -10,6 +10,19 @@
   "observability": {
     "enabled": true,
   },
+  "vars": {
+    "CONTEXT": "cloudflare-preview",
+    "OXFORD_APPLICATIONS_ENABLED": "false",
+    "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
+    "OXFORD_EMAIL_DELIVERY_ENABLED": "true",
+    "OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED": "true",
+    "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+    "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+    "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
+    "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
+    "SUPABASE_BUCKET": "oxford-customer-documents",
+    "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
+  },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
