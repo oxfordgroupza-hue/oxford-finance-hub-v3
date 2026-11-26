@@ -7,8 +7,8 @@
 - Preview intake and document uploads are both disabled in the candidate configuration. Preview email remains restricted to the designated Oxford test mailbox.
 - PR #13 is the reconciled release candidate, based directly on the active release branch. It remains draft; no Production deployment has occurred.
 - The Production build trigger now generates types from `wrangler.production.jsonc`, builds with `OXFORD_BUILD_CONTEXT=cloudflare-production`, and runs TypeScript, Vitest and ESLint before its deploy step.
-- Latest reconciled Preview validation build is queued. Do not record candidate code as passed until the exact latest commit completes the full pipeline.
-- The prior completed recovery-branch pipeline passed 225 tests across 39 files. That result is not a substitute for validating the reconciled release candidate.
+- Exact tested candidate commit `31d87163177f4c5aa698abddbb3a710bdadad410` completed Cloudflare Preview build, type generation, TypeScript, 41 test files / 274 tests, ESLint and Preview deployment successfully (build `b8fe40ab-6ae6-48ac-a227-f280a2721b9c`).
+- The reconciled release candidate passed 274 tests across 41 files. This is Preview validation only; Production-specific deployment and owner-controlled end-to-end acceptance remain gated.
 - The approved Super Administrator mailbox account remains invited and unverified. No active Super Administrator role or session was created.
 - Neon backup/restore, full authentication lifecycle, staff invitation, direct-route authorization, application journeys, private document upload/download, notification delivery and visual/accessibility acceptance remain unverified.
 
