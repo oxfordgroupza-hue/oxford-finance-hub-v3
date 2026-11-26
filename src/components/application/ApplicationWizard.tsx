@@ -262,6 +262,7 @@ export function ApplicationWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [errors, setErrors] = useState<Errors>({})
   const [submitting, setSubmitting] = useState(false)
+  const [accountGateMessage, setAccountGateMessage] = useState('')
   const [submittedRef, setSubmittedRef] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
   const [serverDraftId, setServerDraftId] = useState<string | null>(initialDraftId ?? null)
@@ -461,6 +462,35 @@ export function ApplicationWizard({
     }
 
     setErrors({})
+    setAccountGateMessage('')
+    // Public applicants must have an active, verified customer account before
+    // any draft creation, document upload, or submission request is attempted.
+    // The account flow opens in another tab so this in-memory form and File state
+    // remain available in the original tab.
+    if (!initialApplicationId) {
+      try {
+        const session = await getAuthorizationSnapshot()
+        if (!session.authenticated) {
+          setAccountGateMessage('Create a customer account or sign in, then verify your email address. Your application will remain open in this tab.')
+          return
+        }
+        if (!session.provisioned || ('emailVerificationRequired' in session && session.emailVerificationRequired)) {
+          setAccountGateMessage('Your Oxford account is not yet fully activated. Complete email verification, then return here and select Submit application again.')
+          return
+        }
+        if (session.blocked || session.user.status !== 'active') {
+          setAccountGateMessage('Your Oxford customer account is not currently active. Please contact Oxford Business Group before submitting.')
+          return
+        }
+        if (session.user.accountType !== 'customer' || !session.permissions.includes('own_applications.create')) {
+          setAccountGateMessage('This application requires an active customer account with permission to create your own applications. Please sign in with your customer account.')
+          return
+        }
+      } catch {
+        setAccountGateMessage('We could not check your Oxford account right now. Your application is still open. Please try again shortly.')
+        return
+      }
+    }
     setSubmitting(true)
     try {
       idempotencyKey.current ??= crypto.randomUUID()
@@ -654,6 +684,17 @@ export function ApplicationWizard({
             />
           )}
           {step.id === 'review' && <ReviewStep form={form} errors={errors} update={update} goTo={setStepIndex} />}
+
+          {step.id === 'review' && accountGateMessage && (
+            <div role="alert" className="mt-8 rounded-sm border border-[#c7a45a]/40 bg-[#c7a45a]/10 p-5 text-sm text-foreground">
+              <p className="font-semibold">Customer account required</p>
+              <p className="mt-2 leading-6">{accountGateMessage}</p>
+              <a href="/login?signup=1" target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex rounded-sm bg-[#c7a45a] px-4 py-2.5 font-semibold text-black hover:bg-[#d9bd7e]">
+                Sign in or create customer account
+              </a>
+              <p className="mt-3 text-xs text-muted-foreground">After signing in, return to this tab and select “Submit application” again. Your entries and selected files stay in this tab.</p>
+            </div>
+          )}
 
           <div className="mt-10 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:justify-between">
             <Button type="button" variant="ghost" onClick={back} disabled={stepIndex === 0}>
