@@ -5,7 +5,7 @@ import { demoActors, demoEnvironment, demoPartnerSummary, demoSupportRequests, d
 
 export const Route = createFileRoute('/demo')({
   beforeLoad: () => {
-    if (process.env.CONTEXT !== 'deploy-preview' && process.env.CONTEXT !== 'cloudflare-preview') throw redirect({ to: '/' })
+    if (String(process.env.CONTEXT) !== 'deploy-preview' && String(process.env.CONTEXT) !== 'cloudflare-preview') throw redirect({ to: '/' })
   },
   head: () => ({ meta: [{ title: 'Role-play demo | Oxford Finance Hub' }, { name: 'robots', content: 'noindex,nofollow' }] }),
   component: DemoWorkspace,

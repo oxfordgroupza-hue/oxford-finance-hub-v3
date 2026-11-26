@@ -54,7 +54,7 @@ const panels = [
 
 function SuperAdministratorDashboard() {
   const session = Route.useLoaderData()
-  const isDeployPreview = process.env.CONTEXT === 'deploy-preview' || process.env.CONTEXT === 'cloudflare-preview'
+  const isDeployPreview = String(process.env.CONTEXT) === 'deploy-preview' || String(process.env.CONTEXT) === 'cloudflare-preview'
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   if (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/asset-catalogue') || pathname.startsWith('/admin/partner-permissions') || pathname.startsWith('/admin/settlements')) return <Outlet />
   const displayName = session.user.displayName?.trim() || session.user.email
