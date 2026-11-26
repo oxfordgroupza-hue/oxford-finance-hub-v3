@@ -9,6 +9,8 @@ import aboutImage from '../assets/about.png'
  * dynamic strings pointing into public/ are not reliably emitted by the
  * Cloudflare Preview build.
  */
+const rootAsset = (url: string) => (url.startsWith('/') ? url : `/${url.replace(/^\.\/+/, '')}`)
+
 const imageSources: Record<string, string> = {
   'hero.png': heroImage,
   'vehicle.png': vehicleImage,
@@ -34,7 +36,7 @@ const imageSources: Record<string, string> = {
 export const img = (file: string, width: number, quality = 75) => {
   void width
   void quality
-  return imageSources[file] ?? aboutImage
+  return rootAsset(imageSources[file] ?? aboutImage)
 }
 
 /** The bundled image is a single responsive asset; no generated srcset is needed. */
