@@ -6,12 +6,14 @@ import { getAuthorizationSnapshot, loginWithPassword, registerCustomer, requestP
 type AuthMode = 'login' | 'signup' | 'recovery' | 'reset'
 
 export const Route = createFileRoute('/login')({
+  validateSearch: (search: Record<string, unknown>): { signup?: boolean } => search.signup === '1' ? { signup: true } : {},
   head: () => ({ meta: [{ title: 'Sign in | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
   component: LoginPage,
 })
 
 function LoginPage() {
-  const [mode, setMode] = useState<AuthMode>('login')
+  const { signup } = Route.useSearch()
+  const [mode, setMode] = useState<AuthMode>(() => signup ? 'signup' : 'login')
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
@@ -20,10 +22,10 @@ function LoginPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const continueToWorkspace = useCallback(async (silent = false) => {
+  const continueToWorkspace = useCallback(async () => {
     const session = await getAuthorizationSnapshot()
     if (!session.authenticated) {
-      if (!silent) setMessage('Your Oxford session could not be confirmed. Please sign in again.')
+      setMessage('Your Oxford session could not be confirmed. Please sign in again.')
       return
     }
     if (session.authenticated && 'emailVerificationRequired' in session && session.emailVerificationRequired) {
@@ -84,22 +86,7 @@ function LoginPage() {
         if (active) setError('The secure Oxford sign-in service is temporarily unavailable. Please try again shortly.')
       }
     })()
-    // A login page may remain open in another tab while the user verifies email
-    // or signs in elsewhere. Re-check the server session when this tab becomes active.
-    const resumeIfAuthenticated = () => {
-      if (active && document.visibilityState === 'visible') {
-        void continueToWorkspace(true).catch(() => {
-          // Keep the current screen usable if the session check is temporarily unavailable.
-        })
-      }
-    }
-    window.addEventListener('focus', resumeIfAuthenticated)
-    document.addEventListener('visibilitychange', resumeIfAuthenticated)
-    return () => {
-      active = false
-      window.removeEventListener('focus', resumeIfAuthenticated)
-      document.removeEventListener('visibilitychange', resumeIfAuthenticated)
-    }
+    return () => { active = false }
   }, [continueToWorkspace])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -150,7 +137,7 @@ function LoginPage() {
     }
   }
 
-  const title = mode === 'signup' ? 'Create a customer account'
+  const title = mode === 'signup' ? 'Create your account'
     : mode === 'recovery' ? 'Recover your account'
         : mode === 'reset' ? 'Set a new password'
           : 'Welcome back'
@@ -162,7 +149,9 @@ function LoginPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c7a45a]">Oxford Finance Hub</p>
           <h1 className="mt-3 font-serif text-4xl text-white">{title}</h1>
           <p className="mt-3 text-sm leading-6 text-white/65">
-            Secure access for customers and authorised Oxford office personnel.
+            {mode === 'signup'
+              ? 'Initial administrator setup is restricted to the designated Oxford mailbox. Use the approved administrator email address.'
+              : 'Secure access for customers and authorised Oxford office personnel.'}
           </p>
 
           {message && <div role="status" className="mt-6 rounded-lg border border-[#c7a45a]/30 bg-[#c7a45a]/10 p-3 text-sm text-[#ead7a8]">{message}</div>}
@@ -194,12 +183,12 @@ function LoginPage() {
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
+              <a href="/login?signup=1" className="text-[#d7b96f] hover:text-white">Set up Oxford administrator account</a>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
           {mode !== 'login' && (
-            <button type="button" onClick={() => { setMode('login'); setError(''); setMessage('') }} className="mt-6 text-sm text-[#d7b96f] hover:text-white">Return to sign in</button>
+            <a href="/login" className="mt-6 inline-block text-sm text-[#d7b96f] hover:text-white">Return to sign in</a>
           )}
         </div>
       </section>
