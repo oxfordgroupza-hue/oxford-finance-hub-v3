@@ -2,7 +2,7 @@
 
 The production Worker is active on `finance.oxfordbusinessgroup.co.za` and uses Neon branch `production-2026-11-25`, whose parent is the isolated `cloudflare-preview` branch. Two point-in-time production checkpoint branches exist: `production-prelaunch-checkpoint-20261125` and `production-safety-checkpoint-2026-11-26`. They are Neon branches within the same project, not independent backups.
 
-No automatic Neon snapshot schedule is configured for the production, Preview or default branch. One manual snapshot exists on default `main`; it is not a production-branch backup. No restore drill has been completed. The production application and document-upload flags remain false. Do not claim backup/restore readiness or change production resources without separate approval.
+Live Neon control-plane inspection on 26 November 2026 confirms the project PITR/history-retention window is only **21,600 seconds (6 hours)**. There is one manual snapshot, created on 25 November 2026 at 08:49:42 UTC, and it belongs to default branch `main`, not the production branch. No automatic snapshot schedule was found. Six branches are present; all six currently report `protected=false`, including `production-2026-11-25`. The two production checkpoint branches are same-project branches, not independent backups. No restore drill has been completed. The production application and document-upload flags remain false. Do not claim backup/restore readiness or change production resources without separate approval.
 ---
 
 # Backup and recovery — Oxford Finance Hub V3

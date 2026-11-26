@@ -84,10 +84,10 @@ The latest branch source includes:
 
 ### Backups
 
-- No explicit Neon snapshot schedule was returned for either the Preview branch or the project default branch.
-- No Neon snapshots were listed.
-- The existing no-compute Preview checkpoint branch is not an independent backup.
-- Backup, restore and recovery-point verification remain release blockers.
+- Live Neon inspection on 26 November 2026 found a **6-hour PITR/history-retention window** (21,600 seconds), one manual snapshot on default branch `main` (created 25 November 2026 at 08:49:42 UTC), and no automatic snapshot schedule.
+- The production branch and all five other project branches currently report `protected=false`.
+- Production checkpoint branches are same-project branch clones, not independent backups; no restore drill has been completed.
+- Backup, restore and recovery-point verification remain release blockers. Increasing retention, enabling branch protection or creating independent backups may affect plan cost and requires approval.
 
 ## 4. Preview feature gates
 
