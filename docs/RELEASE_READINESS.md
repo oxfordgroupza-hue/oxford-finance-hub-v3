@@ -1,4 +1,4 @@
-> **Latest verified state — 26 November 2026:** Runtime commit `4b73d469f515f3b8b5ac96de75a23a6d8874aed1` is deployed to the Cloudflare Preview Worker (deployment `2574fa91-7d2d-42b2-b1b9-a4cd0cad75fe`, 100% Preview traffic); the recovery branch’s current documentation head is `134f33c35063a91840b9298690385de97121564f`. TypeScript, ESLint, 37 Vitest files / 237 tests, Cloudflare build, Wrangler dry-run and `git diff --check` passed. Preview routes/assets return HTTP 200; HSTS, frame protection, MIME-sniff protection and Preview-only noindex headers are verified. A one-off Gitleaks v8.30.1 scan of all 305 Git commits and the current working tree reported no leaks; its temporary binary and report were removed. No persistent scanner or CI secret-scanning gate is configured. Preview applications and document uploads remain disabled. Production was not redeployed or changed. Authenticated end-to-end acceptance, backup/restore evidence and qualified legal review remain outstanding. Production HSTS is absent and requires a separately approved Cloudflare edge configuration change.
+> **Latest verified state — 26 November 2026:** The document-optimisation feature build `6f37d424-70b6-45d8-8c4e-58af8cf8f7ac` passed Wrangler type generation, Vite, TypeScript, 38 Vitest files / 245 tests and ESLint. Preview Worker version `8abb255b-7eea-4f10-bea9-7285dc854259` is deployed with application intake and document uploads disabled. Feature PR #28 was merged into `recovery/cloudflare-only-source-cleanup` as `3b3469258f9580e8fc7b6debe19a664a2bc28991`; follow-on Preview build `1e60183f-b0a9-42a0-b1ce-e4664b7824b1` was queued when this report was refreshed. The live Production Worker remains version `136ab9e5-9710-427c-8f81-5caf84aec791`; its settings inspection shows application intake and document uploads configured true. Production was not redeployed or changed. Authenticated end-to-end acceptance, backup/restore evidence and qualified legal review remain outstanding. Production HSTS is absent and requires a separately approved Cloudflare edge configuration change.
 
 This latest state supersedes older branch and deployment notes below. Do not merge to `main`, enable application submissions/uploads, or change Production without the separate release approval.
 
@@ -42,7 +42,7 @@ This report distinguishes source implementation, automated test evidence, provid
 - **Supabase Storage:** private application document objects only.
 - **Brevo:** transactional email.
 
-The public destination is `finance.oxfordbusinessgroup.co.za`. As of the 26 November reconciliation above, the production Worker and custom domain are already attached; applications and document uploads remain disabled. No further production changes are authorised without separate approval.
+The public destination is `finance.oxfordbusinessgroup.co.za`. As of the 26 November reconciliation above, the production Worker and custom domain are already attached; the live Worker settings currently show application intake and document uploads configured true. These flags do not prove end-to-end readiness. No further production changes are authorised without separate approval.
 
 ## 2. Current code and build state
 
@@ -97,8 +97,8 @@ The latest branch source includes:
 | --------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
 | Public pages                      | Built                              | Public routes can be inspected                                                                |
 | Application wizard                | Enabled on approved Preview host   | Synthetic test information only                                                               |
-| Real/live applications            | Disabled                           | Do not submit real applicant information                                                      |
-| Document uploads                  | Disabled                           | No real or dummy file upload acceptance yet                                                   |
+| Real/live applications            | Worker flag enabled; not accepted  | Configuration does not prove end-to-end readiness; no production acceptance test performed   |
+| Document uploads                  | Worker flag enabled; not accepted  | Production remains subject to the 4 MiB limit until optimisation is released there             |
 | Transactional email               | Enabled with recipient restriction | Approved Oxford-owned Preview mailbox only; no email has been sent                            |
 | Super Admin bootstrap             | Enabled on Preview                 | No account exists; bootstrap requires the account owner to register, verify email and sign in |
 | Payments, settlements and payouts | Fail-closed                        | No execution or transfer is enabled                                                           |
