@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { SiteLayout } from '@/components/site/SiteLayout'
 import { getAuthorizationSnapshot, loginWithPassword, registerCustomer, requestPasswordRecovery, completePasswordRecovery, verifyCustomerEmail } from '@/lib/auth'
@@ -11,6 +11,7 @@ export const Route = createFileRoute('/login')({
 })
 
 function LoginPage() {
+  const navigate = useNavigate()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
@@ -32,19 +33,19 @@ function LoginPage() {
     }
     if (session.authenticated && session.provisioned && !session.blocked) {
       if (session.isSuperAdmin) {
-        window.location.assign('/admin')
+        await navigate({ to: '/admin' })
         return
       }
       if (session.user.accountType === 'office' && session.permissions.includes('office.view')) {
-        window.location.assign('/office')
+        await navigate({ to: '/office' })
         return
       }
       if (session.user.accountType === 'customer' && session.permissions.includes('own_applications.view')) {
-        window.location.assign('/dashboard')
+        await navigate({ to: '/dashboard' })
         return
       }
       if (session.user.accountType === 'partner' && session.permissions.includes('partner_referrals.view')) {
-        window.location.assign('/partner')
+        await navigate({ to: '/partner' })
         return
       }
       setMessage('Your account is recognised but does not currently have workspace access. Please contact Oxford Business Group.')
@@ -55,7 +56,7 @@ function LoginPage() {
       return
     }
     setMessage('Your sign-in could not be confirmed. Please sign in again.')
-  }, [])
+  }, [navigate])
 
   useEffect(() => {
     let active = true
@@ -125,7 +126,7 @@ function LoginPage() {
     try {
       if (mode === 'login') {
         await loginWithPassword({ data: { email: email.trim(), password } })
-        window.location.assign('/login?resolve=1')
+        await continueToWorkspace()
         return
       }
       if (mode === 'signup') {
