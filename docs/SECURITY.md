@@ -1,7 +1,8 @@
-## Current-state addendum — 25 November 2026
+## Current-state addendum — 26 November 2026
 
-The document API now validates a supplied Content-Length before parsing and reads multipart bodies through a strict byte-bounded stream before calling FormData parsing, so requests without Content-Length are bounded as well. The latest Cloudflare build for this code is still pending; uploads remain disabled. Neon Preview currently has no migration-history table and no verified backup/restore schedule. The full role isolation, authentication lifecycle and document acceptance matrices remain outstanding. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+The current Cloudflare Preview build and deployment for branch head `045d5b1` succeeded. Production Worker version 15 is active on the finance custom domain, but live applications and document uploads remain disabled; email delivery and the one-time bootstrap flags are configured on. No production configuration was changed during this audit.
 
+The Supabase document bucket is private and empty. The five legacy public tables have RLS enabled and zero rows; the security advisor's no-policy notices are informational for these unused tables. Neon production, Preview and default branches have no automatic snapshot schedule, and no restore drill is accepted. See [release readiness](RELEASE_READINESS.md) and [backup recovery](BACKUP_RECOVERY.md).
 ---
 
 # Security and privacy baseline
