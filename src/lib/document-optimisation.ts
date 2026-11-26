@@ -28,6 +28,11 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   })
 }
 
+export function shouldUseOptimisedImage(originalBytes: number, candidateBytes: number): boolean {
+  return candidateBytes <= MAX_FUNCTION_UPLOAD_BYTES &&
+    (originalBytes > MAX_FUNCTION_UPLOAD_BYTES || candidateBytes < originalBytes)
+}
+
 async function optimiseImage(file: File): Promise<File> {
   if (typeof createImageBitmap !== 'function') {
     if (file.size <= MAX_FUNCTION_UPLOAD_BYTES) return file
@@ -51,9 +56,9 @@ async function optimiseImage(file: File): Promise<File> {
       const blob = await canvasBlob(canvas, quality)
       const candidate = fileWithBlob(file, blob, 'jpg', 'image/jpeg')
       if (!best || candidate.size < best.size) best = candidate
-      if (candidate.size <= MAX_FUNCTION_UPLOAD_BYTES) return candidate
+      if (shouldUseOptimisedImage(file.size, candidate.size)) return candidate
     }
-    if (file.size <= MAX_FUNCTION_UPLOAD_BYTES && best && best.size >= file.size) return file
+    if (file.size <= MAX_FUNCTION_UPLOAD_BYTES && (!best || best.size >= file.size)) return file
     if (best && best.size <= MAX_FUNCTION_UPLOAD_BYTES) return best
     throw new Error(
       'This image is still larger than 4 MB after optimisation. Please use a clearer, smaller scan or split the document.',
