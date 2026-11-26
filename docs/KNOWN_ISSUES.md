@@ -1,14 +1,32 @@
-## Current-state addendum — 25 November 2026
+## Current audit reconciliation — 26 November 2026
 
-The authoritative, detailed current release assessment is [RELEASE_READINESS.md](RELEASE_READINESS.md). Additional blockers confirmed in this pass:
+The current release candidate is under controlled validation in PR #13. Production remains online with application intake and document uploads disabled. The current reconciled Preview candidate has not yet completed its full build/test pipeline. Older build counts and status statements below are historical unless they match the exact commit being tested.
 
-- The latest bounded multipart streaming parser has not yet passed its Cloudflare build; do not enable uploads.
-- Neon Preview has no migration-history table. Existing SQL migration files are under the legacy Netlify path; a verified Neon baseline/repeatable migration process is required.
-- No explicit Neon snapshot schedule was found for the Preview or default branch; no snapshot or restore test was verified.
-- Neon Preview has zero users. The owner-controlled Super Administrator registration, email verification and first sign-in/bootstrap have not happened.
-- Preview email is limited to the approved Oxford-owned mailbox. It is not a production staff-recruitment mail configuration.
-- The current Preview application form is for synthetic testing only. Real submissions and documents remain unavailable.
+The code audit added regression coverage and rectified authentication retry, Preview host validation, fail-closed email delivery and notification environment gating. Do not treat those code changes as accepted until the latest candidate build passes.
 
+## Remaining release acceptance gates
+
+- Owner-controlled Super Administrator verification and first sign-in/bootstrap.
+- Full registration, verification, recovery, login/logout, lockout, session expiry and revocation lifecycle.
+- Staff invitation/activation/expiry/revocation.
+- Seven-role direct-route and direct-server-function authorization matrix, including customer ownership and partner referral isolation.
+- Eight Individual/Business × four finance-category journeys, Office intake and partner referral workflows.
+- Private document upload/download, ownership, MIME/signature/size/count limits, signed URL expiry, retry and recovery.
+- Preview and Production notification delivery tests, with Preview restricted to the approved Oxford mailbox.
+- PBKDF2 Worker benchmark, backup/restore drill, migration baseline, monitoring/alerting, accessibility and visual review.
+- Qualified POPIA, FICA, NCA and privacy/retention/complaints review. Code does not establish legal compliance.
+
+Keep Production applications and document uploads disabled until acceptance is complete. No real applicant data or documents may be used in Preview.
+
+---
+
+## Current-state addendum — 26 November 2026
+
+The bounded multipart parser is now included in the current successful Cloudflare Build and Preview deployment (branch head `045d5b1`). The 25 November statement that this build was still pending is historical.
+
+Current source review also confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and implemented staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake gate is host-restricted and feature-flagged. Older review notes describing these source items as absent are stale; their full end-to-end acceptance remains open.
+
+Production is not untouched: the restricted Worker and finance custom domain are already attached. Applications and document uploads remain disabled. The Neon production branch has no automatic snapshot schedule or accepted restore drill.
 ---
 
 # V3 known issues and release blockers
@@ -42,4 +60,4 @@ The authoritative, detailed current release assessment is [RELEASE_READINESS.md]
 
 ## Production controls
 
-PR #9 remains draft and unmerged. Production Worker, secrets, database, DNS, `finance.oxfordbusinessgroup.co.za`, Netlify rollback and live processing remain untouched. Production release requires separate explicit approval.
+PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval. The production Worker, finance custom domain and production Neon branch are already present. Production application intake and document uploads remain disabled; no further production changes without separate approval. Production release requires separate explicit approval.
