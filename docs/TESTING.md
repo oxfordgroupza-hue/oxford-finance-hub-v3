@@ -5,7 +5,7 @@
 - A separate completed recovery-branch build passed 39 test files and 225 tests, with the typecheck, lint and Preview deploy stages completing successfully. It is historical evidence for that exact recovery commit, not proof for the current release candidate.
 - Regression coverage now includes all seven role templates, role-audience mismatch, account-type permission ceilings, service-principal restrictions, Cloudflare Preview/Production host isolation and transactional email delivery policy.
 - The retry path for an invited, unverified account now refreshes the password submitted on retry and revokes any existing sessions in the same transaction; the candidate build must verify this change.
-- A GitHub Actions workflow was added for Wrangler type generation, TypeScript, Vitest and ESLint. No GitHub Actions run has yet been confirmed; Cloudflare Workers Builds remains the active validation source.
+- Cloudflare Workers Builds is the sole active validation pipeline and runs Wrangler type generation, TypeScript, Vitest and ESLint. No paid GitHub Actions runners or external CI services are used.
 - No user registration, email, application submission, document upload, payout or Production mutation was performed as part of this audit.
 
 ## End-to-end acceptance still required
