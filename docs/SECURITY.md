@@ -19,7 +19,7 @@ The document API now validates a supplied Content-Length before parsing and read
 
 ## Authentication and sessions
 
-- PBKDF2-HMAC-SHA-256 password hashing, 310,000 iterations and unique salts.
+- PBKDF2-HMAC-SHA-256 password hashing, **100,000 iterations** and unique salts (as implemented in `cloudflare-auth-crypto.ts`). This is the current implementation value, not a statement that the deployed Worker has passed a performance benchmark; benchmark evidence remains outstanding.
 - Opaque session and challenge tokens are stored as hashes.
 - Secure HttpOnly `__Host-oxford_session` cookie with bounded 12-hour session lifetime.
 - Server-side session expiry/revocation and account status checks.
