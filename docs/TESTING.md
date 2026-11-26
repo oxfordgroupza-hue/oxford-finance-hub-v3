@@ -1,7 +1,7 @@
 ## Current audit test status — 26 November 2026
 
 - Full validation is now configured on the Cloudflare Preview trigger: Cloudflare build, Wrangler type generation, TypeScript, Vitest and ESLint.
-- Latest reconciled release candidate branch: `audit/reconciled-production-release`. Latest known Cloudflare Preview build: `8fe12774-6047-461c-aea7-1d5f90eba3d4`; it was queued when this addendum was written. The current candidate's test count and final result are not yet verified.
+- Latest reconciled release candidate branch: `audit/reconciled-production-release`; tested commit: `31d87163177f4c5aa698abddbb3a710bdadad410`. Cloudflare Preview build `b8fe40ab-6ae6-48ac-a227-f280a2721b9c` completed successfully: 41 test files, 274 tests, TypeScript and ESLint passed, and Preview deployment succeeded.
 - A separate completed recovery-branch build passed 39 test files and 225 tests, with the typecheck, lint and Preview deploy stages completing successfully. It is historical evidence for that exact recovery commit, not proof for the current release candidate.
 - Regression coverage now includes all seven role templates, role-audience mismatch, account-type permission ceilings, service-principal restrictions, Cloudflare Preview/Production host isolation and transactional email delivery policy.
 - The retry path for an invited, unverified account now refreshes the password submitted on retry and revokes any existing sessions in the same transaction; the candidate build must verify this change.
