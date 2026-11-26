@@ -3,6 +3,7 @@ import { Download, FileUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
 import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
+
 type DocumentRow = {
   id: string
   documentType: string
@@ -12,6 +13,7 @@ type DocumentRow = {
   status: string
   uploadedAt: string | null
 }
+
 async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {
   const response = await fetch(`/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`, {
     cache: 'no-store',
@@ -20,6 +22,7 @@ async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {
   if (!response.ok) throw new Error(result.error || 'Could not load application documents.')
   return result.documents ?? []
 }
+
 export function DocumentUploadPanel({ applicationId, applicantType, category }: {
   applicationId: string
   applicantType: 'individual' | 'business'
@@ -34,6 +37,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busyLabel, setBusyLabel] = useState('')
+
   useEffect(() => {
     let active = true
     void (async () => {
@@ -53,6 +57,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     })()
     return () => { active = false }
   }, [applicationId])
+
   const upload = async () => {
     if (!uploadEnabled || !file || busy) return
     setBusy(true)
@@ -81,8 +86,10 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
       setError(cause instanceof Error ? cause.message : 'The document could not be uploaded.')
     } finally {
       setBusy(false)
+      setBusyLabel('')
     }
   }
+
   const download = async (documentId: string) => {
     if (busy) return
     setBusy(true)
@@ -102,6 +109,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
       setBusy(false)
     }
   }
+
   return (
     <div className="mt-6 rounded-sm border border-border bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -121,6 +129,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
           ))}
         </ul>
       ) : <p className="mt-4 text-sm text-muted-foreground">No supporting documents have been uploaded for this application.</p>}
+
       {uploadEnabled ? (
         <div className="mt-5 grid gap-3 border-t border-border pt-5 sm:grid-cols-[1fr_1.3fr_auto] sm:items-end">
           <label className="space-y-2 text-sm"><span className="block text-muted-foreground">Document type</span>
