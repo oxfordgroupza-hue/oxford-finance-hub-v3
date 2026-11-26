@@ -25,7 +25,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { isApprovedCloudflareRuntimeRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
@@ -230,9 +230,9 @@ function storageObjectPath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
-// Uploads are restricted to this dedicated Cloudflare preview Worker until release approval.
-function isDeployPreviewRequest(request: Request) {
-  return isApprovedCloudflarePreviewRequest(request.url)
+// Storage operations require the canonical host for the current Cloudflare environment.
+function isApprovedCloudflareRuntime(request: Request) {
+  return isApprovedCloudflareRuntimeRequest(request.url, getServerEnv('CONTEXT'))
 }
 
 export async function handleCloudflareOxfordApi(request: Request) {
@@ -253,8 +253,8 @@ export async function handleCloudflareOxfordApi(request: Request) {
         bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
-        // Preview-only guard: a production env-var mistake cannot enable uploads.
-        documentUploadsEnabled: isDeployPreviewRequest(request) &&
+        // Exact environment-host guard plus the explicit server-side upload flag.
+        documentUploadsEnabled: isApprovedCloudflareRuntime(request) &&
           getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true' && storageVerified,
         liveApplicationsEnabled: false,
         authoritativeDatabase: 'neon',
@@ -271,7 +271,7 @@ export async function handleCloudflareOxfordApi(request: Request) {
     }
 
     if (request.method === 'POST' && action === 'upload-document') {
-      if (!isDeployPreviewRequest(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
+      if (!isApprovedCloudflareRuntime(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
         throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
       }
       // Partners use a narrower referral-ownership and document-type policy below.

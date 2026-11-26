@@ -1,6 +1,6 @@
 ﻿import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -25,8 +25,6 @@ function configuration() {
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
     throw new Error('Oxford account email delivery is disabled for this environment.')
   }
-  // Cloudflare secrets are pasted as text; normalize accidental surrounding whitespace
-  // without changing the underlying credential or exposing it to logs.
   const apiKey = runtime.BREVO_API_KEY?.trim()
   const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL?.trim()
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
@@ -39,10 +37,43 @@ export function assertOxfordAuthEmailConfigured() {
   configuration()
 }
 
+/**
+ * Keep first-administrator registration restricted to the designated mailbox.
+ * Ordinary customer registration remains closed until application intake is enabled.
+ */
+export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
+  const email = recipient.trim().toLowerCase()
+  const bootstrapEnabled = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true'
+  const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+
+  if (bootstrapEnabled) {
+    if (!bootstrapEmail || email !== bootstrapEmail) {
+      throw new Error('Initial Oxford registration is restricted to the designated administrator mailbox.')
+    }
+    return
+  }
+
+  if (getServerEnv('OXFORD_APPLICATIONS_ENABLED') !== 'true') {
+    throw new Error('Customer registration is not currently available.')
+  }
+}
+
+/** Check the Preview recipient before creating a user or recovery challenge. */
+function isApprovedAuthPreviewRequest(request: Request) {
+  const approvedPreviewHost = isApprovedCloudflarePreviewRequest(request.url)
+  if (getServerEnv('CONTEXT') === 'cloudflare-preview' && !approvedPreviewHost) {
+    throw new Error('Preview authentication email delivery is available only on the approved branch Preview host.')
+  }
+  return approvedPreviewHost
+}
+
 /** Check the Preview recipient before creating a user or recovery challenge. */
 export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
   const request = getRequest()
-  if (!isApprovedCloudflarePreviewRequest(request.url)) return
+  if (getServerEnv('CONTEXT') === 'cloudflare-production' && !isApprovedCloudflareProductionRequest(request.url)) {
+    throw new Error('Production authentication email requests are available only on the canonical Oxford Finance Hub host.')
+  }
+  if (!isApprovedAuthPreviewRequest(request)) return
   const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
   const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
   if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
@@ -62,13 +93,17 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  if (isApprovedCloudflarePreviewRequest(request.url)) {
-    assertOxfordAuthEmailRecipientAllowed(input.to)
-    const requestedUrl = new URL(input.url)
-    if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
-  }
   const target = new URL(input.url)
+  if (isApprovedAuthPreviewRequest(request)) {
+    assertOxfordAuthEmailRecipientAllowed(input.to)
+    if (!isApprovedCloudflarePreviewRequest(target.toString()) || target.origin !== new URL(request.url).origin) {
+      throw new Error('Preview account links must remain on the same approved isolated Preview host.')
+    }
+  } else if (getServerEnv('CONTEXT') === 'cloudflare-production') {
+    if (!isApprovedCloudflareProductionRequest(request.url) || !isApprovedCloudflareProductionRequest(target.toString()) || target.origin !== new URL(request.url).origin) {
+      throw new Error('Production account links must remain on the canonical Oxford Finance Hub host.')
+    }
+  }
   if (target.protocol !== 'https:' || target.username || target.password) {
     throw new Error('The Oxford account link is not a secure HTTPS URL.')
   }

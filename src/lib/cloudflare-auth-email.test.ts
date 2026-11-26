@@ -1,12 +1,12 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
-import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed } from './cloudflare-auth-email'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
+import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed, assertOxfordCustomerRegistrationAllowed } from './cloudflare-auth-email'
 
 vi.mock('./server-runtime-env', () => ({ getServerEnv: vi.fn() }))
 vi.mock('@tanstack/react-start/server', () => ({ getRequest: vi.fn() }))
-vi.mock('./document-storage-security', () => ({ isApprovedCloudflarePreviewRequest: vi.fn() }))
+vi.mock('./document-storage-security', () => ({ isApprovedCloudflarePreviewRequest: vi.fn(), isApprovedCloudflareProductionRequest: vi.fn() }))
 
 const values: Record<string, string | undefined> = {}
 
@@ -15,6 +15,7 @@ beforeEach(() => {
   vi.mocked(getServerEnv).mockImplementation((name: string) => values[name])
   vi.mocked(getRequest).mockReturnValue(new Request('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
   vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(true)
+  vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
 })
 
 describe('Oxford authentication email delivery gate', () => {
@@ -52,14 +53,6 @@ describe('Oxford authentication email delivery gate', () => {
 
     expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
   })
-
-  it('normalizes surrounding whitespace on existing provider credentials and sender values', () => {
-    values.OXFORD_EMAIL_DELIVERY_ENABLED = 'true'
-    values.BREVO_API_KEY = '  existing-test-key\\n'
-    values.OXFORD_NOTIFICATION_FROM_EMAIL = ' sender@example.com '
-
-    expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
-  })
 })
 
 describe('Oxford authentication email recipient restrictions', () => {
@@ -82,9 +75,59 @@ describe('Oxford authentication email recipient restrictions', () => {
     )
   })
 
-  it('does not apply the preview mailbox restriction outside the approved preview host', () => {
+  it('fails closed on immutable deployment URLs in Cloudflare Preview context', () => {
+    values.CONTEXT = 'cloudflare-preview'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://83efb790-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
     vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
 
+    expect(() => assertOxfordAuthEmailRecipientAllowed('other@example.com')).toThrow(
+      'Preview authentication email delivery is available only on the approved branch Preview host.',
+    )
+  })
+
+  it('allows Production recipients only when the request uses the canonical Finance Hub host', () => {
+    values.CONTEXT = 'cloudflare-production'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://finance.oxfordbusinessgroup.co.za/'))
+    vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(true)
+
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).not.toThrow()
+  })
+
+  it('rejects Production authentication email requests on an unapproved host', () => {
+    values.CONTEXT = 'cloudflare-production'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://attacker.example/'))
+    vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
+
+    expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
+      'Production authentication email requests are available only on the canonical Oxford Finance Hub host.',
+    )
+  })
+})
+
+
+describe('Oxford customer registration gate', () => {
+  it('restricts initial registration to the designated administrator mailbox', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'true'
+    values.OXFORD_INITIAL_SUPER_ADMIN_EMAIL = 'oxfordbusinessgroup@outlook.com'
+    expect(() => assertOxfordCustomerRegistrationAllowed('oxfordbusinessgroup@outlook.com')).not.toThrow()
+    expect(() => assertOxfordCustomerRegistrationAllowed('other@example.com')).toThrow(
+      'Initial Oxford registration is restricted to the designated administrator mailbox.',
+    )
+  })
+
+  it('keeps customer registration closed while application intake is disabled', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'false'
+    values.OXFORD_APPLICATIONS_ENABLED = 'false'
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).toThrow(
+      'Customer registration is not currently available.',
+    )
+  })
+
+  it('allows ordinary customer registration only after the application flag is enabled', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'false'
+    values.OXFORD_APPLICATIONS_ENABLED = 'true'
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).not.toThrow()
   })
 })

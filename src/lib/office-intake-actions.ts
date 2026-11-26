@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
@@ -26,7 +27,7 @@ import { partnerApplicantIntakeInput } from './partner-intake-validation'
 import { createOfficeInvitationToken } from './office-intake-security'
 import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
 import { hashOfficeInvitationToken } from './office-intake-security'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflareRuntimeRequest } from './document-storage-security'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -51,10 +52,12 @@ async function requireIntakeOffice() {
   return session
 }
 
-function previewOrigin() {
-  const url = new URL(getRequest().url)
-  if (!isApprovedCloudflarePreviewRequest(url.toString())) {
-    throw new Error('Applicant invitations are available only in the approved Cloudflare preview environment.')
+function approvedIntakeOrigin() {
+  const request = getRequest()
+  const url = new URL(request.url)
+  const context = getServerEnv('CONTEXT')
+  if (!isApprovedCloudflareRuntimeRequest(url.toString(), context) || getServerEnv('OXFORD_APPLICATIONS_ENABLED') !== 'true') {
+    throw new Error('Office applicant intake is unavailable until the canonical Cloudflare environment is explicitly enabled.')
   }
   return url.origin
 }
@@ -117,7 +120,7 @@ export const createOfficeApplicantIntake = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice()
     // Validate the preview-only invitation origin before creating any database records.
-    const invitationOrigin = previewOrigin()
+    const invitationOrigin = approvedIntakeOrigin()
     const email = data.applicantEmail.toLowerCase()
     let assetDescription = 'the selected finance asset'
     let industryName: string | null = null
@@ -263,7 +266,7 @@ export const createPartnerApplicantIntake = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { session, partner } = await requireIntakePartner()
     // Validate the preview-only invitation origin before creating any database records.
-    const invitationOrigin = previewOrigin()
+    const invitationOrigin = approvedIntakeOrigin()
     const [asset] = await db.select({
       id: assetTypes.id,
       name: assetTypes.name,
@@ -465,7 +468,7 @@ export const resendOfficeApplicantInvitation = createServerFn({ method: 'POST' }
   .validator((input: unknown) => idInput.parse(input))
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice()
-    const invitationOrigin = previewOrigin()
+    const invitationOrigin = approvedIntakeOrigin()
     const [row] = await db.select().from(applicationIntakes)
       .where(eq(applicationIntakes.id, data.intakeId)).limit(1)
     if (!row || row.claimedAt || row.revokedAt || row.status === 'claimed' || row.status === 'revoked') {
