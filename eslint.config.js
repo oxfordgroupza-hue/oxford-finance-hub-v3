@@ -4,7 +4,9 @@ import reactHooks from 'eslint-plugin-react-hooks'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', '.netlify/**', '.tanstack/**', '.wrangler/**', 'src/routeTree.gen.ts'],
+    // Wrangler generates this file during the release build. It is also
+    // intentionally gitignored, so keep generated bindings out of ESLint.
+    ignores: ['dist/**', '.netlify/**', '.tanstack/**', '.wrangler/**', 'src/routeTree.gen.ts', 'worker-configuration.d.ts'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
