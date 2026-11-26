@@ -257,7 +257,7 @@ export async function handleCloudflareOxfordApi(request: Request) {
         // Exact environment-host guard plus the explicit server-side upload flag.
         documentUploadsEnabled: isApprovedCloudflareRuntime(request) &&
           getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true' && storageVerified,
-        liveApplicationsEnabled: false,
+        liveApplicationsEnabled: isApprovedCloudflareRuntime(request) && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true',
         authoritativeDatabase: 'neon',
       })
     }
