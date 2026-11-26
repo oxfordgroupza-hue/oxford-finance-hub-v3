@@ -7,28 +7,28 @@ The example validates before submission, links field errors to the input, disabl
 After implementing your own `/api/contact` handler, connect it like this:
 
 ```tsx
-import { ValidatedForm } from '@/examples/validated-form'
+import { ValidatedForm } from "@/examples/validated-form";
 
 export function ContactForm() {
   return (
     <ValidatedForm
       onSubmit={async (values) => {
-        const response = await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(values),
-        })
+        });
         if (!response.ok) {
-          throw new Error('Submission failed')
+          throw new Error("Submission failed");
         }
       }}
     />
-  )
+  );
 }
 ```
 
 The endpoint is an example address, not a route supplied by Basic. Validate input again on the server. Don't return success until the requested operation has completed.
 
-For Netlify Forms, use the supplied Netlify Forms skill instead of this JSON endpoint: mirror the fields in static HTML, send URL-encoded data to that static path, and check the response status. Keep the example's validation, pending, and failure behaviour.
+For public submissions, use the approved Cloudflare Worker server-function/API path. Validate inputs server-side, enforce origin and rate protections, and return explicit success or failure states.
 
 Keep a visible label for every field. Give required fields both a schema rule and a `required` attribute. Use `FormDescription` for hints and `FormMessage` for field errors. Show submission failures in a separate `role="alert"` message without displaying internal exception details. Test invalid input, a rejected response, pending submission, success, and retry.

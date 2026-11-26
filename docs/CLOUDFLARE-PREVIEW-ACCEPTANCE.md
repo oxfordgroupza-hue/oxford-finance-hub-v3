@@ -1,3 +1,5 @@
+> **Source cleanup branch update - 26 November 2026:** recovery/cloudflare-only-source-cleanup has passed local Wrangler type generation, Cloudflare build, TypeScript, 37 Vitest files / 237 tests, ESLint with zero warnings, and Prettier checks for updated documentation/configuration and git diff --check. It has not been deployed to Preview or Production. The production Worker and its application/upload flags remain unchanged.
+
 ## Current-state reconciliation — 26 November 2026
 
 - Development branch HEAD: `d0fcc2cb61570b43bc6246187a7dc6ed8058d2ce`. Cloudflare Workers Build `1ed97f2d-b578-4c94-b81e-38ace98786cd` completed successfully for this test/documentation update on 26 November 2026. The configured Cloudflare Vite build, Wrangler type generation, TypeScript, Vitest and ESLint pipeline passed; the build record did not separately expose the final test count. The commit adds the seven-role permission-engine regression matrix and documentation only; runtime application code is unchanged. The last independently identified immutable runtime Preview URL remains `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`, built from functional source commit `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Stable branch Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The latest build-list response did not expose a new immutable Preview URL.
@@ -6,7 +8,6 @@
 - PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has continued with subsequent reconciliation and test commits outside that merge. Do not reopen PR #9 or merge into `main` without explicit approval.
 
 ---
-
 
 # Oxford Finance Hub V3 — Preview acceptance and release gate
 
@@ -25,7 +26,7 @@ The latest full Preview build passes Vite, Wrangler type generation, TypeScript,
 
 Full authentication, Super Administrator bootstrap, all role isolation, eight application journeys, document upload/download security, transactional email delivery, backup/restore and qualified legal review have not completed end-to-end acceptance.
 
-The approved target architecture is Cloudflare Workers + Oxford-owned Cloudflare-native authentication + Neon PostgreSQL + private Supabase Storage + Brevo transactional email. Netlify remains rollback/reference only during migration. This does not authorise production cutover.
+The approved target architecture is Cloudflare Workers + Oxford-owned Cloudflare-native authentication + Neon PostgreSQL + private Supabase Storage + Brevo transactional email. Cloudflare Workers is the sole supported application runtime. This does not authorise production cutover.
 
 ## Latest full Preview build — PASS
 
@@ -51,6 +52,7 @@ Prettier is not part of the build command. A previous repository-wide format che
 ## Runtime and provider evidence
 
 A prior deployed health check returned HTTP 200 with:
+
 - `configured=true`
 - `bucketConfigured=true`
 - `storageVerified=true`
@@ -66,6 +68,7 @@ The 17 public/protected routes were checked on the preceding Preview deployment.
 ## Latest Preview configuration — verified from deployment metadata
 
 Deployment 61 contains:
+
 - Neon Hyperdrive binding `HYPERDRIVE`.
 - Encrypted secret bindings: `BREVO_API_KEY`, `OXFORD_PII_ENCRYPTION_KEY`, `SUPABASE_SECRET_KEY`.
 - `CONTEXT=cloudflare-preview`.
@@ -83,6 +86,7 @@ Secret values were not read, logged or exposed. No verification email has been s
 ## Supabase private storage
 
 Read-only inspection confirmed:
+
 - Bucket `oxford-customer-documents` exists and `public=false`.
 - Provider limit: 10 MiB.
 - Allowed MIME types: PDF, JPEG and PNG.
@@ -131,5 +135,5 @@ No explicit Neon snapshot schedule was returned for the Preview branch or projec
 
 - Synthetic identities/applications and dummy documents only in Preview.
 - No real applicant documents, customer/partner notifications, WhatsApp, payments, settlements or payouts.
-- Do not merge PR #9, change production Worker/secrets/database, alter `finance.oxfordbusinessgroup.co.za` or DNS, migrate production data, or remove the Netlify fallback without separate explicit approval.
+- Do not merge PR #9, change production Worker/secrets/database, alter `finance.oxfordbusinessgroup.co.za` or DNS, migrate production data, or alter the Cloudflare production deployment without separate explicit approval.
 - Production domain attachment, production feature flags and live applicant processing require separate production cutover approval.

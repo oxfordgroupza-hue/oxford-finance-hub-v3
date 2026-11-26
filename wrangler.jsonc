@@ -5,16 +5,29 @@
   "compatibility_date": "2026-11-24",
   "compatibility_flags": [
     "nodejs_compat",
-    "nodejs_compat_populate_process_env"
+    "nodejs_compat_populate_process_env",
   ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+  },
+  "vars": {
+    "CONTEXT": "cloudflare-preview",
+    "OXFORD_APPLICATIONS_ENABLED": "false",
+    "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
+    "OXFORD_EMAIL_DELIVERY_ENABLED": "true",
+    "OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED": "true",
+    "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+    "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+    "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
+    "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
+    "SUPABASE_BUCKET": "oxford-customer-documents",
+    "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
   },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "6dd54a2875c646608281c9e0e67a380e"
-    }
+      "id": "6dd54a2875c646608281c9e0e67a380e",
+    },
   ],
   "previews": {
     "vars": {
@@ -28,14 +41,14 @@
       "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
       "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
       "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
-      "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group"
+      "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
     },
     "hyperdrive": [
       {
         "binding": "HYPERDRIVE",
-        "id": "6dd54a2875c646608281c9e0e67a380e"
-      }
-    ]
+        "id": "6dd54a2875c646608281c9e0e67a380e",
+      },
+    ],
   },
   "env": {
     "production": {
@@ -43,8 +56,8 @@
       "hyperdrive": [
         {
           "binding": "HYPERDRIVE",
-          "id": "83594d99b138428fb3ef94ebd114601d"
-        }
+          "id": "83594d99b138428fb3ef94ebd114601d",
+        },
       ],
       "vars": {
         "CONTEXT": "cloudflare-production",
@@ -57,9 +70,9 @@
         "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
         "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
         "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
-        "SUPABASE_BUCKET": "oxford-customer-documents"
+        "SUPABASE_BUCKET": "oxford-customer-documents",
       },
-      "workers_dev": false
-    }
-  }
+      "workers_dev": false,
+    },
+  },
 }

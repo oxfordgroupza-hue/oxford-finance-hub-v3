@@ -1,8 +1,8 @@
--- Initial Super Administrator provisioning is deferred until a real Netlify
+-- Initial Super Administrator provisioning is deferred until a real legacy identity provider
 -- Identity session proves control of the designated email address.
 --
 -- A SQL migration runs before the application can be published and cannot
--- query the Netlify Identity user directory. Requiring an application users
+-- query the legacy identity provider user directory. Requiring an application users
 -- row here creates a first-deploy deadlock: the row is normally created by the
 -- Identity signup/login hook, which cannot run until this migration succeeds.
 --

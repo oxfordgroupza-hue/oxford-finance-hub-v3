@@ -7,8 +7,7 @@ dist/
 build/
 coverage/
 
-# Netlify local state and generated framework files
-.netlify/
+# Generated framework files
 .tanstack/
 src/routeTree.gen.ts
 
@@ -32,3 +31,4 @@ Thumbs.db
 .wrangler/
 .dev.vars*
 worker-configuration.d.ts
+.wrangler-dry-run-preview/

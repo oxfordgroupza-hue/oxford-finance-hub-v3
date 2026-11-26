@@ -6,6 +6,7 @@ const securityHeadersMiddleware = createMiddleware({ type: 'request' }).server((
   setResponseHeader('X-Content-Type-Options', 'nosniff')
   setResponseHeader('X-Frame-Options', 'DENY')
   setResponseHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  setResponseHeader('Strict-Transport-Security', 'max-age=31536000')
   return next()
 })
 
