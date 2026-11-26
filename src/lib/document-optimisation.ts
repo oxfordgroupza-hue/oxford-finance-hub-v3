@@ -8,7 +8,7 @@ export type OptimisedDocument = {
 }
 
 function fileWithBlob(source: File, blob: Blob, extension: string, mimeType: string): File {
-  const name = source.name.replace(/\\.[^.]+$/, '') || 'document'
+  const name = source.name.replace(/\.[^.]+$/, '') || 'document'
   return new File([blob], `${name}.${extension}`, {
     type: mimeType,
     lastModified: source.lastModified,
