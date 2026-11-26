@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Private workspaces and account-only pages
+Disallow: /admin
+Disallow: /office
+Disallow: /dashboard
+Disallow: /login
+Disallow: /profile
+Disallow: /partner$
+Disallow: /partner/
+Disallow: /partner-payouts
+Disallow: /invitation
+Disallow: /staff-invitation
+Disallow: /demo
+
+# Applications remain closed until the designated administrator account is activated
+Disallow: /apply
+
+Sitemap: https://finance.oxfordbusinessgroup.co.za/sitemap.xml
