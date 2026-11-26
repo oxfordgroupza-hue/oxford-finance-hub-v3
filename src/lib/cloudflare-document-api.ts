@@ -25,7 +25,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { isApprovedCloudflareRuntimeRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
