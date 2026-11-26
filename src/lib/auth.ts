@@ -66,7 +66,7 @@ export const registerCustomer = createServerFn({ method: 'POST' })
     const email=data.email.trim().toLowerCase()
     assertOxfordCustomerRegistrationAllowed(email)
     assertOxfordAuthEmailRecipientAllowed(email)
-    const [{db},{and,eq,isNull},{users,authCredentials,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
+    const [{db},{and,eq,isNull},{users,authCredentials,authSessions,authChallenges}]=await Promise.all([import('../../db/index'),import('drizzle-orm'),import('../../db/schema')])
     const credentials=await hashPassword(data.password)
     const token=createOpaqueToken();const now=new Date()
     const registration=await db.transaction(async (tx) => {
@@ -80,6 +80,10 @@ export const registerCustomer = createServerFn({ method: 'POST' })
         if(!existing||existing.status!=='invited'||existing.accountType!=='customer'||existing.emailVerifiedAt)return null
         userId=existing.id
         recipientName=existing.displayName||recipientName
+        // A retry must activate the password the user just submitted, not leave
+        // an unreachable credential from the failed first email attempt.
+        await tx.insert(authCredentials).values({userId,passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations,passwordChangedAt:now,failedAttempts:0,lockedUntil:null,updatedAt:now}).onConflictDoUpdate({target:authCredentials.userId,set:{passwordHash:credentials.hash,passwordSalt:credentials.salt,passwordAlgorithm:credentials.algorithm,passwordIterations:credentials.iterations,passwordChangedAt:now,failedAttempts:0,lockedUntil:null,updatedAt:now}})
+        await tx.update(authSessions).set({revokedAt:now}).where(and(eq(authSessions.userId,userId),isNull(authSessions.revokedAt)))
         await tx.update(authChallenges).set({consumedAt:now}).where(and(eq(authChallenges.userId,userId),eq(authChallenges.purpose,'email_verification'),isNull(authChallenges.consumedAt)))
       }else{
         userId=created.id
