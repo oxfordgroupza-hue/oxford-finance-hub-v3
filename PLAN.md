@@ -48,7 +48,7 @@ PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (m
 - Five legacy Supabase relational tables are RLS-enabled with no policies and contain zero rows. Neon remains the authoritative relational database.
 - No migration-history table was found in Neon Preview.
 - No automatic Neon snapshot schedule exists for the Preview, production or default branch. One manual snapshot exists on default `main`; production checkpoint branches exist but are not independent backups. No restore test has been accepted.
-- Preview application flag is enabled only on the approved Preview host for synthetic tests. Document uploads remain disabled. Preview email is restricted to the approved Oxford-owned mailbox. No Super Administrator account exists.
+- Preview application intake and document uploads are disabled. Document uploads remain disabled. Preview email is restricted to the approved Oxford-owned mailbox. No Super Administrator account exists.
 - Latest source commit and build state are recorded in [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md).
 
 ## Release gates
