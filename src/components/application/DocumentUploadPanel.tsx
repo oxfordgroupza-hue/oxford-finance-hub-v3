@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Download, FileUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
-
+import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
 type DocumentRow = {
   id: string
   documentType: string
@@ -12,14 +12,14 @@ type DocumentRow = {
   status: string
   uploadedAt: string | null
 }
-
-async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {  const response = await fetch(`/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`, {    cache: 'no-store',
+async function fetchDocuments(applicationId: string): Promise<DocumentRow[]> {
+  const response = await fetch(`/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`, {
+    cache: 'no-store',
   })
   const result = await response.json() as { documents?: DocumentRow[]; error?: string }
   if (!response.ok) throw new Error(result.error || 'Could not load application documents.')
   return result.documents ?? []
 }
-
 export function DocumentUploadPanel({ applicationId, applicantType, category }: {
   applicationId: string
   applicantType: 'individual' | 'business'
@@ -32,7 +32,8 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
+  const [notice, setNotice] = useState('')
+  const [busyLabel, setBusyLabel] = useState('')
   useEffect(() => {
     let active = true
     void (async () => {
@@ -52,38 +53,42 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     })()
     return () => { active = false }
   }, [applicationId])
-
   const upload = async () => {
     if (!uploadEnabled || !file || busy) return
-    if (file.size > 4 * 1024 * 1024) {
-      setError('Files must be no larger than 4 MB. Larger documents can be split into separate files.')
-      return
-    }
     setBusy(true)
+    setBusyLabel('Optimising…')
     setError('')
-    try {      const form = new FormData()
+    setNotice('')
+    try {
+      const prepared = await optimiseDocumentForUpload(file)
+      setBusyLabel('Uploading…')
+      const form = new FormData()
       form.set('applicationId', applicationId)
       form.set('documentKey', documentType)
-      form.set('file', file)
+      form.set('file', prepared.file)
       const response = await fetch('/api/oxford-api?action=upload-document', {
-        method: 'POST',        body: form,
+        method: 'POST',
+        body: form,
       })
       const result = await response.json() as { error?: string }
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')
       setFile(null)
       setDocuments(await fetchDocuments(applicationId))
+      setNotice(prepared.optimised
+        ? `Image optimised from ${(prepared.originalSize / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalSize / (1024 * 1024)).toFixed(2)} MB before upload.`
+        : 'Document uploaded without conversion to preserve its original quality.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The document could not be uploaded.')
     } finally {
       setBusy(false)
     }
   }
-
   const download = async (documentId: string) => {
     if (busy) return
     setBusy(true)
     setError('')
-    try {      const response = await fetch('/api/oxford-api?action=download-document', {
+    try {
+      const response = await fetch('/api/oxford-api?action=download-document', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ documentId }),
@@ -97,7 +102,6 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
       setBusy(false)
     }
   }
-
   return (
     <div className="mt-6 rounded-sm border border-border bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -117,7 +121,6 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
           ))}
         </ul>
       ) : <p className="mt-4 text-sm text-muted-foreground">No supporting documents have been uploaded for this application.</p>}
-
       {uploadEnabled ? (
         <div className="mt-5 grid gap-3 border-t border-border pt-5 sm:grid-cols-[1fr_1.3fr_auto] sm:items-end">
           <label className="space-y-2 text-sm"><span className="block text-muted-foreground">Document type</span>
@@ -128,11 +131,12 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
           <label className="space-y-2 text-sm"><span className="block text-muted-foreground">Choose file (PDF, JPG or PNG; max 4 MB)</span>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-sm file:border file:border-border file:bg-card file:px-3 file:py-2" />
           </label>
-          <Button type="button" variant="gold" className="rounded-sm" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? 'Working…' : 'Upload'}</Button>
+          <Button type="button" variant="gold" className="rounded-sm" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? busyLabel || 'Working…' : 'Upload'}</Button>
         </div>
       ) : (
         <p className="mt-5 border-t border-border pt-4 text-sm text-muted-foreground">Secure uploads are currently disabled while the preview security and isolation tests are completed. Please do not email identity documents or bank statements.</p>
       )}
+      {notice && <p role="status" className="mt-3 text-sm text-muted-foreground">{notice}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
     </div>
   )
