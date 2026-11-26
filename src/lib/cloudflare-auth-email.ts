@@ -1,6 +1,6 @@
 ﻿import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -20,13 +20,9 @@ function configuration() {
     OXFORD_NOTIFICATION_ADMIN_EMAIL: getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'),
     OXFORD_INITIAL_SUPER_ADMIN_EMAIL: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL'),
   }
-  // Fail closed: authentication emails must obey the same explicit preview/production
-  // delivery switch as every other Oxford notification. Missing means disabled.
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
     throw new Error('Oxford account email delivery is disabled for this environment.')
   }
-  // Cloudflare secrets are pasted as text; normalize accidental surrounding whitespace
-  // without changing the underlying credential or exposing it to logs.
   const apiKey = runtime.BREVO_API_KEY?.trim()
   const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL?.trim()
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
@@ -39,14 +35,45 @@ export function assertOxfordAuthEmailConfigured() {
   configuration()
 }
 
-/** Check the Preview recipient before creating a user or recovery challenge. */
+/**
+ * Validate the runtime host before any account challenge is created or any
+ * authentication email is sent. Preview sends are restricted to the owner mailbox.
+ */
 export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
   const request = getRequest()
-  if (!isApprovedCloudflarePreviewRequest(request.url)) return
-  const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
-  const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
-  if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
-    throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
+  const context = getServerEnv('CONTEXT')
+
+  if (context === 'cloudflare-preview') {
+    if (!isApprovedCloudflarePreviewRequest(request.url)) {
+      throw new Error('Preview authentication email delivery is available only on an approved Oxford Preview Worker host.')
+    }
+    const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
+    const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+    if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
+      throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
+    }
+    return
+  }
+
+  if (context === 'cloudflare-production' && isApprovedCloudflareProductionRequest(request.url)) return
+
+  throw new Error('Oxford authentication email delivery is unavailable on this runtime host.')
+}
+
+export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
+  const email = recipient.trim().toLowerCase()
+  const bootstrapEnabled = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true'
+  const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+
+  if (bootstrapEnabled) {
+    if (!bootstrapEmail || email !== bootstrapEmail) {
+      throw new Error('Initial Oxford registration is restricted to the designated administrator mailbox.')
+    }
+    return
+  }
+
+  if (getServerEnv('OXFORD_APPLICATIONS_ENABLED') !== 'true') {
+    throw new Error('Customer registration is not currently available.')
   }
 }
 
@@ -62,16 +89,14 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  if (isApprovedCloudflarePreviewRequest(request.url)) {
-    assertOxfordAuthEmailRecipientAllowed(input.to)
-    const requestedUrl = new URL(input.url)
-    if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
-  }
+  assertOxfordAuthEmailRecipientAllowed(input.to)
+
   const target = new URL(input.url)
-  if (target.protocol !== 'https:' || target.username || target.password) {
-    throw new Error('The Oxford account link is not a secure HTTPS URL.')
+  const requestOrigin = new URL(request.url).origin
+  if (target.protocol !== 'https:' || target.username || target.password || target.origin !== requestOrigin) {
+    throw new Error('Oxford account links must remain on the approved HTTPS host for this environment.')
   }
+
   const recovery = input.purpose === 'recovery'
   const staffInvitation = input.purpose === 'staff_invitation'
   const subject = recovery ? 'Oxford Finance Hub | Password recovery' : staffInvitation ? 'Oxford Finance Hub | Staff account invitation' : 'Verify your Oxford Finance Hub email'
@@ -81,7 +106,7 @@ export async function sendOxfordAuthEmail(input: {
     ? 'A password recovery request was received for your Oxford Finance Hub account. If you made this request, use the secure link below. If you did not request it, you can ignore this email.'
     : staffInvitation
       ? 'Oxford Business Group has invited you to join its Finance Hub office team. Use the secure link below to create your password and activate your account. This invitation expires after 72 hours and can only be used once.'
-      : 'Please verify this email address to activate your Oxford Finance Hub customer account.'
+      : 'Please verify this email address to activate your Oxford Finance Hub account.'
   const htmlContent = `<!doctype html><html><body style="margin:0;background:#101010;color:#f4f1e9;font-family:Arial,sans-serif"><div style="max-width:600px;margin:32px auto;padding:32px;background:#181818;border:1px solid #8c713d"><p style="color:#d7b96f;letter-spacing:2px;font-size:12px">OXFORD FINANCE HUB</p><h1 style="font-size:25px">${heading}</h1><p>Hello ${escapeHtml(input.name)},</p><p style="line-height:1.6;color:#d0cec8">${message}</p><p style="margin:30px 0"><a href="${escapeHtml(target.toString())}" style="background:#c7a45a;color:#111;padding:14px 22px;text-decoration:none;font-weight:bold">${action}</a></p><p style="font-size:12px;color:#aaa">This link is single-use and expires shortly. If the button does not work, copy this address into your browser:<br>${escapeHtml(target.toString())}</p><p style="font-size:12px;color:#888">Oxford Business Group</p></div></body></html>`
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
