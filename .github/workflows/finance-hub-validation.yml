@@ -1,0 +1,54 @@
+name: Finance Hub validation (no deployment)
+
+on:
+  push:
+    branches:
+      - fix/production-image-root-paths
+  pull_request:
+    branches:
+      - production/cloudflare-cutover
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finance-hub-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Cloudflare build, typecheck, tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.10.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Cloudflare Worker types
+        run: pnpm exec wrangler types worker-configuration.d.ts --config wrangler.jsonc
+
+      - name: Build Cloudflare application
+        run: pnpm cf:build
+
+      - name: TypeScript validation
+        run: pnpm typecheck
+
+      - name: Run test suite
+        run: pnpm test
+
+      - name: Run ESLint
+        run: pnpm lint
