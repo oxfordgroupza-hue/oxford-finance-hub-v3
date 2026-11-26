@@ -3,6 +3,7 @@ import { FileUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
 import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
+
 export function PartnerReferralDocumentUpload({ applicationId, applicantType, category, canUploadSupportingDocuments }: {
   applicationId: string
   applicantType: 'individual' | 'business'
@@ -22,6 +23,7 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [busyLabel, setBusyLabel] = useState('')
+
   const upload = async () => {
     if (!file || busy) return
     setBusy(true)
@@ -51,6 +53,7 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
       setBusyLabel('')
     }
   }
+
   return (
     <div className="mt-3 rounded-sm border border-white/10 bg-black/20 p-3">
       <p className="text-xs font-medium text-white/75">Upload supporting document</p>
