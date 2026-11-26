@@ -16,15 +16,16 @@ async function createPdfFile(): Promise<File> {
 }
 
 describe('optimiseDocumentFile', () => {
-  it('re-saves PDFs without rasterising them and keeps the result within the upload limit', async () => {
+  it('preserves PDF bytes exactly and keeps the original within the upload limit', async () => {
     const original = await createPdfFile()
     const result = await optimiseDocumentFile(original)
 
     expect(result.file.type).toBe('application/pdf')
     expect(result.file.name).toMatch(/\.pdf$/)
-    expect(result.finalBytes).toBeLessThanOrEqual(original.size)
+    expect(result.finalBytes).toBe(original.size)
     expect(result.finalBytes).toBeLessThanOrEqual(MAX_FUNCTION_UPLOAD_BYTES)
-    expect(result.reduced).toBe(result.finalBytes < result.originalBytes)
+    expect(result.reduced).toBe(false)
+    expect(new Uint8Array(await result.file.arrayBuffer())).toEqual(new Uint8Array(await original.arrayBuffer()))
     expect(new TextDecoder().decode(await result.file.slice(0, 5).arrayBuffer())).toBe('%PDF-')
   })
 
@@ -35,11 +36,11 @@ describe('optimiseDocumentFile', () => {
     await expect(optimiseDocumentFile(file)).rejects.toThrow('Only PDF, JPG and PNG files can be uploaded.')
   })
 
-  it('does not rasterise or silently accept an oversized PDF that cannot be parsed', async () => {
+  it('rejects an oversized PDF without rewriting or rasterising it', async () => {
     const bytes = new Uint8Array(MAX_FUNCTION_UPLOAD_BYTES + 1)
     const file = new File([bytes], 'oversized.pdf', {
       type: 'application/pdf',
     })
-    await expect(optimiseDocumentFile(file)).rejects.toThrow('This PDF could not be safely compressed.')
+    await expect(optimiseDocumentFile(file)).rejects.toThrow('This PDF is larger than 4 MB.')
   })
 })
