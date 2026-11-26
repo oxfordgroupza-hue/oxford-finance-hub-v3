@@ -53,9 +53,10 @@ type SerializableRecord = { [key: string]: SerializableJson }
 const consentVersion = '2026-11-08-v1'
 
 /**
- * Fail closed until the Netlify Database + Netlify Identity application flow,
- * private Supabase Storage integration and launch acceptance tests are complete.
- * This flag is server-only; browser code cannot enable application processing.
+ * Keep live intake fail-closed until Cloudflare-native authentication, Neon
+ * persistence, private Supabase Storage and the full release acceptance matrix
+ * are complete. These deployment flags are server-only; browser code cannot
+ * enable application processing.
  */
 function isApprovedCloudflarePreviewRequest() {
   const request = getRequest()
@@ -87,9 +88,8 @@ function assertExistingDraftEditingEnabled() {
 }
 
 async function requireVerifiedIdentity(): Promise<{ id: string; email: string }> {
-  // Use the same TanStack-managed Identity session as the authorization layer.
-  // Netlify Identity's getUser() expects a Netlify Functions runtime and is not
-  // available inside these TanStack Start server functions.
+  // Use the same Cloudflare-native, TanStack-managed session as the
+  // authorization layer; no Netlify Identity adapter is used in this Worker.
   const session = await getAuthorizationSnapshot()
   if (!session.authenticated || !session.provisioned || session.blocked) {
     throw new Error('Please sign in and verify your email before submitting an application or saving a draft.')
