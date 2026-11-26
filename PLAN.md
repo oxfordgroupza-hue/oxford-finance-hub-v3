@@ -1,10 +1,22 @@
+## Current release reconciliation — 26 November 2026
+
+The restricted Production Worker and finance custom domain are already active. Production applications and document uploads remain disabled. PR #13 contains the reconciled Cloudflare-native release candidate and remains draft pending full validation and end-to-end acceptance. The Production build trigger now selects the dedicated production Wrangler configuration and runs typecheck, tests and lint before deployment. No Production deployment occurred during this audit.
+
+The current candidate adds seven-role permission regression coverage, Preview/Production host and email-delivery safeguards, notification delivery policy, retry-safe pending-account credentials, generated-type lint exclusions and a repeatable CI workflow. See [release readiness](docs/RELEASE_READINESS.md) and [testing](docs/TESTING.md).
+
+---
+
+## Current-state reconciliation — 26 November 2026
+
+The 25 November milestone snapshot below is superseded where it conflicts with the verified state: the restricted production Worker and `finance.oxfordbusinessgroup.co.za` custom domain are already active, but production application intake and document uploads remain disabled. Latest development branch head is `045d5b1`; Cloudflare Build and Preview deployment succeeded. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval. See [Release Readiness](docs/RELEASE_READINESS.md) for exact Worker flags, Neon branch mapping and outstanding release gates.
+
 # Oxford Finance Hub V3 — delivery plan and milestone status
 
 **Assessment date:** 25 November 2026  
 **Current release verdict:** **NOT READY for public recruitment or real applicant submissions.**  
 **Authoritative current evidence:** [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md)  
 **Active branch:** `work/v3-cloudflare-native-auth`  
-**PR #9:** open, draft and unmerged.
+PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
 
 ## Milestone status
 
@@ -25,7 +37,7 @@
 | M12 | Notifications and automation | **Preview configuration present; delivery acceptance pending.** Brevo is restricted to the approved Oxford-owned Preview mailbox. No email has been sent; WhatsApp delivery is not enabled. |
 | M13 | Security and QA | **Partially complete.** Automated security helpers and tests exist. Latest bounded multipart stream-parser build is pending; full auth, role, document and workflow tests remain open. |
 | M14 | Staging and acceptance | **Preview infrastructure present; release acceptance incomplete.** Neon, Cloudflare Preview and private storage are configured. No user journey has passed the complete authenticated acceptance matrix. |
-| M15 | Production | **Not started / separately gated.** No production deployment, domain cutover, live feature flags or real data processing is authorised by this plan. |
+| M15 | Production | **Restricted public shell already deployed; full release not accepted.** Production Worker and finance custom domain are attached, but application intake and document uploads are disabled. No further production changes or feature activation without separate explicit approval. |
 
 ## Current verified state
 
@@ -35,7 +47,7 @@
 - Supabase bucket `oxford-customer-documents` is private, has a 10 MiB provider limit, allows PDF/JPEG/PNG and contains zero objects.
 - Five legacy Supabase relational tables are RLS-enabled with no policies and contain zero rows. Neon remains the authoritative relational database.
 - No migration-history table was found in Neon Preview.
-- No explicit Neon snapshot schedule was found for the Preview or project default branch; no snapshots or restore test were verified.
+- No automatic Neon snapshot schedule exists for the Preview, production or default branch. One manual snapshot exists on default `main`; production checkpoint branches exist but are not independent backups. No restore test has been accepted.
 - Preview application flag is enabled only on the approved Preview host for synthetic tests. Document uploads remain disabled. Preview email is restricted to the approved Oxford-owned mailbox. No Super Administrator account exists.
 - Latest source commit and build state are recorded in [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md).
 
@@ -65,6 +77,6 @@
 
 ## Production boundary
 
-No production deployment, production database migration, production secret change, DNS/custom-domain change, live application intake, document upload, customer/partner communication, settlement transfer or payout execution is permitted without separate explicit approval. Keep PR #9 draft and unmerged. Use synthetic identities and dummy documents only in Preview.
+The production Worker and finance custom domain are already attached. No further production deployment, production database migration, production secret change, DNS/custom-domain change, live application intake, document upload, customer/partner communication, settlement transfer or payout execution is permitted without separate explicit approval. Keep PR #9 draft and unmerged. Use synthetic identities and dummy documents only in Preview.
 
 This plan records engineering delivery status. It is not legal or regulatory certification.
