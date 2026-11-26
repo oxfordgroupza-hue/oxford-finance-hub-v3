@@ -5,6 +5,14 @@ Latest development branch head: `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Clou
 Read-only GET checks of Preview `/`, `/apply` and `/login` returned HTTP 200. No application was submitted and no email was sent during this audit. Cloudflare Workers Builds is the active branch validation pipeline; GitHub Actions was not used for this build.
 ---
 
+## Authorization regression coverage added — 26 November 2026
+
+`src/lib/access-control-matrix.test.ts` adds table-driven unit coverage for all seven role templates. It checks each role's exact effective permission set, rejects role assignments whose audience does not match the account type, verifies account-type ceilings even when every catalogue permission is individually granted, and locks down the service-account restrictions.
+
+This is permission-engine unit coverage, not the complete authorization acceptance gate. It does not exercise authenticated direct routes or server functions, database-loaded role assignments, reviewer assignment, customer ownership, or partner referral isolation. Those end-to-end checks remain outstanding. The Cloudflare Workers Build triggered by this commit must pass before this new suite is considered verified.
+
+---
+
 # V3 testing and acceptance evidence
 
 ## Full Preview build command
