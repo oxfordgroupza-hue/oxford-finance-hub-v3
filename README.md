@@ -1,4 +1,4 @@
-> **Current release status — 26 November 2026: NOT READY for real applicant submissions or document uploads.** The Production Worker and `finance.oxfordbusinessgroup.co.za` are active, but application intake and uploads remain disabled. The reconciled candidate is in draft PR #13 and has not been deployed to Production. The latest candidate validation is still pending. See [Release Readiness](docs/RELEASE_READINESS.md) and [Testing](docs/TESTING.md).
+> **Current release status — 26 November 2026: NOT READY for real applicant submissions or document uploads.** The Production Worker and `finance.oxfordbusinessgroup.co.za` are active, but application intake and uploads remain disabled. The reconciled candidate is in draft PR #13 and has not been deployed to Production. The reconciled candidate passed Cloudflare Preview validation (41 test files, 274 tests, TypeScript and ESLint) and deployed to the isolated Preview Worker; Production has not been deployed. See [Release Readiness](docs/RELEASE_READINESS.md) and [Testing](docs/TESTING.md).
 
 ---
 
