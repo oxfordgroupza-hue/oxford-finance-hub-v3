@@ -9,7 +9,7 @@ import aboutImage from '../assets/about.png'
  * dynamic strings pointing into public/ are not reliably emitted by the
  * Cloudflare Preview build.
  */
-const rootAsset = (url: string) => (url.startsWith('/') ? url : `/${url.replace(/^\\.\\//, '')}`)
+const rootAsset = (url: string) => (url.startsWith('/') ? url : `/${url.replace(/^\.\/+/, '')}`)
 
 const imageSources: Record<string, string> = {
   'hero.png': heroImage,
