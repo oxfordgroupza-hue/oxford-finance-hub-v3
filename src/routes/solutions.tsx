@@ -39,7 +39,7 @@ function SolutionsPage() {
       <div className="mx-auto max-w-content space-y-6 px-4 py-20 sm:px-6">
         {categories.map((c, i) => (
           <article key={c.id} id={c.id} className="grid scroll-mt-28 overflow-hidden rounded-sm border border-border bg-card lg:grid-cols-2">
-            <img src={img(c.image, 960)} alt="" aria-hidden="true" loading="lazy" className={`h-64 w-full object-cover lg:h-full ${i % 2 ? 'lg:order-2' : ''}`} />
+            <img src={img(c.image, 960)} alt={`${c.name} assets and equipment`} loading="lazy" className={`h-64 w-full object-cover lg:h-full ${i % 2 ? 'lg:order-2' : ''}`} />
             <div className="p-8 sm:p-12">
               <c.icon className="size-6 text-gold" aria-hidden="true" />
               <h2 className="mt-4 text-4xl font-medium">{c.name}</h2>
