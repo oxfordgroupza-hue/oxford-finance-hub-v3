@@ -32,7 +32,7 @@
   "previews": {
     "vars": {
       "CONTEXT": "cloudflare-preview",
-      "OXFORD_APPLICATIONS_ENABLED": "true",
+      "OXFORD_APPLICATIONS_ENABLED": "false",
       "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
       "SUPABASE_BUCKET": "oxford-customer-documents",
       "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
