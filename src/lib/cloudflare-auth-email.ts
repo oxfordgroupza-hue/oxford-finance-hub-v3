@@ -49,6 +49,9 @@ function isApprovedAuthPreviewRequest(request: Request) {
 /** Check the Preview recipient before creating a user or recovery challenge. */
 export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
   const request = getRequest()
+  if (getServerEnv('CONTEXT') === 'cloudflare-production' && !isApprovedCloudflareProductionRequest(request.url)) {
+    throw new Error('Production authentication email requests are available only on the canonical Oxford Finance Hub host.')
+  }
   if (!isApprovedAuthPreviewRequest(request)) return
   const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
   const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
