@@ -20,7 +20,7 @@
 - All nine reported structured data with no schema issues.
 - Zero critical, high or medium issues were reported in the final nine-page audit; eleven low-severity audit flags remain, primarily missing alternative text on other images and content-length flags on legal pages.
 - The Finance Hub sitemap was accepted by Google Search Console for re-fetch on 2026-11-26, with zero reported warnings or errors at submission time.
-- Five previously unindexed/unknown URLs were inspected after release and Google still reported them as unknown to Google. Search engines must crawl and evaluate the changes; submission is not a guarantee of indexing.
+- A fresh Google URL Inspection batch of all nine routes returned four as indexed (Home, About, Privacy and Complaints) and five as still unknown to Google (Solutions, Partners, Contact, Terms and POPIA). This is a point-in-time status; Google must crawl and evaluate the newly submitted URLs. Submission is not a guarantee of indexing.
 - IndexNow accepted the nine-page submission (HTTP 202 responses).
 
 ## Production safety notes
