@@ -3,7 +3,14 @@ import { EnquiryForm } from '@/components/site/EnquiryForm'
 import { InformationPage } from '@/components/site/InformationPage'
 
 export const Route = createFileRoute('/complaints')({
-  head: () => ({ meta: [{ title: 'Complaints | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/complaints' }],
+    meta: [
+      { title: 'Complaints Process | Oxford Finance Hub' },
+      { name: 'description', content: 'Learn how to submit a complaint to Oxford Business Group, how it is reviewed and how provider-related complaints are handled.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/complaints' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Complaints" title="Complaints process" draftNotice
       intro="We take complaints seriously and aim to resolve them fairly and promptly."
