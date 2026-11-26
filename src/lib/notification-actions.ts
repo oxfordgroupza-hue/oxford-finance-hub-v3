@@ -230,7 +230,7 @@ export const processNotificationQueue = createServerFn({ method: 'POST' }).handl
 
     try {
       const recipient = await resolveRecipient(item)
-      if (isApprovedCloudflarePreviewRequest(getRequest().url)) {
+      if (getServerEnv('CONTEXT') === 'cloudflare-preview') {
         const allowedRecipient = validEmail(getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
         if (!allowedRecipient || recipient?.toLowerCase() !== allowedRecipient.toLowerCase()) {
           await db.update(notifications).set({ status: 'skipped', lastError: 'Preview delivery is restricted to the configured Oxford test recipient.', updatedAt: new Date() }).where(eq(notifications.id, item.id))
