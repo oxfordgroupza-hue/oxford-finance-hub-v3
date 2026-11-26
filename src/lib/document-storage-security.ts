@@ -42,6 +42,22 @@ export function isApprovedDeployPreviewRequest(
     /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
 
+/**
+ * Cloudflare assigns a branch-specific workers.dev hostname to every Preview
+ * deployment. Accept only hosts belonging to this exact Preview Worker service;
+ * production uses a separate canonical custom domain and a separate context.
+ */
+export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
+  try {
+    const parsed = new URL(requestUrl)
+    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*-oxford-finance-hub-v3-preview\.oxfordbusinessgroup\.workers\.dev$/.test(parsed.hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
+/** Accept production-only requests from the dedicated Finance Hub hostname. */
 export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
   try {
     const parsed = new URL(requestUrl)
@@ -56,14 +72,4 @@ export function isApprovedCloudflareRuntimeRequest(requestUrl: string, context: 
   if (context === 'cloudflare-preview') return isApprovedCloudflarePreviewRequest(requestUrl)
   if (context === 'cloudflare-production') return isApprovedCloudflareProductionRequest(requestUrl)
   return false
-}
-
-export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
-  try {
-    const parsed = new URL(requestUrl)
-    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
-      parsed.hostname.toLowerCase() === 'production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  } catch {
-    return false
-  }
 }
