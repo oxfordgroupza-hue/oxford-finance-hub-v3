@@ -11,7 +11,7 @@
 
 ## Current-state addendum — 26 November 2026
 
-**Preview:** `CONTEXT=cloudflare-preview`; applications are enabled only on the approved branch Preview host for synthetic testing; document uploads are disabled; email delivery is enabled with an approved-recipient restriction; one-time Super Administrator bootstrap is enabled for the designated owner mailbox.
+**Preview:** `CONTEXT=cloudflare-preview`; applications are disabled; document uploads are disabled; email delivery is enabled with an approved-recipient restriction; one-time Super Administrator bootstrap is enabled for the designated owner mailbox.
 
 **Production:** `oxford-finance-hub-v3-production` is deployed at 100% Worker traffic and attached to `finance.oxfordbusinessgroup.co.za`. Its flags are `OXFORD_APPLICATIONS_ENABLED=false`, `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`, `OXFORD_EMAIL_DELIVERY_ENABLED=true`, and `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`. Its Hyperdrive binding targets Neon branch `production-2026-11-25`, not default `main`. No production setting was changed during this audit.
 
@@ -43,7 +43,7 @@ Required server-side values/bindings:
 
 Preview configuration also includes:
 - `CONTEXT=cloudflare-preview`
-- `OXFORD_APPLICATIONS_ENABLED=true`
+- `OXFORD_APPLICATIONS_ENABLED=false`
 - `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`
 - `OXFORD_EMAIL_DELIVERY_ENABLED=true`
 - `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`
@@ -55,7 +55,7 @@ Preview configuration also includes:
 
 The branch-specific Preview deployment contains all three encrypted secrets and the Neon Hyperdrive binding. The deployed health endpoint returned HTTP 200 with `configured=true`, `bucketConfigured=true`, `storageVerified=true`, `encryptionConfigured=true` and `authoritativeDatabase=neon`.
 
-The same response reports `documentUploadsEnabled=false` and `liveApplicationsEnabled=false`. The application flag is set for controlled Preview functionality, but do not infer that real/live submissions are enabled. Keep all tests synthetic and confirm each workflow's server-side gate.
+The same response reports `documentUploadsEnabled=false` and `liveApplicationsEnabled=false`. The application flag is false. Do not submit applications until the owner enables the feature after full acceptance.
 
 Email is enabled only for the approved Oxford-owned Preview recipient. No email has been sent. No Super Administrator account has been created.
 
