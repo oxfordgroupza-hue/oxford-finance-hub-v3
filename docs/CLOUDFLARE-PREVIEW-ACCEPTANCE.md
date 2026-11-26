@@ -1,3 +1,22 @@
+> **Current-state correction — 26 November 2026 (supersedes stale branch/build statements below)**
+>
+> PR #9 is merged into `recovery/import-verified-baseline` at `78fd5b978197ec0729bab0444a44b522300898ef`.
+>
+> Cloudflare Workers Builds reports the merged recovery-branch build as successful:
+> - Build ID: `3839af89-e136-466c-a175-1bcc564e561a`
+> - Commit: `78fd5b978197ec0729bab0444a44b522300898ef`
+> - Build command: `pnpm cf:build`
+> - Deploy command: `npx wrangler preview`
+> - Outcome: **success**, stopped at 06:04:40 UTC on 26 November 2026.
+>
+> Scope of this evidence: the configured Preview build/deploy command completed. It does **not** demonstrate that Wrangler type generation, TypeScript, Vitest, ESLint, browser/runtime acceptance or authenticated workflow tests passed. The Preview build trigger does not run the full quality pipeline. GitHub combined status and workflow-run queries for the merge commit returned no checks/runs.
+>
+> The older header below refers to branch HEAD `aebe9893...`, a historical Preview URL, and PR #9 as draft/open. Those statements are retained as historical evidence only and are not the current branch, merge or deployment status. Do not use the old immutable Preview URL as proof of the current merged source.
+>
+> The successful build does not authorise Production deployment. Production was not changed by PR #9 merge. Keep live applications and document uploads disabled. No end-to-end login, Super Administrator bootstrap, role matrix, application journey, document upload/download or transactional email acceptance is established by this build record.
+>
+> **Current release decision: NOT RELEASE READY.**
+
 # Oxford Finance Hub V3 — Preview acceptance and release gate
 
 **Last verified:** 25 November 2026, 07:57 UTC  
