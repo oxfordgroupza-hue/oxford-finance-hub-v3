@@ -5,7 +5,7 @@ import { isApprovedCloudflareRuntimeRequest } from './document-storage-security'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
-import { and, desc, eq, gt, inArray } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../db'
 import {
@@ -13,6 +13,7 @@ import {
   assetIndustries,
   assetTypes,
   auditEvents,
+  applicationDocuments,
   consentRecords,
   customers,
   financeApplications,
@@ -28,6 +29,7 @@ import {
 import { createApplicationReference } from './application-reference'
 import { withoutApplicantPii } from './applicant-pii-sanitization'
 import { calculateFinanceAmount } from './fee-calculation'
+import { getDocumentChecklist } from './finance-config'
 import { generateApplicationPack } from './pdf-pack-actions'
 import { decryptApplicantData, encryptApplicantData, fingerprintIdentityNumber } from './pii-crypto.server'
 
@@ -404,6 +406,66 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
         referringPartnerBusinessName = partner.businessName
       }
 
+      const checklist = getDocumentChecklist(
+        applicantType as 'individual' | 'business',
+        category as 'vehicle' | 'equipment' | 'commercial-asset' | 'other',
+        value(form, 'entityType'),
+      )
+      const requiredDocumentTypes = checklist.filter((document) => document.required).map((document) => document.id)
+
+      let draftDocumentRows: Array<{
+        requestMetadata: Record<string, unknown>
+        resultMetadata: Record<string, unknown>
+      }> = []
+
+      if (officeSourceApplication) {
+        const existingDocuments = await tx.select({
+          documentType: applicationDocuments.documentType,
+          storagePath: applicationDocuments.storagePath,
+        }).from(applicationDocuments).where(eq(applicationDocuments.applicationId, officeSourceApplication.id))
+        const availableTypes = new Set(existingDocuments.filter((document) => document.storagePath).map((document) => document.documentType))
+        const missingTypes = requiredDocumentTypes.filter((documentType) => !availableTypes.has(documentType))
+        if (missingTypes.length) {
+          throw new Error(`Upload the required supporting documents before submitting: ${missingTypes.join(', ')}.`)
+        }
+      } else {
+        if (!data.draftId) {
+          throw new Error('Save your secure application draft and upload the required supporting documents before submitting.')
+        }
+        const uploadedRows = await tx.select({
+          requestMetadata: integrationOperations.requestMetadata,
+          resultMetadata: integrationOperations.resultMetadata,
+        }).from(integrationOperations).where(and(
+          eq(integrationOperations.provider, 'supabase-storage'),
+          eq(integrationOperations.operation, 'upload_draft_document'),
+          eq(integrationOperations.status, 'completed'),
+          sql`${integrationOperations.requestMetadata}->>'draftId' = ${data.draftId}`,
+          sql`${integrationOperations.requestMetadata}->>'customerId' = ${customer.id}`,
+        ))
+        const validRows = uploadedRows.filter((row) => {
+          const metadata = row.requestMetadata
+          const path = row.resultMetadata.storagePath
+          return typeof metadata.documentType === 'string' &&
+            typeof metadata.originalName === 'string' &&
+            typeof metadata.mimeType === 'string' &&
+            ['application/pdf', 'image/jpeg', 'image/png'].includes(metadata.mimeType) &&
+            typeof metadata.sizeBytes === 'number' && metadata.sizeBytes > 0 && metadata.sizeBytes <= 4 * 1024 * 1024 &&
+            typeof metadata.checksum === 'string' && /^[a-f0-9]{64}$/i.test(metadata.checksum) &&
+            metadata.uploadedBy === account.id &&
+            typeof path === 'string' && path.startsWith(`drafts/${customer.id}/${data.draftId}/`) &&
+            row.resultMetadata.storageUploadSucceeded === true
+        })
+        const allowedDocumentTypes = new Set(checklist.map((document) => document.id))
+        const checklistRows = validRows.filter((row) => allowedDocumentTypes.has(String(row.requestMetadata.documentType)))
+        const availableTypes = new Set(checklistRows.map((row) => String(row.requestMetadata.documentType)))
+        const missingTypes = requiredDocumentTypes.filter((documentType) => !availableTypes.has(documentType))
+        if (missingTypes.length) {
+          throw new Error(`Upload the required supporting documents before submitting: ${missingTypes.join(', ')}.`)
+        }
+        if (validRows.length > 20) throw new Error('An application may contain no more than 20 supporting documents.')
+        draftDocumentRows = checklistRows
+      }
+
       const reference = officeSourceApplication?.reference ?? createApplicationReference()
       const [application] = officeSourceApplication
         ? await tx.update(financeApplications).set({
@@ -446,6 +508,33 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
             applicationData: safeData,
           }).returning({ id: financeApplications.id })
       if (!application) throw new Error('This application draft has already been submitted or is no longer available.')
+
+      if (draftDocumentRows.length) {
+        await tx.insert(applicationDocuments).values(draftDocumentRows.map((row) => ({
+          applicationId: application.id,
+          customerId: customer.id,
+          documentType: String(row.requestMetadata.documentType),
+          originalName: String(row.requestMetadata.originalName),
+          mimeType: String(row.requestMetadata.mimeType),
+          sizeBytes: Number(row.requestMetadata.sizeBytes),
+          status: 'Received' as const,
+          provider: 'supabase-storage',
+          storagePath: String(row.resultMetadata.storagePath),
+          checksum: String(row.requestMetadata.checksum),
+          uploadedAt: new Date(),
+          metadata: {
+            uploadedBy: String(row.requestMetadata.uploadedBy),
+            sourceDraftId: data.draftId ?? null,
+          },
+        })))
+        await tx.insert(auditEvents).values({
+          actorUserId: account.id,
+          event: 'application.draft_documents_attached',
+          resource: 'finance_application',
+          resourceId: application.id,
+          details: { count: draftDocumentRows.length, sourceDraftId: data.draftId ?? null },
+        })
+      }
 
       await tx.insert(applicationStatusHistory).values({
         applicationId: application.id,
