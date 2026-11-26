@@ -86,9 +86,7 @@ function assertExistingDraftEditingEnabled() {
 }
 
 async function requireVerifiedIdentity(): Promise<{ id: string; email: string }> {
-  // Use the same TanStack-managed Identity session as the authorization layer.
-  // Netlify Identity's getUser() expects a Netlify Functions runtime and is not
-  // available inside these TanStack Start server functions.
+  // Resolve identity from the Oxford-owned server session; never trust client claims.
   const session = await getAuthorizationSnapshot()
   if (!session.authenticated || !session.provisioned || session.blocked) {
     throw new Error('Please sign in and verify your email before submitting an application or saving a draft.')

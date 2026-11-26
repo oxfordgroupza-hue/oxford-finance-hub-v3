@@ -1,7 +1,7 @@
 /**
- * PREVIEW DATA — every record in this file is fictional and exists only to make the
- * product surface clickable before the database milestone lands (see PLAN.md, M2–M4).
- * Replace imports of this module with server functions backed by Netlify Database.
+ * PREVIEW DATA — every record in this file is fictional and exists only for
+ * non-production demo surfaces. Live workflows must use authorized server
+ * functions backed by Neon through Cloudflare Hyperdrive.
  * Never ship these records to a production environment.
  */
 import type { ApplicantType, ApplicationStatus, FinanceCategoryId } from './finance-config'
@@ -264,10 +264,10 @@ export const supportRequests: SupportRequest[] = [
 ]
 
 export const readinessChecks = [
-  { area: 'Netlify Database (records, drafts, audit)', state: 'Planned — Milestone 2' },
-  { area: 'Customer & office authentication', state: 'Planned — Milestone 3' },
-  { area: 'OneDrive private document filing (Microsoft Graph)', state: 'Awaiting Microsoft app registration' },
-  { area: 'Application PDF pack generation', state: 'Planned — Milestone 6' },
-  { area: 'Transactional email delivery', state: 'Awaiting verified sender address' },
-  { area: 'AI summaries & enquiry scoring', state: 'Planned — Milestone 8' },
+  { area: 'Neon PostgreSQL (records, drafts, audit)', state: 'Configured — end-to-end acceptance outstanding' },
+  { area: 'Oxford-owned customer & office authentication', state: 'Implemented — lifecycle acceptance outstanding' },
+  { area: 'Supabase private document storage', state: 'Configured — uploads remain disabled' },
+  { area: 'Application PDF pack generation', state: 'Implemented — acceptance outstanding' },
+  { area: 'Brevo transactional email delivery', state: 'Configured — end-to-end delivery unverified' },
+  { area: 'AI summaries & enquiry scoring', state: 'Not included in the current release scope' },
 ] as const

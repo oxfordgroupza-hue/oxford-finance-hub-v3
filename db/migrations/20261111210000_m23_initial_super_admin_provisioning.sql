@@ -1,15 +1,15 @@
--- Initial Super Administrator provisioning is deferred until a real Netlify
--- Identity session proves control of the designated email address.
+-- Initial Super Administrator provisioning is deferred until a verified
+-- Oxford-owned authentication session proves control of the designated email address.
 --
 -- A SQL migration runs before the application can be published and cannot
--- query the Netlify Identity user directory. Requiring an application users
+-- query the application account/session store. Requiring an application users
 -- row here creates a first-deploy deadlock: the row is normally created by the
--- Identity signup/login hook, which cannot run until this migration succeeds.
+-- signup flow, which cannot run until this migration succeeds.
 --
 -- Keep the reserved role invariant checked at migration time. The first
 -- confirmed sign-in performs the one-time promotion in server-side auth code,
--- gated by OXFORD_INITIAL_SUPER_ADMIN_EMAIL, the production context, confirmed
--- Identity email, account status, suspension state, no prior assignment history, and the
+-- gated by OXFORD_INITIAL_SUPER_ADMIN_EMAIL, the production context, verified
+-- email, account status, suspension state, no prior assignment history, and the
 -- absence of another active Super Administrator. The promotion is audited.
 DO $$
 DECLARE

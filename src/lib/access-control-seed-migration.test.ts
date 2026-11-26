@@ -6,14 +6,14 @@ import { permissionCatalogue, roleTemplates } from "./access-control";
 const seedMigration = readFileSync(
   resolve(
     process.cwd(),
-    "netlify/database/migrations/20261111200000_m23_seed_access_control.sql",
+    "db/migrations/20261111200000_m23_seed_access_control.sql",
   ),
   "utf8",
 );
 const bootstrapMigration = readFileSync(
   resolve(
     process.cwd(),
-    "netlify/database/migrations/20261111210000_m23_initial_super_admin_provisioning.sql",
+    "db/migrations/20261111210000_m23_initial_super_admin_provisioning.sql",
   ),
   "utf8",
 );

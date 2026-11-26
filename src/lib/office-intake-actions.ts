@@ -538,7 +538,7 @@ const claimInput = z.object({ token: z.string().min(32).max(128) })
 export const claimOfficeApplicantIntake = createServerFn({ method: 'POST' })
   .validator((input: unknown) => claimInput.parse(input))
   .handler(async ({ data }) => {
-    // Use the TanStack-managed server session; the Netlify Identity browser SDK is unavailable here.
+    // Use the TanStack-managed Oxford server session; never trust browser identity state.
     const identity = getVerifiedSessionIdentity(await getAuthorizationSnapshot())
     if (!identity || identity.accountType !== 'customer') {
       throw new Error('Sign in with a verified customer account before continuing with this invitation.')

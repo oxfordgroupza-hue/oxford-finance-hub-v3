@@ -1,7 +1,7 @@
 /**
  * Finance category presentation defaults and applicant document requirements.
  * Public product names, descriptions and active state are overridden by the
- * Netlify Database finance_products catalogue when seeded and available.
+ * Neon-backed finance_products catalogue when seeded and available.
  * Office-managed public copy is read from the whitelisted site_content keys.
  */
 import { Building2, Car, Package, Truck, type LucideIcon } from 'lucide-react'
