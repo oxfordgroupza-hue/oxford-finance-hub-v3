@@ -60,7 +60,7 @@ create table if not exists public.audit_events (
 );
 create index if not exists audit_events_entity_idx on public.audit_events(entity_type, entity_id, created_at desc);
 
--- The application uses Netlify Identity, not Supabase Auth. Therefore no
+-- The application uses Oxford-owned Cloudflare authentication, not Supabase Auth. Therefore no
 -- browser role can safely be inferred from auth.uid(). Deny all direct access.
 alter table public.customers enable row level security;
 alter table public.staff_roles enable row level security;

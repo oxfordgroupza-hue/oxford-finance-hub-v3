@@ -15,7 +15,6 @@ No automatic Neon snapshot schedule is configured for the production, Preview or
 - Neon PostgreSQL: authoritative V3 relational database.
 - Supabase Storage: private document objects.
 - Cloudflare Worker secrets/bindings: environment-specific configuration.
-- Netlify: retained rollback/reference environment during migration.
 
 ## Preview isolation and checkpoint
 
@@ -28,6 +27,7 @@ No explicit Neon snapshot schedule was returned for the Preview branch or projec
 ## Required recovery design
 
 Before production data is accepted, document and test:
+
 1. Neon backup/PITR retention and recovery-point objectives for the selected plan.
 2. Scheduled database exports or provider-supported snapshots, stored separately from the source database.
 3. Supabase object inventory, metadata/object reconciliation and recovery procedure.

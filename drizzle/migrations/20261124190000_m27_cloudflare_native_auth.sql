@@ -1,5 +1,5 @@
-﻿-- M27: Additive Cloudflare-native authentication storage.
--- Existing Netlify identity mappings are retained; new Cloudflare accounts may have no legacy identity_id.
+-- M27: Additive Cloudflare-native authentication storage.
+-- Existing legacy identity mappings are retained; new Cloudflare accounts may have no legacy identity_id.
 BEGIN;
 ALTER TABLE users ALTER COLUMN identity_id DROP NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;

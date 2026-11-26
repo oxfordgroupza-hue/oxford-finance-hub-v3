@@ -18,11 +18,11 @@ Supabase bucket `oxford-customer-documents` is private, limited to 10 MiB per ob
 - Neon PostgreSQL: authoritative relational database through the Cloudflare Hyperdrive binding.
 - Supabase Storage: private application documents only.
 - Brevo: transactional email.
-- Netlify: rollback/reference environment during migration; not the V3 authentication or database authority.
 
 ## Cloudflare Worker bindings
 
 Required server-side values/bindings:
+
 - `HYPERDRIVE` — isolated Neon Preview connection.
 - `SUPABASE_URL`
 - `SUPABASE_BUCKET=oxford-customer-documents`
@@ -31,6 +31,7 @@ Required server-side values/bindings:
 - `BREVO_API_KEY` — encrypted secret binding only.
 
 Preview configuration also includes:
+
 - `CONTEXT=cloudflare-preview`
 - `OXFORD_APPLICATIONS_ENABLED=true`
 - `OXFORD_DOCUMENT_UPLOADS_ENABLED=false`

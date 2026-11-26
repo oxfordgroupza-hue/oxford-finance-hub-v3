@@ -16,7 +16,6 @@ The Supabase document bucket is private and empty. The five legacy public tables
 - File bytes: private Supabase Storage only.
 - Application runtime: Cloudflare Workers.
 - Transactional email: Brevo, server-side and recipient-gated.
-- Netlify remains a rollback/reference environment during migration.
 
 ## Authentication and sessions
 

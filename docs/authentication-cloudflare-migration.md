@@ -1,145 +1,42 @@
-> **Superseding status note — 25 November 2026:** The earlier statements below that Preview secrets are not configured and that email/bootstrap flags must remain false are historical. The current isolated Cloudflare Preview has the Neon Hyperdrive binding and encrypted `BREVO_API_KEY`, `OXFORD_PII_ENCRYPTION_KEY` and `SUPABASE_SECRET_KEY` bindings. Preview `OXFORD_EMAIL_DELIVERY_ENABLED` and `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED` are enabled with the approved Oxford-owned mailbox restriction. No email has been sent and no Super Administrator account has been created. Production settings remain unchanged. The owner must set their own password through Preview registration, verify email and sign in to trigger the one-time bootstrap. Full lifecycle acceptance remains outstanding. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+# Oxford Finance Hub V3 — Cloudflare-native authentication
 
----
+Status: Implemented in the active development source; end-to-end release acceptance remains incomplete.
 
-﻿# Cloudflare-native authentication migration
+## Current architecture
 
-Status: approved for isolated Cloudflare preview development; production remains unchanged.
+- Cloudflare Worker server functions own registration, login, logout, session validation, email verification, password recovery and invitation acceptance.
+- Neon PostgreSQL stores Oxford users, credentials, opaque sessions, one-time verification/recovery challenges, roles, permissions, suspensions and audit history.
+- Passwords are stored only as PBKDF2-HMAC-SHA-256 hashes with per-account salts and versioned parameters.
+- Session and challenge tokens are high-entropy opaque values. Only their hashes are stored in Neon.
+- Sessions use a Secure, HttpOnly, SameSite=Lax, host-scoped cookie with server-side expiry and revocation.
+- Supabase Storage remains private document storage only. It is not the identity or relational database authority.
+- Brevo remains the transactional email provider, subject to explicit environment and recipient gates.
 
-## Decision
-Replace Netlify Identity with an application-owned authentication service running in the Cloudflare Workers application. Neon PostgreSQL remains the authoritative store for Oxford users, account types, roles, permissions, suspensions and audit history. Supabase remains private document storage only. Brevo remains the transactional email provider. No identity, role, permission, application, referral or audit data is moved to Supabase.
+## Security requirements
 
-## Audit findings
-The current authentication implementation is coupled to Netlify Identity in all of these areas:
-- `src/lib/auth.ts`: password login, `nf_jwt`/`nf_refresh` cookies, Identity user lookup, confirmation check, account provisioning, role catalogue repair and one-time Super Administrator bootstrap.
-- `src/routes/login.tsx`: signup, login, recovery, password reset, invitation acceptance and callback processing.
-- `src/routes/__root.tsx`: global confirmation, recovery and invitation callbacks.
-- `src/components/site/SiteHeader.tsx` and `WorkspaceSignOutButton.tsx`: Identity logout.
-- `ApplicationWizard.tsx`, `DocumentUploadPanel.tsx`, `PartnerReferralDocumentUpload.tsx`: browser Identity user dependency.
-- `application-actions.ts`: maps verified Identity subject IDs to Oxford accounts and uses that subject in downstream ownership paths.
-- `notification-actions.ts`: transactional Brevo email delivery currently reads server configuration from Netlify environment variables and its delivery gate is Netlify-preview-specific.
+1. Keep password verification, token generation, token hashing, account state and session operations server-side.
+2. Use generic public login/recovery responses to reduce account enumeration.
+3. Consume verification/recovery challenges transactionally and reject expired, wrong-purpose, revoked or replayed tokens.
+4. Enforce same-origin/CSRF protections on every mutation. Never rely on client-side route guards.
+5. Revoke sessions on logout, password reset, account suspension and relevant privilege changes.
+6. Block suspended, disabled, unverified and unprovisioned accounts from protected server functions.
+7. Keep initial Super Administrator bootstrap one-time, explicitly gated and tied to the verified designated account. Never bypass ownership verification or assignment-history checks.
+8. Enforce every role and permission on the server. Partner access is limited to the partner own-referral scope; partners never receive applicant private-document access.
+9. Do not expose passwords, tokens, applicant PII or secret values in logs, browser bundles, fixtures or documentation.
+10. Keep applications, uploads, outbound notifications, settlements and payouts fail-closed until independent release gates pass.
 
-The existing `users.identity_id` column is required and uniquely indexed. It is used as an external identity subject in application actions. Do not drop, repurpose, or mass-update it as part of the initial auth replacement.
+## Required regression and acceptance tests
 
-## Target design
-1. Cloudflare Worker server functions own registration, login, logout, session validation, email verification, password recovery and invitation acceptance.
-2. Neon stores auth credentials, opaque session records, one-time verification/recovery tokens and invitation records. Store only password hashes and hashes of session/action tokens; never plaintext passwords or bearer tokens.
-3. Use Web Crypto PBKDF2-HMAC-SHA-256 with a versioned, calibrated work factor and unique cryptographic salt for password hashing. Benchmark in the Worker preview before finalising the work factor. Use constant-time comparison where supported and generic login/recovery responses to reduce account enumeration.
-4. Use high-entropy opaque session tokens generated by Web Crypto. Store only their SHA-256 hashes in Neon. Set a `__Host-oxford_session` cookie with Secure, HttpOnly, SameSite=Lax, Path=/, no Domain, bounded lifetime and server-side revocation. Rotate sessions after authentication and privilege changes; enforce expiry and revoke on logout/password reset.
-5. Enforce same-origin/CSRF protections on every mutation using strict Origin/Host validation plus the framework's request-origin protections where available. Never rely on client-side route guards.
-6. Email verification and password reset tokens are one-time, short-lived, random, stored only as hashes, and sent only through the existing Brevo transactional channel. Do not change mail hosting, MX/SPF/DKIM/DMARC, mailboxes, sender configuration or existing Netlify mail settings. Cloudflare secrets may be added only as a separate deployment copy after the preview email path is approved; do not display secret values.
-7. Account creation must create/resolve the Oxford `users` record without email-based auto-linking to an existing account. Existing accounts require a deliberate verified-email recovery/linking workflow. Preserve account type, status, roles, permission overrides, suspensions and audit history.
-8. Keep Super Administrator bootstrap one-time, explicitly enabled only in isolated preview with a designated verified email; never bootstrap in production during this migration. Never grant office access based on a browser-supplied role or email alone.
-9. Cloudflare Access may protect staff-only operational endpoints as an additional layer, but is not the customer/partner identity provider and does not replace Oxford's own RBAC.
-10. Keep application intake, document uploads, outbound email/WhatsApp, settlements and payouts disabled until their independent release gates pass.
-
-## Account migration policy
-Netlify Identity password hashes are not available for safe export through the supported integration. Do not attempt to extract them. Existing users must complete a verified account-activation/password-reset process on the new system. The first implementation is tested only against synthetic users on the isolated Cloudflare preview. Do not modify production users or remove Netlify Identity until a separately approved cutover and account-recovery communication plan exists.
-
-## Required schema (preview migration only)
-Design dedicated tables for password credentials keyed to `users.id`, sessions keyed to the user with hashed token, expiry and revocation timestamps, one-time email-verification/password-reset challenges with purpose and expiry, and invitation challenges with scoped account type/metadata. Add indexes and uniqueness constraints. Use transactional operations for consuming tokens and issuing sessions. Do not store tokens in application audit JSON or logs.
-
-## Required regression/security tests
-- Registration validation, duplicate email handling and no account takeover through email collision.
-- Password hashing uses unique salts; password never appears in DB rows/logs; invalid password and unknown account have indistinguishable public responses.
-- Email verification token expiry, single use, wrong purpose and replay rejection.
-- Password reset token expiry, single use, session revocation and password change.
+- Registration, duplicate-email handling and no account takeover through email collision.
+- Password hashing, generic invalid-credential responses and no plaintext password/token persistence.
+- Verification/recovery token expiry, single-use, wrong-purpose and replay rejection.
 - Session expiry, rotation, revocation, logout and cookie attributes.
-- CSRF/Origin rejection and secure cookie behavior.
-- Account suspension/disabled status blocks sessions and all protected server functions.
-- Customer, partner, office, support, reviewer, administrator and Super Administrator permissions remain server-enforced.
-- Partner can access only own referral/application scope; cannot access applicant private documents.
-- One-time Super Administrator bootstrap is preview-only, verified-email-only and cannot run if assignment history exists.
-- No application, document, email, WhatsApp or settlement release gate is accidentally enabled.
-- Cloudflare Worker build, typecheck, full test suite and lint all pass.
+- Origin/CSRF rejection, account suspension and disabled-account enforcement.
+- Seven-role direct-route and direct-server-function authorization matrix.
+- Customer ownership, partner referral isolation, reviewer assignment and support-role restrictions.
+- One-time Super Administrator bootstrap cannot run without verified email or if assignment history exists.
+- Cloudflare Worker build, Wrangler type generation, TypeScript, full Vitest suite, ESLint and formatting checks.
 
-## Deployment and rollback
-Develop on `work/v3-cloudflare-native-auth`; deploy only to `oxford-finance-hub-v3-preview` after code and migration review. Apply schema changes only to the isolated Neon `cloudflare-preview` branch. Do not change production DNS, custom domains, production database, production secrets, Netlify project settings or email hosting. Keep the existing Netlify deployment and Identity configuration available as a recovery path until an explicit production cutover is approved.
+## Release controls
 
-## Implementation status (24 November 2026)
-The isolated branch now contains the first Cloudflare-native implementation:
-- Database-backed customer registration, password login, logout, session lookup, email verification and password recovery server functions.
-- PBKDF2-SHA-256 password hashing with unique salts, hashed opaque session/challenge tokens, login lockout fields and revocable 12-hour `__Host-oxford_session` cookies.
-- Existing Oxford account recovery is based on a one-time email challenge; no account is linked merely because its email matches. Legacy `identity_id` mappings remain intact.
-- Applicant intake invitations continue to use the existing verified-customer session and email-match checks.
-- `/api/oxford-api` is now a Cloudflare server route using the Oxford session cookie, Neon account/RBAC checks and private Supabase storage. Document upload is hard-gated to the dedicated preview Worker and an explicit environment flag.
-- Browser-side Identity dependencies were removed from the login, root callback, sign-out, application draft and document upload paths.
-- Brevo notifications, PII encryption and Supabase document-pack functions now read Cloudflare Worker bindings through a build-specific runtime environment adapter. The default non-Cloudflare adapter remains available for legacy builds.
-
-Latest local verification: TypeScript passed; 204 tests passed; lint passed with two warnings in generated `worker-configuration.d.ts`; Cloudflare production build passed. The route tree includes the new `/api/oxford-api` endpoint.
-
-## Cloudflare preview configuration still required
-The code reads the following Worker environment bindings. Values have not been copied, printed, or changed in this migration work:
-- `BREVO_API_KEY`
-- `OXFORD_NOTIFICATION_FROM_EMAIL`
-- `OXFORD_NOTIFICATION_FROM_NAME`
-- `OXFORD_NOTIFICATION_ADMIN_EMAIL`
-- `OXFORD_EMAIL_DELIVERY_ENABLED` (must remain `false` until email acceptance tests)
-- `SUPABASE_URL`
-- `SUPABASE_SECRET_KEY`
-- `SUPABASE_BUCKET` (must be `oxford-customer-documents`)
-- `OXFORD_PII_ENCRYPTION_KEY`
-- `OXFORD_DOCUMENT_UPLOADS_ENABLED` (must remain `false` until document acceptance tests)
-- `OXFORD_INITIAL_SUPER_ADMIN_EMAIL`
-- `OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED` (must remain `false` until the preview-only bootstrap procedure is approved)
-
-Neon remains connected through the existing preview Hyperdrive configuration. Its runtime password has not been rotated.
-
-## Remaining release blockers
-- Benchmark PBKDF2 cost in the actual Cloudflare Worker runtime and tune without weakening the security target.
-- Add transactional guarantees and integration tests for challenge consumption, credential updates, registration, session rotation, account suspension and RBAC enforcement.
-- Review and implement any staff-account invitation acceptance workflow that is still dependent on the legacy Identity provider; applicant intake invitations are a separate verified-customer workflow and are already retained.
-- Configure preview-only Worker secrets through an approved secure path; do not read or print secret values from Netlify.
-- M27 has been applied only to the isolated Neon `cloudflare-preview` branch; production schema and data remain untouched.
-- Test login, recovery, email verification, applicant intake claim, document listing/upload/download, private bucket policy, notification queue, PII encryption and all seven Oxford account roles using synthetic accounts.
-- Complete preview Worker environment configuration and authenticated synthetic end-to-end testing. Production cutover remains a separate approval.
-
-
-## Preview deployment record (24 November 2026)
-- M27 was applied transactionally to Neon project `odd-field-47093538`, isolated branch `cloudflare-preview` (`br-autumn-rain-bgtzmfh8`), database `oxford_finance_hub`. Verification confirmed `auth_credentials`, `auth_sessions`, and `auth_challenges` exist; `users.identity_id` is nullable and `users.email_verified_at` exists. No production branch was changed.
-- Cloudflare preview Worker deployment succeeded: `oxford-finance-hub-v3-preview`, initial version `5eb48872-51a0-4516-8e7b-2324462eb9f5`; latest redeployment after transactional recovery/verification updates: `a76e8c11-b4f0-4dfa-9e29-056888403dc1`. It uses the existing Hyperdrive binding `6dd54a2875c646608281c9e0e67a380e`.
-- HTTP smoke checks: `/` returned 200; `/login` returned 200; document API health returned 200 and reported storage/encryption/upload/application gates disabled; unauthenticated document upload returned 401.
-- Local checks on this exact source: TypeScript passed; 204 tests across 38 files passed; ESLint passed with zero errors and two warnings in generated `worker-configuration.d.ts`; Cloudflare build passed.
-- Wrangler reported no preview Worker secrets configured. Consequently email-dependent registration/recovery, initial Super Administrator bootstrap, Supabase storage, and document upload are not operational yet. No secret values were copied from Netlify, and no email-hosting configuration was touched.
-- PBKDF2 has not yet been benchmarked in the deployed Worker runtime. Auth challenge/credential mutations still need transaction wrapping and integration tests; staff invitation acceptance requires a separate legacy-flow audit. This preview is a deployed technical candidate, not a launch-ready finance service.
-- Production DNS/custom domains, production database/schema/data, production secrets, Netlify configuration, and mail hosting remain unchanged. Do not cut over until the outstanding blockers pass and production cutover is separately approved.
-
-
-## Follow-up source review (24 November 2026)
-A further review of the pushed branch and draft PR #9 identified these items as open:
-- Customer registration currently creates the user, password credential and email-verification challenge in separate database operations. Make this a single transaction and add rollback/failure tests.
-- Password-recovery challenge replacement currently consumes prior challenges and inserts the new challenge in separate operations. Make this atomic.
-- Login failed-attempt increments are read-modify-write operations; change to an atomic database increment/lockout update and test concurrent failures.
-- The Cloudflare build sets `process.env.CONTEXT` to `unknown`, while application submission and draft-edit gates still require `deploy-preview`. The current Cloudflare Worker therefore deliberately cannot accept application submissions through the existing wizard.
-- The current applicant invitation route is the assisted-applicant claim flow. Staff-account invitation acceptance is not yet migrated to Cloudflare-native authentication.
-- The login page retains outdated Netlify Identity error messaging and should be updated.
-- GitHub Actions validation remains manual-dispatch only because the repository's configured GitHub-hosted runner billing restriction prevents automated PR checks. Local validation is not a substitute for an automated preview acceptance matrix.
-
-The draft pull request is https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3/pull/9. It is intentionally not merged. These items are not represented as completed.
-
-Cloudflare's current Workers compatibility-date behavior enables Node.js compatibility for dates on or after 2026-08-04, so the configured 2026-11-24 compatibility date supports the branch's `node:crypto` imports without an additional compatibility flag. This does not replace a live runtime benchmark.
-
-Latest preview configuration inspection still found no Worker secrets configured. The preview can serve public pages, but email verification/recovery, PII encryption, Supabase storage and document upload remain unavailable until the preview-only bindings are securely configured and verified.
-
-
-## Follow-up implementation (24 November 2026)
-The following code-level changes have now been pushed to the same draft branch after the source review:
-- Customer registration now inserts the Oxford user, password credential and email-verification challenge in one database transaction. Verification email is sent only after the transaction commits.
-- Password-recovery challenge replacement now consumes previous challenges and creates the replacement challenge in one transaction.
-- Failed-login attempt counting now uses a database-side atomic increment and computes lockout time from the updated counter, avoiding the earlier read-modify-write lost-update race.
-- Login callback messaging no longer refers to Netlify Identity availability.
-- The Cloudflare build is marked as `cloudflare-preview`. Application submission requires both that context, the exact `oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev` hostname and the explicit server-side `OXFORD_APPLICATIONS_ENABLED=true` flag. Draft editing additionally requires the PII encryption key. These flags and secrets remain unset; the change only makes a later controlled preview test possible and does not enable intake now.
-
-These follow-up changes have been committed through GitHub's repository contents API. They have **not** yet been built, typechecked, linted, tested or deployed from this updated branch. Do not infer that the earlier 204-test result covers these changes. The current Cloudflare Worker still runs the previous deployed version until a fresh local validation and preview deployment are completed.
-
-
-## Validation of follow-up implementation (24 November 2026)
-The latest branch head was pulled onto the authorized Windows development machine and validated after the follow-up code changes:
-- `pnpm.cmd typecheck`: passed.
-- `pnpm.cmd test`: 204 tests passed across 38 files.
-- `pnpm.cmd lint`: zero errors; two warnings remain in generated `worker-configuration.d.ts`.
-- `pnpm.cmd cf:build`: passed, including client and SSR Worker bundles.
-
-The first validation attempt used PowerShell's blocked `pnpm.ps1` shim and did not run. The commands were rerun using `pnpm.cmd`; the complete validation sequence then exited with code 0.
-
-The latest source is validated locally but has not yet been deployed to the preview Worker. The running Worker remains on version `a76e8c11-b4f0-4dfa-9e29-056888403dc1` until a fresh preview deployment is performed. No production settings or secrets were changed.
+Develop on a dedicated V3 feature/recovery branch. Validate against the isolated Cloudflare Preview and Neon Preview branch. Do not alter production Worker configuration, production database, secrets, DNS, customer data or feature flags without the separate production release approval. Do not use real applicant information or documents in Preview.

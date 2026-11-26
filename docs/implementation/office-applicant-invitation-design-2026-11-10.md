@@ -49,11 +49,11 @@ Sensitive identity, income, bank and address information must not be collected i
 
 ## Applicant claim and account verification
 
-Use the existing Netlify Identity customer signup/sign-in experience; do not create a second password system.
+Use the Oxford-owned Cloudflare-native customer signup/sign-in experience; do not create a second password system.
 
 - The invitation link opens an application-specific invitation page and places the applicant's token in the URL fragment or query string only as required by the implementation.
 - A new applicant creates their own account and password through the existing Identity signup flow.
-- The applicant must complete Netlify Identity email confirmation before claiming the intake.
+- The applicant must complete Oxford account email verification before claiming the intake.
 - Because an Identity confirmation email may return the user to the site's default URL, the original invitation link must remain usable after confirmation. The applicant can reopen the original invitation email and follow the same link; the token remains valid until claimed, revoked or expired.
 - Existing applicants sign in normally and return to the invitation link.
 - The server verifies the authenticated Identity user, confirmed email, normalised email equality with the intake, token hash, expiry, revocation and unclaimed state.
@@ -94,6 +94,7 @@ The existing notification worker can resolve an email address from a notificatio
 ## Acceptance and security tests
 
 ### Authorisation and ownership
+
 - Unauthenticated, unprovisioned, blocked, customer and partner callers cannot create intakes.
 - Office staff without application-create permission cannot create intakes.
 - A customer cannot claim an intake for another email address.
@@ -102,6 +103,7 @@ The existing notification worker can resolve an email address from a notificatio
 - Staff creator, customer owner and referring partner remain distinct in the stored records.
 
 ### Token lifecycle
+
 - Valid invitation can be claimed once.
 - Wrong token, wrong email, expired token, revoked token and already-claimed token are rejected.
 - Concurrent claims result in one successful claim only.
@@ -109,6 +111,7 @@ The existing notification worker can resolve an email address from a notificatio
 - Raw token is never stored or logged.
 
 ### Application and documents
+
 - Claim creates an application only after verified authentication.
 - The application customer ID belongs to the authenticated applicant.
 - Applicant can complete their own application and upload permitted documents.
@@ -118,6 +121,7 @@ The existing notification worker can resolve an email address from a notificatio
 - No public application intake is enabled by this implementation.
 
 ### Notifications and audit
+
 - Invitation email is queued to the exact normalised applicant email.
 - Email output is escaped and contains no sensitive applicant data.
 - Partner receives referral-registration notice only, without private document access.

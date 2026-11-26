@@ -1,3 +1,5 @@
+> **Cleanup branch update - 26 November 2026:** The isolated branch recovery/cloudflare-only-source-cleanup removes obsolete hosting/runtime adapters, moves the unchanged SQL history to drizzle/migrations, and makes Cloudflare the sole Vite/build path. Local validation passed: Wrangler type generation, Cloudflare build, TypeScript, 37 Vitest files / 237 tests, ESLint with zero warnings, and Prettier checks for updated documentation/configuration and git diff --check. This branch has not been deployed. Production Worker settings and application/upload gates remain unchanged.
+
 ## Current-state reconciliation — 26 November 2026
 
 **Release verdict remains NOT READY for real applicant submissions or document uploads.** This update supersedes conflicting 25 November status statements below.
@@ -16,6 +18,7 @@
 Do not enable live applications, document uploads, settlements or payouts, or make further production changes without the separate release approval required by the project plan.
 
 ---
+
 # Oxford Finance Hub V3 — release readiness report
 
 **Assessment date:** 25 November 2026  
@@ -34,13 +37,13 @@ This report distinguishes source implementation, automated test evidence, provid
 - **Neon PostgreSQL:** authoritative database for identities, roles, permissions, applications, referrals, audit events and workflow data.
 - **Supabase Storage:** private application document objects only.
 - **Brevo:** transactional email.
-- **Netlify:** retained rollback/reference environment during migration; not the V3 identity or database authority.
 
 The public destination is `finance.oxfordbusinessgroup.co.za`. As of the 26 November reconciliation above, the production Worker and custom domain are already attached; applications and document uploads remain disabled. No further production changes are authorised without separate approval.
 
 ## 2. Current code and build state
 
 The latest branch source includes:
+
 - Cloudflare-native authentication and 12-hour secure HttpOnly sessions.
 - PBKDF2-HMAC-SHA-256 password hashing and hashed one-time challenge/session tokens.
 - Email verification, password recovery, logout, account suspension and one-time Super Administrator bootstrap logic.
@@ -52,6 +55,7 @@ The latest branch source includes:
 - Pre-parse multipart stream size enforcement, including requests without a Content-Length header.
 
 **Build evidence:**
+
 - Last completed full build before the bounded-stream parser: Cloudflare build `b89bab04-9fec-4121-b1f0-860eb171b9df`, commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`, outcome success.
 - Latest branch commit `d238cd95dde7c5fac34e36e8200107accbff33a` has manual Cloudflare Preview build `c0b3e2ef-106a-4209-967e-3d42004b1bcb`; outcome remains queued at the time this report was refreshed. The multipart parser regression test now runs in Vitest's Node Web API environment to avoid jsdom's incomplete multipart implementation.
 - Do not treat the latest stream-parser changes as accepted until this exact build completes Vite, Wrangler type generation, TypeScript, the full Vitest suite and ESLint.
@@ -59,14 +63,16 @@ The latest branch source includes:
 ## 3. Provider and database verification
 
 ### Neon Preview
+
 - Project: `odd-field-47093538`.
 - Isolated non-primary Preview branch: `br-autumn-rain-bgtzmfh8`.
 - Database: `oxford_finance_hub`.
 - Seven roles, 90 permissions, 148 role-permission assignments and four finance products are present.
 - Latest read-only inspection found zero users, customers, applications, partner registrations, documents and audit events.
-- No migration-history table was found in the Neon Preview database. SQL migration files remain in the legacy `netlify/database/migrations` path. A verified migration baseline and repeatable Neon migration procedure are outstanding.
+- No migration-history table was found in the Neon Preview database. SQL migration files remain in the legacy `drizzle/migrations` path. A verified migration baseline and repeatable Neon migration procedure are outstanding.
 
 ### Supabase
+
 - Bucket `oxford-customer-documents` exists and is private (`public=false`).
 - Provider limit is 10 MiB; accepted types are PDF, JPEG and PNG.
 - Object count is zero.
@@ -75,6 +81,7 @@ The latest branch source includes:
 - No real or dummy applicant documents have been uploaded.
 
 ### Backups
+
 - No explicit Neon snapshot schedule was returned for either the Preview branch or the project default branch.
 - No Neon snapshots were listed.
 - The existing no-compute Preview checkpoint branch is not an independent backup.
@@ -82,16 +89,16 @@ The latest branch source includes:
 
 ## 4. Preview feature gates
 
-| Capability | Preview state | Meaning |
-|---|---|---|
-| Public pages | Built | Public routes can be inspected |
-| Application wizard | Enabled on approved Preview host | Synthetic test information only |
-| Real/live applications | Disabled | Do not submit real applicant information |
-| Document uploads | Disabled | No real or dummy file upload acceptance yet |
-| Transactional email | Enabled with recipient restriction | Approved Oxford-owned Preview mailbox only; no email has been sent |
-| Super Admin bootstrap | Enabled on Preview | No account exists; bootstrap requires the account owner to register, verify email and sign in |
-| Payments, settlements and payouts | Fail-closed | No execution or transfer is enabled |
-| Production domain and data | Unchanged | No production cutover has occurred |
+| Capability                        | Preview state                      | Meaning                                                                                       |
+| --------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| Public pages                      | Built                              | Public routes can be inspected                                                                |
+| Application wizard                | Enabled on approved Preview host   | Synthetic test information only                                                               |
+| Real/live applications            | Disabled                           | Do not submit real applicant information                                                      |
+| Document uploads                  | Disabled                           | No real or dummy file upload acceptance yet                                                   |
+| Transactional email               | Enabled with recipient restriction | Approved Oxford-owned Preview mailbox only; no email has been sent                            |
+| Super Admin bootstrap             | Enabled on Preview                 | No account exists; bootstrap requires the account owner to register, verify email and sign in |
+| Payments, settlements and payouts | Fail-closed                        | No execution or transfer is enabled                                                           |
+| Production domain and data        | Unchanged                          | No production cutover has occurred                                                            |
 
 ## 5. What is not yet accepted
 
