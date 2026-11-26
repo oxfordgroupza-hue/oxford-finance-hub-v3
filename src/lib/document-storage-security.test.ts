@@ -3,7 +3,9 @@ import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
   isApprovedDeployPreviewRequest,
+  isApprovedCloudflarePreviewRequest,
   isApprovedCloudflareProductionRequest,
+  isApprovedCloudflareRuntimeRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from './document-storage-security'
@@ -79,9 +81,10 @@ describe('deploy-preview-only storage gate', () => {
 describe('Cloudflare Worker preview storage gate', () => {
   const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
 
-  it('accepts only the exact HTTPS Cloudflare preview hostname', async () => {
-    const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
+  it('accepts only the explicitly named stable branch Preview hostnames', () => {
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl)).toBe(true)
+    expect(isApprovedCloudflarePreviewRequest('https://recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/')).toBe(true)
+    expect(isApprovedCloudflarePreviewRequest('https://release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/')).toBe(true)
   })
 
   it('rejects the previous stale preview hostname', async () => {
@@ -98,17 +101,31 @@ describe('Cloudflare Worker preview storage gate', () => {
   })
 })
 
-describe('Cloudflare production administrator bootstrap gate', () => {
-  it('accepts only the dedicated HTTPS Finance Hub production hostname', () => {
-    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/login')).toBe(true)
+
+describe('Cloudflare production host gate', () => {
+  const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
+
+  it('accepts the launch reconciliation Preview host', () => {
+    expect(isApprovedCloudflarePreviewRequest('https://launch-v3-reconciled-2026-11-26-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev')).toBe(true)
   })
 
-  it('rejects preview, alternate hosts, HTTP, credentials and nonstandard ports', () => {
-    expect(isApprovedCloudflareProductionRequest('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/login')).toBe(false)
-    expect(isApprovedCloudflareProductionRequest('https://oxfordbusinessgroup.co.za/login')).toBe(false)
-    expect(isApprovedCloudflareProductionRequest('http://finance.oxfordbusinessgroup.co.za/login')).toBe(false)
-    expect(isApprovedCloudflareProductionRequest('https://user:pass@finance.oxfordbusinessgroup.co.za/login')).toBe(false)
-    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za:8443/login')).toBe(false)
-    expect(isApprovedCloudflareProductionRequest('not a URL')).toBe(false)
+  it('accepts only the canonical HTTPS Finance Hub hostname', () => {
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/')).toBe(true)
+  })
+
+  it('maps each deployment context only to its matching canonical host', () => {
+    expect(isApprovedCloudflareRuntimeRequest(cloudflarePreviewUrl, 'cloudflare-preview')).toBe(true)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'cloudflare-production')).toBe(true)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'cloudflare-preview')).toBe(false)
+    expect(isApprovedCloudflareRuntimeRequest(cloudflarePreviewUrl, 'cloudflare-production')).toBe(false)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'deploy-preview')).toBe(false)
+  })
+
+  it('rejects other hosts, HTTP, credentials and nonstandard ports', () => {
+    expect(isApprovedCloudflareProductionRequest('https://www.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za.evil.example/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('http://finance.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://user:pass@finance.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za:8443/')).toBe(false)
   })
 })
