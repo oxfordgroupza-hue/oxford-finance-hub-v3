@@ -9,7 +9,10 @@ import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 
 export const Route = createFileRoute('/solutions')({
   loader: () => getPublicSiteConfigWithFallback(),
-  head: () => ({ meta: [{ title: 'Finance solutions | Oxford Finance Hub' }] }),
+  head: () => ({ meta: [
+    { title: 'Finance Solutions South Africa | Oxford Finance Hub' },
+    { name: 'description', content: 'Explore vehicle, equipment and commercial asset finance enquiries across South Africa, including rent-to-own equipment and equipment rental finance options.' },
+  ] }),
   component: SolutionsPage,
 })
 
@@ -58,6 +61,20 @@ function SolutionsPage() {
             </div>
           </article>
         ))}
+        <section className="grid gap-6 border-t border-border pt-12 md:grid-cols-2">
+          <article className="rounded-sm border border-border bg-card p-7">
+            <p className="eyebrow">Equipment access option</p>
+            <h2 className="mt-3 text-2xl font-medium">Rent-to-own equipment</h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Explore supplier- or provider-arranged rental structures that may include an ownership option where the written agreement expressly provides for one. Eligibility and terms are confirmed individually.</p>
+            <Link to="/rent-to-own" className="mt-5 inline-flex items-center gap-2 text-sm text-gold">Learn about rent-to-own <ArrowRight className="size-4" /></Link>
+          </article>
+          <article className="rounded-sm border border-border bg-card p-7">
+            <p className="eyebrow">Equipment access option</p>
+            <h2 className="mt-3 text-2xl font-medium">Equipment rental finance</h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Discuss rental and provider-arranged structures for machinery and productive business assets. Rental agreements do not automatically include ownership rights.</p>
+            <Link to="/equipment-rental-finance" className="mt-5 inline-flex items-center gap-2 text-sm text-gold">Learn about equipment rental finance <ArrowRight className="size-4" /></Link>
+          </article>
+        </section>
         <p className="pt-6 text-sm text-muted-foreground">{intermediaryDisclaimer}</p>
       </div>
     </SiteLayout>
