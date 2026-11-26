@@ -1,3 +1,15 @@
+## Current-state reconciliation — 26 November 2026
+
+- Branch HEAD: `045d5b1d6015ef02513e1694d660d9ea8823f23b`.
+- Latest Cloudflare Workers Build: `0fa45b27-03c3-4c79-9e4b-807d907928f5`, outcome **success**.
+- Latest Preview deployment: `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`; deployment succeeded.
+- Stable Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`.
+- GET checks for `/`, `/apply` and `/login` returned HTTP 200. No forms were submitted.
+- Production is a restricted public shell already deployed on `finance.oxfordbusinessgroup.co.za`; application and document-upload flags are false. Do not describe production as unchanged. PR #9 remains draft and unmerged.
+- The 25 November build/deployment evidence below is historical; the 26 November build above is the latest verified Preview result.
+
+---
+
 # Oxford Finance Hub V3 — Preview acceptance and release gate
 
 **Last verified:** 25 November 2026, 07:57 UTC  
@@ -5,7 +17,7 @@
 **Branch HEAD:** `aebe9893af6cf4bd9e6d2b535575172ab8c6d064`  
 **Stable Preview reference:** https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
 **Latest immutable Preview deployment:** https://9d173fa4-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
-**Production:** unchanged. Draft PR #9 remains open and unmerged.
+**Production:** restricted public shell already deployed; applications/uploads disabled. Draft PR #9 remains open and unmerged.
 
 ## Release decision
 
