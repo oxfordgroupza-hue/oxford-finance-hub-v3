@@ -9,14 +9,18 @@ import { img, imgSrcSet } from '@/lib/images'
 import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 import { getServerEnv } from '@/lib/server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
+import { isApprovedCloudflareApplicationRequest } from '@/lib/document-storage-security'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
-  const previewApplicationsEnabled = getServerEnv('CONTEXT') === 'cloudflare-preview' &&
-    isApprovedCloudflarePreviewRequest(getRequest().url) &&
+  const context = getServerEnv('CONTEXT')
+  const approvedOrigin = isApprovedCloudflareApplicationRequest(getRequest().url, context)
+  const applicationsEnabled = approvedOrigin &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  const previewApplicationsEnabled = applicationsEnabled && context === 'cloudflare-preview'
+  const documentUploadsEnabled = approvedOrigin &&
+    getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true'
   const publicConfig = await getPublicSiteConfigWithFallback()
-  return { ...publicConfig, previewApplicationsEnabled }
+  return { ...publicConfig, applicationsEnabled, previewApplicationsEnabled, documentUploadsEnabled }
 })
 
 export const Route = createFileRoute('/')({
@@ -40,7 +44,7 @@ const categorySlides: Record<string, { file: string; alt: string }[]> = {
 
 const steps = [
   { n: '01', title: 'Make an enquiry', body: 'Share a non-sensitive outline of the asset or finance requirement through the contact channel.' },
-  { n: '02', title: 'Requirements review', body: 'Oxford will confirm the appropriate next steps once secure online applications reopen.' },
+  { n: '02', title: 'Requirements review', body: 'Oxford reviews the information supplied and confirms any additional requirements.' },
   { n: '03', title: 'Provider presentation', body: 'Where appropriate, an application pack can be prepared and presented to a suitable finance provider.' },
   { n: '04', title: 'Provider assessment', body: 'The relevant finance provider makes its own assessment and final decision.' },
 ]
@@ -48,6 +52,8 @@ const steps = [
 function Home() {
   const publicConfig = Route.useLoaderData()
   const previewApplicationsEnabled = publicConfig.previewApplicationsEnabled
+  const applicationsEnabled = publicConfig.applicationsEnabled
+  const documentUploadsEnabled = publicConfig.documentUploadsEnabled
   const products = publicConfig.products
   const categories = products.length
     ? financeCategories.flatMap((category) => {
@@ -84,7 +90,7 @@ function Home() {
           <div className="fade-up mt-10 flex flex-col gap-3 sm:flex-row">
             <Button asChild variant="gold" size="xl">
               <Link to="/apply">
-                {previewApplicationsEnabled ? 'Start a test application' : 'Applications paused'} <ArrowRight />
+                {previewApplicationsEnabled ? 'Start a test application' : applicationsEnabled ? 'Apply for finance' : 'Applications paused'} <ArrowRight />
               </Link>
             </Button>
             <Button asChild variant="outlineGold" size="xl">
@@ -111,7 +117,7 @@ function Home() {
               <f.icon className="mt-1 size-5 shrink-0 text-gold" aria-hidden="true" />
               <div>
                 <h2 className="font-sans text-sm font-semibold tracking-wide">{f.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{previewApplicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : previewApplicationsEnabled && f.title === 'Private document handling' ? 'Private document uploads remain disabled while the isolated preview storage checks are completed.' : f.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{applicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : documentUploadsEnabled && f.title === 'Private document handling' ? 'Upload supporting documents securely through your private customer workspace.' : f.body}</p>
               </div>
             </div>
           ))}
@@ -168,7 +174,7 @@ function Home() {
                 <h3 className="mt-4 text-2xl font-medium">{c.name}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{c.short}</p>
                 <span className="mt-5 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-gold uppercase">
-                  {previewApplicationsEnabled ? 'Start test application' : 'Applications paused'} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                  {previewApplicationsEnabled ? 'Start test application' : applicationsEnabled ? 'Apply for finance' : 'Applications paused'} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
             </Link>
@@ -186,7 +192,7 @@ function Home() {
             <p className="eyebrow">Enquiries</p>
             <h2 className="mt-4 text-4xl font-medium">Finance enquiries for individuals and businesses.</h2>
             <p className="mt-5 leading-relaxed text-muted-foreground">
-              {previewApplicationsEnabled ? 'Choose your applicant type to begin a synthetic preview application.' : 'When secure online applications reopen, the journey will be tailored to your applicant type and finance category.'}
+              {previewApplicationsEnabled ? 'Choose your applicant type to begin a synthetic preview application.' : applicationsEnabled ? 'Choose your applicant type to begin a secure finance application.' : 'When secure online applications reopen, the journey will be tailored to your applicant type and finance category.'}
             </p>
           </div>
           {(['individual', 'business'] as const).map((t) => {
@@ -204,7 +210,7 @@ function Home() {
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{applicantTypes[t].blurb}</p>
                 </div>
                 <span className="mt-10 inline-flex items-center gap-2 text-sm text-gold">
-                  {previewApplicationsEnabled ? 'Start test application' : 'Applications paused'}
+                  {previewApplicationsEnabled ? 'Start test application' : applicationsEnabled ? 'Apply for finance' : 'Applications paused'}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </Link>
@@ -216,7 +222,7 @@ function Home() {
       {/* How it works */}
       <section className="mx-auto max-w-content px-4 py-24 sm:px-6">
         <p className="eyebrow">How it works</p>
-        <h2 className="mt-4 max-w-2xl text-4xl font-medium md:text-5xl">{previewApplicationsEnabled ? 'How the Oxford application process works.' : 'What happens when applications reopen.'}</h2>
+        <h2 className="mt-4 max-w-2xl text-4xl font-medium md:text-5xl">{applicationsEnabled ? 'How the Oxford application process works.' : 'What happens when applications reopen.'}</h2>
         <ol className="mt-14 grid gap-10 md:grid-cols-4">
           {steps.map((s) => (
             <li key={s.n} className="border-t border-gold/40 pt-6">
@@ -237,7 +243,7 @@ function Home() {
             <LayoutDashboard className="size-6 text-gold" aria-hidden="true" />
             <h2 className="mt-5 text-3xl font-medium">Your customer dashboard</h2>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              {previewApplicationsEnabled ? 'Sign in to access your workspace and review your preview test applications.' : 'Sign in to access your workspace. Online application submission is currently paused while secure services are verified.'}
+              {previewApplicationsEnabled ? 'Sign in to access your workspace and review your preview test applications.' : applicationsEnabled ? 'Sign in to access your workspace, submit applications and follow progress.' : 'Sign in to access your workspace. Online application submission is currently paused while secure services are verified.'}
             </p>
             <Button asChild variant="outlineGold" className="mt-8 rounded-sm">
               <Link to="/dashboard">Open my dashboard</Link>

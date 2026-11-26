@@ -1,6 +1,6 @@
 ﻿import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 
 type AuthEmailEnvironment = {
   BREVO_API_KEY?: string
@@ -39,9 +39,16 @@ export function assertOxfordAuthEmailConfigured() {
 
 /** Check the Preview recipient before creating a user or recovery challenge. */
 function isApprovedAuthPreviewRequest(request: Request) {
+  const context = getServerEnv('CONTEXT')
   const approvedPreviewHost = isApprovedCloudflarePreviewRequest(request.url)
-  if (getServerEnv('CONTEXT') === 'cloudflare-preview' && !approvedPreviewHost) {
+  if (context === 'cloudflare-preview' && !approvedPreviewHost) {
     throw new Error('Preview authentication email delivery is available only on the approved branch Preview host.')
+  }
+  if (context === 'cloudflare-production' && !isApprovedCloudflareProductionRequest(request.url)) {
+    throw new Error('Production authentication email delivery is available only on the approved Oxford Finance Hub domain.')
+  }
+  if (context !== 'cloudflare-preview' && context !== 'cloudflare-production') {
+    throw new Error('Authentication email delivery is not enabled for this environment.')
   }
   return approvedPreviewHost
 }
@@ -78,6 +85,9 @@ export async function sendOxfordAuthEmail(input: {
   const target = new URL(input.url)
   if (target.protocol !== 'https:' || target.username || target.password) {
     throw new Error('The Oxford account link is not a secure HTTPS URL.')
+  }
+  if (target.origin !== new URL(request.url).origin) {
+    throw new Error('The Oxford account link must remain on the same approved Finance Hub domain.')
   }
   const recovery = input.purpose === 'recovery'
   const staffInvitation = input.purpose === 'staff_invitation'

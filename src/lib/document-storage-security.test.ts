@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
+  isApprovedCloudflareApplicationRequest,
   isApprovedCloudflarePreviewRequest,
+  isApprovedCloudflareProductionRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from "./document-storage-security";
@@ -103,5 +105,22 @@ describe("Cloudflare Worker preview storage gate", () => {
 
   it("rejects malformed URLs", () => {
     expect(isApprovedCloudflarePreviewRequest("not a URL")).toBe(false);
+  });
+
+  it("accepts only the exact HTTPS production hostname", () => {
+    const productionUrl = "https://finance.oxfordbusinessgroup.co.za/api/oxford";
+    expect(isApprovedCloudflareProductionRequest(productionUrl)).toBe(true);
+    expect(isApprovedCloudflareApplicationRequest(productionUrl, "cloudflare-production")).toBe(true);
+    expect(isApprovedCloudflareApplicationRequest(productionUrl, "cloudflare-preview")).toBe(false);
+    expect(isApprovedCloudflareApplicationRequest(cloudflarePreviewUrl, "cloudflare-preview")).toBe(true);
+    expect(isApprovedCloudflareApplicationRequest(cloudflarePreviewUrl, "cloudflare-production")).toBe(false);
+  });
+
+  it("rejects production lookalikes, HTTP, credentials and nonstandard ports", () => {
+    expect(isApprovedCloudflareProductionRequest("http://finance.oxfordbusinessgroup.co.za")).toBe(false);
+    expect(isApprovedCloudflareProductionRequest("https://finance.oxfordbusinessgroup.co.za.evil.test")).toBe(false);
+    expect(isApprovedCloudflareProductionRequest("https://finance.oxfordbusinessgroup.co.za:8443")).toBe(false);
+    expect(isApprovedCloudflareProductionRequest("https://user:pass@finance.oxfordbusinessgroup.co.za")).toBe(false);
+    expect(isApprovedCloudflareApplicationRequest("https://finance.oxfordbusinessgroup.co.za", "unknown")).toBe(false);
   });
 });

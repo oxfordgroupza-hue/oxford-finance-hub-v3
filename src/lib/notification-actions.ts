@@ -7,7 +7,7 @@ import { auditEvents, customerPreferences, customers, notifications, users } fro
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflareApplicationRequest, isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -21,7 +21,15 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  return isApprovedCloudflarePreviewRequest(getRequest().url) && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
+  const context = getServerEnv('CONTEXT')
+  const requestUrl = getRequest().url
+  if (!isApprovedCloudflareApplicationRequest(requestUrl, context)) return false
+  if (getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') !== 'true') return false
+  // Preview sends remain limited to the configured Oxford test recipient.
+  // Production queue delivery has its own explicit switch.
+  return context === 'cloudflare-preview'
+    ? isApprovedCloudflarePreviewRequest(requestUrl)
+    : getServerEnv('OXFORD_NOTIFICATION_DELIVERY_ENABLED') === 'true'
 }
 
 function configured() {

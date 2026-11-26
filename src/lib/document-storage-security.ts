@@ -28,9 +28,7 @@ export function isStorageBucketVerified(
   );
 }
 
-export function isApprovedCloudflarePreviewRequest(
-  requestUrl: string,
-): boolean {
+function isApprovedHttpsHost(requestUrl: string, hostname: string): boolean {
   try {
     const parsed = new URL(requestUrl);
     return (
@@ -38,10 +36,38 @@ export function isApprovedCloudflarePreviewRequest(
       !parsed.port &&
       !parsed.username &&
       !parsed.password &&
-      parsed.hostname.toLowerCase() ===
-        "work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev"
+      parsed.hostname.toLowerCase() === hostname
     );
   } catch {
     return false;
   }
+}
+
+export function isApprovedCloudflarePreviewRequest(
+  requestUrl: string,
+): boolean {
+  return isApprovedHttpsHost(
+    requestUrl,
+    "work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev",
+  );
+}
+
+export function isApprovedCloudflareProductionRequest(
+  requestUrl: string,
+): boolean {
+  return isApprovedHttpsHost(requestUrl, "finance.oxfordbusinessgroup.co.za");
+}
+
+/** Only the explicitly configured Cloudflare Preview and Production origins may process live intake. */
+export function isApprovedCloudflareApplicationRequest(
+  requestUrl: string,
+  context: string | undefined,
+): boolean {
+  if (context === "cloudflare-preview") {
+    return isApprovedCloudflarePreviewRequest(requestUrl);
+  }
+  if (context === "cloudflare-production") {
+    return isApprovedCloudflareProductionRequest(requestUrl);
+  }
+  return false;
 }

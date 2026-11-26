@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { getServerEnv } from "./server-runtime-env";
-import { isApprovedCloudflarePreviewRequest as isApprovedCloudflarePreviewOrigin } from "./document-storage-security";
+import { isApprovedCloudflareApplicationRequest as isApprovedCloudflareApplicationOrigin } from "./document-storage-security";
 import { randomUUID } from "node:crypto";
 import { getAuthorizationSnapshot } from "./auth";
 import type { PermissionKey } from "./access-control";
@@ -66,25 +66,23 @@ type SerializableRecord = { [key: string]: SerializableJson };
 const consentVersion = "2026-11-08-v1";
 
 /**
- * Keep live intake fail-closed until Cloudflare-native authentication, Neon
- * persistence, private Supabase Storage and the full release acceptance matrix
- * are complete. These deployment flags are server-only; browser code cannot
- * enable application processing.
+ * Keep intake fail-closed unless the exact approved Cloudflare origin, server-side
+ * application flag, authenticated customer session and permission checks all pass.
+ * Browser code cannot enable application processing.
  */
-function isApprovedCloudflarePreviewRequest() {
+function isApprovedCloudflareApplicationRequest() {
   const request = getRequest();
-  return (
-    getServerEnv("CONTEXT") === "cloudflare-preview" &&
-    isApprovedCloudflarePreviewOrigin(request.url)
+  return isApprovedCloudflareApplicationOrigin(
+    request.url,
+    getServerEnv("CONTEXT"),
   );
 }
 
 function assertApplicationProcessingEnabled() {
-  // Intake remains disabled unless the deployment-specific server-side flag is
-  // explicitly enabled. Cloudflare is additionally pinned to its preview host.
+  // Production and Preview each require their exact Cloudflare origin and an
+  // explicit server-side enablement flag. Unknown contexts remain fail-closed.
   const enabled =
-    getServerEnv("CONTEXT") === "cloudflare-preview" &&
-    isApprovedCloudflarePreviewRequest() &&
+    isApprovedCloudflareApplicationRequest() &&
     getServerEnv("OXFORD_APPLICATIONS_ENABLED") === "true";
   if (!enabled) {
     throw new Error(
@@ -93,16 +91,15 @@ function assertApplicationProcessingEnabled() {
   }
 }
 
-/** Existing encrypted drafts may be edited only on an approved non-production preview host. */
+/** Existing encrypted drafts may be edited only on an explicitly enabled approved Cloudflare origin. */
 function assertExistingDraftEditingEnabled() {
   const allowed =
-    getServerEnv("CONTEXT") === "cloudflare-preview" &&
-    isApprovedCloudflarePreviewRequest() &&
+    isApprovedCloudflareApplicationRequest() &&
     getServerEnv("OXFORD_APPLICATIONS_ENABLED") === "true" &&
     Boolean(getServerEnv("OXFORD_PII_ENCRYPTION_KEY"));
   if (!allowed) {
     throw new Error(
-      "Saved draft editing is available only in the secure preview while Oxford completes platform verification.",
+      "Saved draft editing is not enabled for this Oxford Finance Hub environment.",
     );
   }
 }

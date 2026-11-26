@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getServerEnv } from '@/lib/server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
+import { isApprovedCloudflareApplicationRequest } from '@/lib/document-storage-security'
 import { PageHero } from '@/components/site/PageHero'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -33,51 +33,61 @@ function validateSearch(search: Record<string, unknown>): ApplySearch {
   return { type, category, ref, draft, application }
 }
 
-const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async () => {
-  const applicationsEnabled = getServerEnv('CONTEXT') === 'cloudflare-preview' &&
-    isApprovedCloudflarePreviewRequest(getRequest().url) &&
+const getApplyAccess = createServerFn({ method: 'GET' }).handler(async () => {
+  const context = getServerEnv('CONTEXT')
+  const approvedOrigin = isApprovedCloudflareApplicationRequest(getRequest().url, context)
+  const applicationsEnabled = approvedOrigin &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
-  return { previewApplicationsEnabled: applicationsEnabled }
+  return {
+    applicationsEnabled,
+    previewApplicationsEnabled: applicationsEnabled && context === 'cloudflare-preview',
+  }
 })
 
 export const Route = createFileRoute('/apply')({
   validateSearch,
-  loader: () => getApplyPreviewAccess(),
+  loader: () => getApplyAccess(),
   head: () => ({ meta: [{ title: 'Apply for finance | Oxford Finance Hub' }] }),
   component: ApplyPage,
 })
 
 function ApplyPage() {
   const { draft, application, type, category, ref } = Route.useSearch()
-  const { previewApplicationsEnabled } = Route.useLoaderData()
+  const { applicationsEnabled, previewApplicationsEnabled } = Route.useLoaderData()
   return (
     <SiteLayout>
       <PageHero
         eyebrow="Finance application"
         title={<>Apply for <span className="text-gold-gradient italic">finance</span></>}
-        intro={previewApplicationsEnabled ? 'A guided test application for individuals and businesses. Use synthetic information and dummy documents only in this isolated preview.' : 'A guided finance application for individuals and businesses. Online submissions and document uploads will reopen after secure application and document services have been verified.'}
+        intro={previewApplicationsEnabled ? 'A guided test application for individuals and businesses. Use synthetic information and dummy documents only in this isolated preview.' : applicationsEnabled ? 'Complete a secure finance application for an individual or business. Your information is protected and reviewed by Oxford Business Group.' : 'A guided finance application for individuals and businesses. Online submissions and document uploads will reopen after secure application and document services have been verified.'}
         image="hero.png"
       />
       <div className="mx-auto max-w-content px-4 py-14 sm:px-6">
-        {application ? (
+        {applicationsEnabled && application ? (
           <>
-            <PreviewNotice className="mb-10">
-              You are completing an application prepared by Oxford Business Group. Your changes update the original application record. Final submission remains restricted to this Deploy Preview while security verification is completed.
-            </PreviewNotice>
+            {previewApplicationsEnabled && (
+              <PreviewNotice className="mb-10">
+                You are completing an application prepared by Oxford Business Group in the isolated Preview environment. Use synthetic information only.
+              </PreviewNotice>
+            )}
             <ApplicationWizard initialApplicationId={application} />
           </>
-        ) : draft ? (
+        ) : applicationsEnabled && draft ? (
           <>
-            <PreviewNotice className="mb-10">
-              You are resuming a saved draft in this Deploy Preview. Draft changes are restricted to the preview environment; document uploads remain disabled until Oxford completes private-storage acceptance.
-            </PreviewNotice>
+            {previewApplicationsEnabled && (
+              <PreviewNotice className="mb-10">
+                You are resuming a saved draft in the isolated Preview environment. Use synthetic information only; document uploads remain disabled there.
+              </PreviewNotice>
+            )}
             <ApplicationWizard initialDraftId={draft} />
           </>
-        ) : previewApplicationsEnabled ? (
+        ) : applicationsEnabled ? (
           <>
-            <PreviewNotice className="mb-10">
-              Preview testing only. Use synthetic test information. Do not enter real identity, banking, personal or financial information. Submissions are stored only in the isolated preview database. Document uploads remain disabled.
-            </PreviewNotice>
+            {previewApplicationsEnabled && (
+              <PreviewNotice className="mb-10">
+                Preview testing only. Use synthetic test information. Do not enter real identity, banking, personal or financial information. Submissions are stored only in the isolated preview database. Document uploads remain disabled.
+              </PreviewNotice>
+            )}
             <ApplicationWizard initialType={type} initialCategory={category} referralFromLink={ref} />
           </>
         ) : (

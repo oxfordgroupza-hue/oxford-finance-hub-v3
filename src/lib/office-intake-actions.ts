@@ -30,7 +30,8 @@ import { partnerApplicantIntakeInput } from "./partner-intake-validation";
 import { createOfficeInvitationToken } from "./office-intake-security";
 import { getOfficeInvitationClaimBlockReason } from "./office-intake-security";
 import { hashOfficeInvitationToken } from "./office-intake-security";
-import { isApprovedCloudflarePreviewRequest } from "./document-storage-security";
+import { isApprovedCloudflareApplicationRequest } from "./document-storage-security";
+import { getServerEnv } from "./server-runtime-env";
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -62,11 +63,16 @@ async function requireIntakeOffice() {
   return session;
 }
 
-function previewOrigin() {
+function applicationOrigin() {
   const url = new URL(getRequest().url);
-  if (!isApprovedCloudflarePreviewRequest(url.toString())) {
+  if (
+    !isApprovedCloudflareApplicationRequest(
+      url.toString(),
+      getServerEnv("CONTEXT"),
+    )
+  ) {
     throw new Error(
-      "Applicant invitations are available only in the approved Cloudflare preview environment.",
+      "Applicant invitations are available only on the approved Oxford Finance Hub Cloudflare origin.",
     );
   }
   return url.origin;
@@ -133,8 +139,8 @@ export const createOfficeApplicantIntake = createServerFn({ method: "POST" })
   .validator((input: unknown) => intakeInput.parse(input))
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice();
-    // Validate the preview-only invitation origin before creating any database records.
-    const invitationOrigin = previewOrigin();
+    // Validate the approved application origin before creating any database records.
+    const invitationOrigin = applicationOrigin();
     const email = data.applicantEmail.toLowerCase();
     let assetDescription = "the selected finance asset";
     let industryName: string | null = null;
@@ -336,8 +342,8 @@ export const createPartnerApplicantIntake = createServerFn({ method: "POST" })
   .validator((input: unknown) => partnerApplicantIntakeInput.parse(input))
   .handler(async ({ data }) => {
     const { session, partner } = await requireIntakePartner();
-    // Validate the preview-only invitation origin before creating any database records.
-    const invitationOrigin = previewOrigin();
+    // Validate the approved application origin before creating any database records.
+    const invitationOrigin = applicationOrigin();
     const [asset] = await db
       .select({
         id: assetTypes.id,
@@ -630,7 +636,7 @@ export const resendOfficeApplicantInvitation = createServerFn({
   .validator((input: unknown) => idInput.parse(input))
   .handler(async ({ data }) => {
     const session = await requireIntakeOffice();
-    const invitationOrigin = previewOrigin();
+    const invitationOrigin = applicationOrigin();
     const [row] = await db
       .select()
       .from(applicationIntakes)

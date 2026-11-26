@@ -25,7 +25,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isApprovedCloudflarePreviewRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { isApprovedCloudflareApplicationRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
@@ -230,9 +230,9 @@ function storageObjectPath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
-// Uploads are restricted to this dedicated Cloudflare preview Worker until release approval.
-function isDeployPreviewRequest(request: Request) {
-  return isApprovedCloudflarePreviewRequest(request.url)
+// Both Preview and Production require their exact approved Cloudflare origin.
+function isApprovedApplicationRequest(request: Request) {
+  return isApprovedCloudflareApplicationRequest(request.url, getServerEnv('CONTEXT'))
 }
 
 export async function handleCloudflareOxfordApi(request: Request) {
@@ -253,10 +253,10 @@ export async function handleCloudflareOxfordApi(request: Request) {
         bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
-        // Preview-only guard: a production env-var mistake cannot enable uploads.
-        documentUploadsEnabled: isDeployPreviewRequest(request) &&
+        documentUploadsEnabled: isApprovedApplicationRequest(request) &&
           getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true' && storageVerified,
-        liveApplicationsEnabled: false,
+        liveApplicationsEnabled: isApprovedApplicationRequest(request) &&
+          getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true',
         authoritativeDatabase: 'neon',
       })
     }
@@ -271,8 +271,8 @@ export async function handleCloudflareOxfordApi(request: Request) {
     }
 
     if (request.method === 'POST' && action === 'upload-document') {
-      if (!isDeployPreviewRequest(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
-        throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
+      if (!isApprovedApplicationRequest(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
+        throw new HttpError('Secure document uploads are not enabled for this Oxford Finance Hub environment.', 503)
       }
       // Partners use a narrower referral-ownership and document-type policy below.
       const requiredPermission = requiredDocumentUploadPermission(account.account.accountType as 'customer' | 'partner' | 'office')

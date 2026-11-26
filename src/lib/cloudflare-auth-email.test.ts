@@ -1,20 +1,25 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed } from './cloudflare-auth-email'
 
 vi.mock('./server-runtime-env', () => ({ getServerEnv: vi.fn() }))
 vi.mock('@tanstack/react-start/server', () => ({ getRequest: vi.fn() }))
-vi.mock('./document-storage-security', () => ({ isApprovedCloudflarePreviewRequest: vi.fn() }))
+vi.mock('./document-storage-security', () => ({
+  isApprovedCloudflarePreviewRequest: vi.fn(),
+  isApprovedCloudflareProductionRequest: vi.fn(),
+}))
 
 const values: Record<string, string | undefined> = {}
 
 beforeEach(() => {
   for (const key of Object.keys(values)) delete values[key]
   vi.mocked(getServerEnv).mockImplementation((name: string) => values[name])
+  values.CONTEXT = 'cloudflare-preview'
   vi.mocked(getRequest).mockReturnValue(new Request('https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
   vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(true)
+  vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
 })
 
 describe('Oxford authentication email delivery gate', () => {
@@ -84,10 +89,23 @@ describe('Oxford authentication email recipient restrictions', () => {
     )
   })
 
-  it('does not apply the preview mailbox restriction outside the approved preview host', () => {
+  it('allows production recipients only on the approved production hostname', () => {
     values.CONTEXT = 'cloudflare-production'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://finance.oxfordbusinessgroup.co.za/'))
     vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(true)
 
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).not.toThrow()
+  })
+
+  it('fails closed on an unapproved production hostname', () => {
+    values.CONTEXT = 'cloudflare-production'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://evil.example/'))
+    vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
+
+    expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
+      'Production authentication email delivery is available only on the approved Oxford Finance Hub domain.',
+    )
   })
 })
