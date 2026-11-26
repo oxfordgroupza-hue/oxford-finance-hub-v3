@@ -64,7 +64,7 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
             {partnerChecklist.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-xs text-white/60"><span className="block">PDF, JPG or PNG · max 4 MB</span>
+        <label className="space-y-1 text-xs text-white/60"><span className="block">PDF max 4 MB · large JPG/PNG images are optimised automatically</span>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="block w-full text-xs text-white/60" />
         </label>
         <Button type="button" size="sm" variant="gold" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? busyLabel || 'Working…' : 'Upload'}</Button>
