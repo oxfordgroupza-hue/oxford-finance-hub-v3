@@ -27,6 +27,7 @@ import { getPublicAssetCatalogue } from '@/lib/catalog-actions'
 import { getAuthorizationSnapshot } from '@/lib/auth'
 import { optimiseDocumentFile } from '@/lib/document-optimisation'
 import { MAX_FUNCTION_UPLOAD_BYTES } from '@/lib/document-validation'
+import { clearEncryptedBrowserDraft, loadEncryptedBrowserDraft, saveEncryptedBrowserDraft } from '@/lib/browser-draft-vault'
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -105,7 +106,7 @@ const stepsFor = (type?: ApplicantType): { id: StepId; label: string }[] => [
   { id: 'review', label: 'Review & consent' },
 ]
 
-/** Browser drafts retain only non-identifying navigation details. */
+/** Legacy localStorage metadata retains only non-identifying navigation details. */
 const LEGACY_DRAFT_KEY = 'ofh.preview.draft.v1'
 const DRAFT_KEY = 'ofh.preview.draft.v2'
 
@@ -265,6 +266,7 @@ export function ApplicationWizard({
   const [accountGateMessage, setAccountGateMessage] = useState('')
   const [submittedRef, setSubmittedRef] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
+  const [browserDraftReady, setBrowserDraftReady] = useState(false)
   const [serverDraftId, setServerDraftId] = useState<string | null>(initialDraftId ?? null)
   const [selectedDocuments, setSelectedDocuments] = useState<Record<string, File>>({})
   const [uploadedDocumentTypes, setUploadedDocumentTypes] = useState<string[]>([])
@@ -294,50 +296,60 @@ export function ApplicationWizard({
     return () => { active = false }
   }, [])
 
-  // Restore an account draft first when its ID is present; otherwise restore this-device draft.
+  // Restore secure account drafts or the encrypted same-browser draft before autosaving.
   useEffect(() => {
     let active = true
-    removeLegacyStoredDraft()
-    if (initialApplicationId) {
-      void loadMyOfficeApplicationDraft({ data: { applicationId: initialApplicationId } }).then((saved) => {
-        if (!active) return
-        const restoredForm = saved.form as Partial<ApplicationForm>
-        setForm((current) => ({
-          ...current,
-          ...restoredForm,
-          applicantType: initialType ?? restoredForm.applicantType,
-          category: initialCategory ?? restoredForm.category,
-          referralCode: typeof restoredForm.referralCode === 'string' ? restoredForm.referralCode : '',
-        }))
-        setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
-        setRestoredDraft(true)
-      }).catch((error: unknown) => {
-        if (active) toast.error(error instanceof Error ? error.message : 'The assisted application could not be restored.')
-      })
-      return () => { active = false }
-    }
-    if (initialDraftId) {
-      void loadMyFinanceDraft({ data: { draftId: initialDraftId } }).then((saved) => {
-        if (!active) return
-        const restoredForm = saved.form as Partial<ApplicationForm>
-        setForm((current) => ({
-          ...current,
-          ...restoredForm,
-          idNumber: '',
-          applicantType: initialType ?? restoredForm.applicantType,
-          category: initialCategory ?? restoredForm.category,
-          referralCode: typeof restoredForm.referralCode === 'string' ? restoredForm.referralCode : (referralFromLink ?? ''),
-        }))
-        setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
-        setRestoredDraft(true)
-      }).catch((error: unknown) => {
-        if (active) toast.error(error instanceof Error ? error.message : 'The saved draft could not be restored.')
-      })
-      return () => { active = false }
-    }
-
-    const timer = window.setTimeout(() => {
+    const restore = async () => {
+      removeLegacyStoredDraft()
       try {
+        if (initialApplicationId) {
+          const saved = await loadMyOfficeApplicationDraft({ data: { applicationId: initialApplicationId } })
+          if (!active) return
+          const restoredForm = saved.form as Partial<ApplicationForm>
+          setForm((current) => ({
+            ...current,
+            ...restoredForm,
+            applicantType: initialType ?? restoredForm.applicantType,
+            category: initialCategory ?? restoredForm.category,
+            referralCode: typeof restoredForm.referralCode === 'string' ? restoredForm.referralCode : '',
+          }))
+          setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
+          setRestoredDraft(true)
+          return
+        }
+        if (initialDraftId) {
+          const saved = await loadMyFinanceDraft({ data: { draftId: initialDraftId } })
+          if (!active) return
+          const restoredForm = saved.form as Partial<ApplicationForm>
+          setForm((current) => ({
+            ...current,
+            ...restoredForm,
+            idNumber: '',
+            applicantType: initialType ?? restoredForm.applicantType,
+            category: initialCategory ?? restoredForm.category,
+            referralCode: typeof restoredForm.referralCode === 'string' ? restoredForm.referralCode : (referralFromLink ?? ''),
+          }))
+          setStepIndex(Math.max(0, Math.min(saved.stepIndex, 6)))
+          setRestoredDraft(true)
+          return
+        }
+
+        const encrypted = await loadEncryptedBrowserDraft<Partial<ApplicationForm>>()
+        if (!active) return
+        if (encrypted) {
+          setForm((current) => ({
+            ...current,
+            ...encrypted.form,
+            applicantType: initialType ?? encrypted.form.applicantType,
+            category: initialCategory ?? encrypted.form.category,
+            referralCode: referralFromLink ?? encrypted.form.referralCode ?? '',
+          }))
+          setStepIndex(Math.max(0, Math.min(encrypted.stepIndex, 6)))
+          setRestoredDraft(true)
+          return
+        }
+
+        // Backward-compatible recovery of the old metadata-only browser draft.
         const raw = localStorage.getItem(DRAFT_KEY)
         if (!raw) return
         const saved = JSON.parse(raw) as { form: Partial<ApplicationForm>; stepIndex: number }
@@ -348,17 +360,29 @@ export function ApplicationWizard({
           category: initialCategory ?? saved.form.category,
           referralCode: referralFromLink ?? saved.form.referralCode ?? '',
         }))
-        const savedStepIndex = Number.isInteger(saved.stepIndex)
-          ? Math.max(0, Math.min(saved.stepIndex, 6))
-          : 0
-        setStepIndex(savedStepIndex)
+        setStepIndex(Number.isInteger(saved.stepIndex) ? Math.max(0, Math.min(saved.stepIndex, 6)) : 0)
         setRestoredDraft(true)
-      } catch {
-        removeStoredDraft()
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'The saved application draft could not be restored.')
+      } finally {
+        if (active) setBrowserDraftReady(true)
       }
-    }, 0)
-    return () => { active = false; window.clearTimeout(timer) }
+    }
+    void restore()
+    return () => { active = false }
   }, [initialType, initialCategory, referralFromLink, initialDraftId, initialApplicationId])
+
+  // Keep the complete form encrypted on this device while the applicant verifies email
+  // or returns after a page reload. Sensitive values are never written to localStorage.
+  useEffect(() => {
+    if (!browserDraftReady || submittedRef) return
+    const timer = window.setTimeout(() => {
+      void saveEncryptedBrowserDraft(form, stepIndex).catch(() => {
+        // Keep the live form usable; the explicit Save draft action reports storage failures.
+      })
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [form, stepIndex, browserDraftReady, submittedRef])
 
   const update = <K extends keyof ApplicationForm>(key: K, value: ApplicationForm[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -372,10 +396,15 @@ export function ApplicationWizard({
     const localSafe = createLocalDraftForm(form)
     let localSaved = false
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ form: localSafe, stepIndex: nextIndex, savedAt: new Date().toISOString() }))
+      await saveEncryptedBrowserDraft(form, nextIndex)
       localSaved = true
     } catch {
-      if (!silent) toast.error('This browser could not save a local draft.')
+      if (!silent) toast.error('Secure draft storage is unavailable in this browser. Keep this tab open and sign in to save the draft to your Oxford account.')
+    }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ form: localSafe, stepIndex: nextIndex, savedAt: new Date().toISOString() }))
+    } catch {
+      // The encrypted IndexedDB draft is the authoritative browser copy.
     }
 
     if (initialApplicationId) {
@@ -405,17 +434,21 @@ export function ApplicationWizard({
           return
         }
       } catch {
-        if (!silent) toast.error('Your secure account draft could not be saved.', {
-          description: 'Only your application type, category and referral code were kept in this browser. Your other entries may be lost if you leave this page. Please retry the secure save.',
+        if (!silent) toast.error('Your secure Oxford account draft could not be saved.', {
+          description: localSaved
+            ? 'Your complete application remains encrypted on this device. Please retry the account save after signing in.'
+            : 'Keep this application tab open and retry the secure save before leaving the page.',
         })
         return
       }
     }
-    if (!silent && localSaved) toast.success('Draft saved on this device', { description: 'Sign in to save and resume drafts across devices. Only your application type, category and referral code are stored in this browser. Sign in to save your full draft securely.' })
+    if (!silent && localSaved) toast.success('Draft saved securely on this device', { description: 'Your application details are encrypted in this browser. Sign in to also save the draft to your Oxford account and resume it on another device.' })
   }
 
   const discardDraft = async () => {
     const removed = removeStoredDraft()
+    try { await clearEncryptedBrowserDraft() }
+    catch { toast.error('The encrypted browser draft could not be cleared.') }
     if (serverDraftId) {
       try { await deleteMyFinanceDraft({ data: { draftId: serverDraftId } }) }
       catch (error) { toast.error(error instanceof Error ? error.message : 'The account draft could not be deleted.') }
@@ -471,11 +504,21 @@ export function ApplicationWizard({
       try {
         const session = await getAuthorizationSnapshot()
         if (!session.authenticated) {
-          setAccountGateMessage('Create a customer account or sign in, then verify your email address. Your application will remain open in this tab.')
+          try {
+            await saveEncryptedBrowserDraft(form, stepIndex)
+            setAccountGateMessage('Create a customer account or sign in, then verify your email address. Your application has also been saved securely on this device. Return to this application after verification.')
+          } catch {
+            setAccountGateMessage('Create a customer account or sign in, then verify your email address. Secure browser backup could not be created, so keep this original application tab open and return to it after verification.')
+          }
           return
         }
         if (!session.provisioned || ('emailVerificationRequired' in session && session.emailVerificationRequired)) {
-          setAccountGateMessage('Your Oxford account is not yet fully activated. Complete email verification, then return here and select Submit application again.')
+          try {
+            await saveEncryptedBrowserDraft(form, stepIndex)
+            setAccountGateMessage('Your Oxford account is not yet fully activated. Complete email verification, then return here and select Submit application again. Your application has been saved securely on this device.')
+          } catch {
+            setAccountGateMessage('Your Oxford account is not yet fully activated. Complete email verification, then return to this original application tab. Secure browser backup failed, so do not close or reload this tab.')
+          }
           return
         }
         if (session.blocked || session.user.status !== 'active') {
@@ -582,6 +625,9 @@ export function ApplicationWizard({
       setSelectedDocuments({})
       setDocumentUploadStatus('')
       setSubmittedRef(result.reference)
+      void clearEncryptedBrowserDraft().catch(() => {
+        toast.error('Your application was submitted, but this browser could not clear its local encrypted draft. Clear browser site data only after confirming the application reference.')
+      })
       if (result.duplicate) toast.info('Your application was already received. We have restored its reference.')
       if (!result.packGenerated) {
         toast.info('Your application was received. The complete document pack is pending and Office can retry its generation.')

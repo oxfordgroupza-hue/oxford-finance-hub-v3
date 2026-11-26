@@ -64,7 +64,7 @@ const completeIndividualApplication: ApplicationForm = {
 
 describe('complete application validation', () => {
 
-  it('keeps personal, identity, financial and business details out of browser drafts', () => {
+  it('keeps personal, identity, financial and business details out of legacy localStorage metadata', () => {
     expect(createLocalDraftForm(completeIndividualApplication)).toEqual({
       applicantType: 'individual',
       category: 'vehicle',
