@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -34,6 +35,12 @@ export default defineConfig({
   },
   resolve: { tsconfigPaths: true },
   plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+      routesDirectory: resolve(projectRoot, 'src/routes'),
+      generatedRouteTree: resolve(projectRoot, 'src/routeTree.gen.ts'),
+    }),
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
     databaseBoundary,
     tailwindcss(),

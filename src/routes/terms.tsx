@@ -3,7 +3,15 @@ import { InformationPage } from '@/components/site/InformationPage'
 import { intermediaryDisclaimer } from '@/lib/finance-config'
 
 export const Route = createFileRoute('/terms')({
-  head: () => ({ meta: [{ title: 'Terms & conditions | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/terms' }],
+    meta: [
+      { title: 'Terms & Conditions | Oxford Finance Hub' },
+      { name: 'description', content: 'Review the terms governing use of Oxford Finance Hub and Oxford Business Group's finance-intermediary services.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/terms' },
+      { name: 'robots', content: 'noindex,follow' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Legal" title="Terms & conditions" draftNotice
       intro="The terms on which Oxford Finance Hub is made available."

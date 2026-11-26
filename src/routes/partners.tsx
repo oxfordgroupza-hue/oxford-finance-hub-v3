@@ -5,7 +5,14 @@ import { PageHero } from '@/components/site/PageHero'
 import { SiteLayout } from '@/components/site/SiteLayout'
 
 export const Route = createFileRoute('/partners')({
-  head: () => ({ meta: [{ title: 'For partners | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/partners' }],
+    meta: [
+      { title: 'Finance Referral Partnerships | Oxford Finance Hub' },
+      { name: 'description', content: 'Dealerships, suppliers and advisers can refer clients to Oxford Business Group for vehicle, equipment and commercial asset finance.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/partners' },
+    ],
+  }),
   component: PartnersPage,
 })
 

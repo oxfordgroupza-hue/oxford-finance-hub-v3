@@ -2,7 +2,15 @@ import { createFileRoute } from '@tanstack/react-router'
 import { InformationPage } from '@/components/site/InformationPage'
 
 export const Route = createFileRoute('/popia')({
-  head: () => ({ meta: [{ title: 'POPIA | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/popia' }],
+    meta: [
+      { title: 'POPIA Privacy Notice | Oxford Finance Hub' },
+      { name: 'description', content: 'Understand how Oxford Business Group processes personal information and how to exercise your rights under South Africa's POPIA.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/popia' },
+      { name: 'robots', content: 'noindex,follow' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Legal" title="POPIA notice" draftNotice
       intro="Information about how we process personal information in line with the Protection of Personal Information Act, 2013."

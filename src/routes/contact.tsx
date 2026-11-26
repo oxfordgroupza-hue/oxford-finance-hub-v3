@@ -5,7 +5,14 @@ import { PageHero } from '@/components/site/PageHero'
 import { SiteLayout } from '@/components/site/SiteLayout'
 
 export const Route = createFileRoute('/contact')({
-  head: () => ({ meta: [{ title: 'Contact | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/contact' }],
+    meta: [
+      { title: 'Contact Oxford Business Group | Oxford Finance Hub' },
+      { name: 'description', content: 'Contact Oxford Business Group with general enquiries about finance options, existing applications or referral partnerships in South Africa.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/contact' },
+    ],
+  }),
   component: ContactPage,
 })
 

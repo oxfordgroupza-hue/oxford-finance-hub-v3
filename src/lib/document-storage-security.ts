@@ -18,30 +18,6 @@ export function isStorageBucketVerified(details: StorageBucketDetails): boolean 
     ALLOWED_DOCUMENT_STORAGE_TYPES.every((type) => allowedTypes.includes(type))
 }
 
-export type NetlifyRuntimeContext = {
-  site?: { id?: string }
-  deploy?: { context?: string }
-}
-
-export function isApprovedDeployPreviewRequest(
-  requestUrl: string,
-  context: NetlifyRuntimeContext | undefined,
-  expectedSiteId: string,
-): boolean {
-  let hostname: string
-  try {
-    const parsed = new URL(requestUrl)
-    if (parsed.protocol !== 'https:' || parsed.port || parsed.username || parsed.password) return false
-    hostname = parsed.hostname.toLowerCase()
-  } catch {
-    return false
-  }
-  return Boolean(expectedSiteId) &&
-    context?.site?.id === expectedSiteId &&
-    context?.deploy?.context === 'deploy-preview' &&
-    /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
-}
-
 const APPROVED_CLOUDFLARE_PREVIEW_HOSTS = new Set([
   'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
   'recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',

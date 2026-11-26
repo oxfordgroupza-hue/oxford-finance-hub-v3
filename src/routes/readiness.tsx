@@ -4,7 +4,14 @@ import { InformationPage } from '@/components/site/InformationPage'
 import { applicantTypes, financeCategories, getDocumentChecklist } from '@/lib/finance-config'
 
 export const Route = createFileRoute('/readiness')({
-  head: () => ({ meta: [{ title: 'Application readiness | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/readiness' }],
+    meta: [
+      { title: 'Finance Application Readiness | Oxford Finance Hub' },
+      { name: 'description', content: 'Review the information and documents commonly needed for vehicle, equipment and commercial asset finance applications.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/readiness' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Application readiness" title="Before you apply"
       intro="What to have ready so that your application can move quickly through assessment."

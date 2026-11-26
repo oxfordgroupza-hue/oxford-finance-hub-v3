@@ -1,5 +1,5 @@
 import { eq, inArray, sql } from 'drizzle-orm'
-import { db } from '../db/index'
+import { db, closeDb } from '../db/cli'
 import { financeProducts, permissions, rolePermissions, roles } from '../db/schema'
 import { permissionCatalogue, roleTemplates } from '../src/lib/access-control'
 import { financeCategories, getDocumentChecklist } from '../src/lib/finance-config'
@@ -103,3 +103,4 @@ seed()
     process.stderr.write(`Access-control seed failed: ${error instanceof Error ? error.message : String(error)}\\n`)
     process.exitCode = 1
   })
+  .finally(closeDb)

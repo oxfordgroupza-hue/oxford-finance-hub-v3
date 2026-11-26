@@ -80,6 +80,7 @@ function Home() {
                 name: 'Oxford Business Group (Pty) Ltd',
                 alternateName: 'Oxford Finance Hub',
                 url: 'https://finance.oxfordbusinessgroup.co.za/',
+                logo: { '@type': 'ImageObject', url: 'https://finance.oxfordbusinessgroup.co.za/logo.svg', width: 512, height: 512 },
                 description: 'Oxford Business Group facilitates finance enquiries and connects individuals and businesses with relevant finance providers. It is an intermediary, not a lender.',
                 areaServed: { '@type': 'Country', name: 'South Africa' },
               },

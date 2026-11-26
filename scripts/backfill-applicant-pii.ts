@@ -1,5 +1,5 @@
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm'
-import { db } from '../db'
+import { db, closeDb } from '../db/cli'
 import { applicationIntakes, customers, financeApplications, notifications, users } from '../db/schema'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from '../src/lib/pii-crypto.server'
 import { applicantPiiFields, withoutApplicantPii } from '../src/lib/applicant-pii-sanitization'
@@ -171,4 +171,4 @@ async function main() {
 main().catch((error: unknown) => {
   process.stderr.write((error instanceof Error ? error.message : 'Applicant PII backfill failed.') + '\n')
   process.exitCode = 1
-})
+}).finally(closeDb)

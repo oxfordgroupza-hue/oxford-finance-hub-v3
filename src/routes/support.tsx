@@ -4,7 +4,14 @@ import { EnquiryForm } from '@/components/site/EnquiryForm'
 import { InformationPage } from '@/components/site/InformationPage'
 
 export const Route = createFileRoute('/support')({
-  head: () => ({ meta: [{ title: 'Support | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/support' }],
+    meta: [
+      { title: 'Customer Support | Oxford Finance Hub' },
+      { name: 'description', content: 'Find answers about Oxford Finance Hub, finance applications, secure document collection and how to contact our support team.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/support' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Support" title="How can we help?" intro="Answers to common questions, and a way to reach our support team."
       sections={[{

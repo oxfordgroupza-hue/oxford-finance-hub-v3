@@ -39,6 +39,10 @@ export const Route = createRootRoute({
         content: 'website',
       },
       {
+        property: 'og:image',
+        content: 'https://finance.oxfordbusinessgroup.co.za/images/oxford-hero.jpg',
+      },
+      {
         name: 'twitter:card',
         content: 'summary_large_image',
       },
@@ -62,6 +66,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en-ZA" className="dark">
       <head>
         <HeadContent />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              '@id': 'https://finance.oxfordbusinessgroup.co.za/#organization',
+              name: 'Oxford Business Group (Pty) Ltd',
+              alternateName: 'Oxford Finance Hub',
+              url: 'https://finance.oxfordbusinessgroup.co.za/',
+              logo: { '@type': 'ImageObject', url: 'https://finance.oxfordbusinessgroup.co.za/logo.svg', width: 512, height: 512 },
+              description: 'Oxford Business Group facilitates finance enquiries and connects individuals and businesses with relevant finance providers. It is an intermediary, not a lender.',
+              areaServed: { '@type': 'Country', name: 'South Africa' },
+            }),
+          }}
+        />
       </head>
       <body>
 <TooltipProvider>{children}</TooltipProvider>
