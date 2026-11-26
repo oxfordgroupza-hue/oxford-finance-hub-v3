@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /office
+Disallow: /partner
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /login
+Disallow: /invitation
+Disallow: /staff-invitation
+Disallow: /demo
+Disallow: /api/
+
+Sitemap: https://finance.oxfordbusinessgroup.co.za/sitemap.xml
