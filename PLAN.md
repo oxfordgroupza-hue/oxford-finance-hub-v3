@@ -1,6 +1,6 @@
 ## Current-state reconciliation — 26 November 2026
 
-The 25 November milestone snapshot below is superseded where it conflicts with the verified state: the restricted production Worker and `finance.oxfordbusinessgroup.co.za` custom domain are already active, but production application intake and document uploads remain disabled. Latest development branch head is `045d5b1`; Cloudflare Build and Preview deployment succeeded. PR #9 remains draft/unmerged. See [Release Readiness](docs/RELEASE_READINESS.md) for exact Worker flags, Neon branch mapping and outstanding release gates.
+The 25 November milestone snapshot below is superseded where it conflicts with the verified state: the restricted production Worker and `finance.oxfordbusinessgroup.co.za` custom domain are already active, but production application intake and document uploads remain disabled. Latest development branch head is `045d5b1`; Cloudflare Build and Preview deployment succeeded. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval. See [Release Readiness](docs/RELEASE_READINESS.md) for exact Worker flags, Neon branch mapping and outstanding release gates.
 
 # Oxford Finance Hub V3 — delivery plan and milestone status
 
@@ -8,7 +8,7 @@ The 25 November milestone snapshot below is superseded where it conflicts with t
 **Current release verdict:** **NOT READY for public recruitment or real applicant submissions.**  
 **Authoritative current evidence:** [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md)  
 **Active branch:** `work/v3-cloudflare-native-auth`  
-**PR #9:** open, draft and unmerged.
+PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
 
 ## Milestone status
 
