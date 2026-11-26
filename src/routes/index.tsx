@@ -9,11 +9,11 @@ import { img, imgSrcSet } from '@/lib/images'
 import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 import { getServerEnv } from '@/lib/server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflareApplicationRequest } from '@/lib/document-storage-security'
+import { isApprovedCloudflareRuntimeRequest } from '@/lib/document-storage-security'
 
 const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
   const context = getServerEnv('CONTEXT')
-  const approvedOrigin = isApprovedCloudflareApplicationRequest(getRequest().url, context)
+  const approvedOrigin = isApprovedCloudflareRuntimeRequest(getRequest().url, context)
   const applicationsEnabled = approvedOrigin &&
     getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
   const previewApplicationsEnabled = applicationsEnabled && context === 'cloudflare-preview'
