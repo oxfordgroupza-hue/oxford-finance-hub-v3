@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
 import { MAX_FUNCTION_UPLOAD_BYTES } from './document-validation'
-import { optimiseDocumentFile } from './document-optimisation'
+import { optimiseDocumentFile, shouldUseOptimisedImage } from './document-optimisation'
 
 async function createPdfFile(): Promise<File> {
   const document = await PDFDocument.create()
@@ -16,6 +16,21 @@ async function createPdfFile(): Promise<File> {
 }
 
 describe('optimiseDocumentFile', () => {
+  it('does not replace a smaller image with a larger re-encoded file', () => {
+    expect(shouldUseOptimisedImage(900_000, 1_100_000)).toBe(false)
+  })
+
+  it('uses a smaller image when it reduces an already-valid file', () => {
+    expect(shouldUseOptimisedImage(900_000, 700_000)).toBe(true)
+  })
+
+  it('uses an optimised image when it brings an oversized file below 4 MB', () => {
+    expect(shouldUseOptimisedImage(5 * 1024 * 1024, 3 * 1024 * 1024)).toBe(true)
+  })
+
+  it('rejects an optimised image that still exceeds 4 MB', () => {
+    expect(shouldUseOptimisedImage(6 * 1024 * 1024, 5 * 1024 * 1024)).toBe(false)
+  })
   it('preserves PDF bytes exactly and keeps the original within the upload limit', async () => {
     const original = await createPdfFile()
     const result = await optimiseDocumentFile(original)
