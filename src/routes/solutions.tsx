@@ -9,7 +9,14 @@ import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
 
 export const Route = createFileRoute('/solutions')({
   loader: () => getPublicSiteConfigWithFallback(),
-  head: () => ({ meta: [{ title: 'Finance solutions | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/solutions' }],
+    meta: [
+      { title: 'Vehicle, Equipment & Commercial Asset Finance | Oxford Finance Hub' },
+      { name: 'description', content: 'Explore vehicle, equipment and commercial asset finance options for individuals and businesses in South Africa. Oxford Business Group is an intermediary, not a lender.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/solutions' },
+    ],
+  }),
   component: SolutionsPage,
 })
 
