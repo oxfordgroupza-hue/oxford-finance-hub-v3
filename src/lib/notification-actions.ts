@@ -7,7 +7,7 @@ import { auditEvents, customerPreferences, customers, notifications, users } fro
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isNotificationDeliveryEnabled } from './notification-delivery-security'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -21,7 +21,12 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  return isApprovedCloudflarePreviewRequest(getRequest().url) && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
+  return isNotificationDeliveryEnabled({
+    requestUrl: getRequest().url,
+    context: getServerEnv('CONTEXT'),
+    emailDeliveryEnabled: getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED'),
+    notificationDeliveryEnabled: getServerEnv('OXFORD_NOTIFICATION_DELIVERY_ENABLED'),
+  })
 }
 
 function configured() {
@@ -178,7 +183,7 @@ function emailContent(template: string, payload: Record<string, unknown>) {
 
 export const processNotificationQueue = createServerFn({ method: 'POST' }).handler(async () => {
   const session = requireOfficeNotificationPermission(await getAuthorizationSnapshot(), 'notifications.manage')
-  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in the Cloudflare preview environment.')
+  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in the Cloudflare environment.')
   if (!deliveryEnabled()) {
     throw new Error('Email delivery is disabled. Enable it only after the sender and preview test have been verified.')
   }
@@ -225,7 +230,7 @@ export const processNotificationQueue = createServerFn({ method: 'POST' }).handl
 
     try {
       const recipient = await resolveRecipient(item)
-      if (isApprovedCloudflarePreviewRequest(getRequest().url)) {
+      if (getServerEnv('CONTEXT') === 'cloudflare-preview') {
         const allowedRecipient = validEmail(getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
         if (!allowedRecipient || recipient?.toLowerCase() !== allowedRecipient.toLowerCase()) {
           await db.update(notifications).set({ status: 'skipped', lastError: 'Preview delivery is restricted to the configured Oxford test recipient.', updatedAt: new Date() }).where(eq(notifications.id, item.id))
