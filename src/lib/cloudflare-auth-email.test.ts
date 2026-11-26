@@ -1,20 +1,25 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
-import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
 import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed, assertOxfordCustomerRegistrationAllowed } from './cloudflare-auth-email'
 
 vi.mock('./server-runtime-env', () => ({ getServerEnv: vi.fn() }))
 vi.mock('@tanstack/react-start/server', () => ({ getRequest: vi.fn() }))
-vi.mock('./document-storage-security', () => ({ isApprovedCloudflarePreviewRequest: vi.fn() }))
+vi.mock('./document-storage-security', () => ({
+  isApprovedCloudflarePreviewRequest: vi.fn(),
+  isApprovedCloudflareProductionRequest: vi.fn(),
+}))
 
 const values: Record<string, string | undefined> = {}
 
 beforeEach(() => {
   for (const key of Object.keys(values)) delete values[key]
+  values.CONTEXT = 'cloudflare-preview'
   vi.mocked(getServerEnv).mockImplementation((name: string) => values[name])
-  vi.mocked(getRequest).mockReturnValue(new Request('https://production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
+  vi.mocked(getRequest).mockReturnValue(new Request('https://audit-production-cutover-candidate-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
   vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(true)
+  vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
 })
 
 describe('Oxford authentication email delivery gate', () => {
@@ -52,6 +57,14 @@ describe('Oxford authentication email delivery gate', () => {
 
     expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
   })
+
+  it('normalizes surrounding whitespace on provider credentials and sender values', () => {
+    values.OXFORD_EMAIL_DELIVERY_ENABLED = 'true'
+    values.BREVO_API_KEY = '  existing-test-key  '
+    values.OXFORD_NOTIFICATION_FROM_EMAIL = ' sender@example.com '
+
+    expect(() => assertOxfordAuthEmailConfigured()).not.toThrow()
+  })
 })
 
 describe('Oxford authentication email recipient restrictions', () => {
@@ -74,10 +87,33 @@ describe('Oxford authentication email recipient restrictions', () => {
     )
   })
 
-  it('does not apply the preview mailbox restriction outside the approved preview host', () => {
+  it('rejects every unapproved host in Preview context instead of bypassing recipient checks', () => {
     vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
 
+    expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
+      'Preview authentication email delivery is available only on an approved Oxford Preview Worker host.',
+    )
+  })
+
+  it('allows normal recipient delivery only from the canonical Production host', () => {
+    values.CONTEXT = 'cloudflare-production'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://finance.oxfordbusinessgroup.co.za/'))
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(true)
+
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).not.toThrow()
+  })
+
+  it('rejects authentication email delivery on unknown contexts and noncanonical Production hosts', () => {
+    values.CONTEXT = 'unknown'
+    expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
+      'Oxford authentication email delivery is unavailable on this runtime host.',
+    )
+
+    values.CONTEXT = 'cloudflare-production'
+    vi.mocked(isApprovedCloudflareProductionRequest).mockReturnValue(false)
+    expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
+      'Oxford authentication email delivery is unavailable on this runtime host.',
+    )
   })
 })
 
