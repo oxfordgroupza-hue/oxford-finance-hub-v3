@@ -137,7 +137,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
               {checklist.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
           </label>
-          <label className="space-y-2 text-sm"><span className="block text-muted-foreground">Choose file (PDF, JPG or PNG; max 4 MB)</span>
+          <label className="space-y-2 text-sm"><span className="block text-muted-foreground">Choose file (PDF max 4 MB; large JPG/PNG images are optimised automatically)</span>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-sm file:border file:border-border file:bg-card file:px-3 file:py-2" />
           </label>
           <Button type="button" variant="gold" className="rounded-sm" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? busyLabel || 'Working…' : 'Upload'}</Button>
