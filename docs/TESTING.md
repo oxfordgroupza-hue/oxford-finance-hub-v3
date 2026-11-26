@@ -1,6 +1,31 @@
-## Current-state addendum — 25 November 2026
+## Current audit test status — 26 November 2026
 
-See [RELEASE_READINESS.md](RELEASE_READINESS.md) for current evidence and blockers. The last successful full build was `b89bab04-9fec-4121-b1f0-860eb171b9df` for commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`. The newer bounded multipart stream parser and its regression tests have not yet passed a complete Cloudflare build. Intermediate build failures exposed a TypeScript BlobPart type mismatch and a malformed multipart test fixture; the source was corrected and a new build queued. Do not record the newer source as passed until its own build completes Vite, Wrangler type generation, TypeScript, Vitest and ESLint.
+- Full validation is now configured on the Cloudflare Preview trigger: Cloudflare build, Wrangler type generation, TypeScript, Vitest and ESLint.
+- Latest reconciled release candidate branch: `audit/reconciled-production-release`. Latest known Cloudflare Preview build: `8fe12774-6047-461c-aea7-1d5f90eba3d4`; it was queued when this addendum was written. The current candidate's test count and final result are not yet verified.
+- A separate completed recovery-branch build passed 39 test files and 225 tests, with the typecheck, lint and Preview deploy stages completing successfully. It is historical evidence for that exact recovery commit, not proof for the current release candidate.
+- Regression coverage now includes all seven role templates, role-audience mismatch, account-type permission ceilings, service-principal restrictions, Cloudflare Preview/Production host isolation and transactional email delivery policy.
+- The retry path for an invited, unverified account now refreshes the password submitted on retry and revokes any existing sessions in the same transaction; the candidate build must verify this change.
+- A GitHub Actions workflow was added for Wrangler type generation, TypeScript, Vitest and ESLint. No GitHub Actions run has yet been confirmed; Cloudflare Workers Builds remains the active validation source.
+- No user registration, email, application submission, document upload, payout or Production mutation was performed as part of this audit.
+
+## End-to-end acceptance still required
+
+Use synthetic data and the approved Preview mailbox only. Test registration/verification/retry, password recovery, login/logout/session revocation, first Super Administrator bootstrap, staff invitation/activation/revocation, all seven roles on direct routes and server functions, Individual/Business application journeys across all four categories, Office intake, partner referral isolation, private upload/download/expiry/retry/recovery, Brevo success/failure and backup restore. Complete responsive, accessibility and qualified legal review before release.
+
+---
+
+## Current-state addendum — 26 November 2026
+
+Latest development branch head: `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Cloudflare Workers Build `0fa45b27-03c3-4c79-9e4b-807d907928f5` completed successfully and deployed Preview to `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The configured build command runs `pnpm cf:build`, Wrangler type generation, TypeScript, Vitest and ESLint. The build record confirms success; a separate current Vitest test-count summary was not surfaced, so the older 39-file/216-test count must not be presented as the latest count.
+
+Read-only GET checks of Preview `/`, `/apply` and `/login` returned HTTP 200. No application was submitted and no email was sent during this audit. Cloudflare Workers Builds is the active branch validation pipeline; GitHub Actions was not used for this build.
+---
+
+## Authorization regression coverage added — 26 November 2026
+
+`src/lib/access-control-matrix.test.ts` adds table-driven unit coverage for all seven role templates. It checks each role's exact effective permission set, rejects role assignments whose audience does not match the account type, verifies account-type ceilings even when every catalogue permission is individually granted, and locks down the service-account restrictions.
+
+This is permission-engine unit coverage, not the complete authorization acceptance gate. It does not exercise authenticated direct routes or server functions, database-loaded role assignments, reviewer assignment, customer ownership, or partner referral isolation. Those end-to-end checks remain outstanding. The Cloudflare Workers Build triggered by this commit must pass before this new suite is considered verified.
 
 ---
 
