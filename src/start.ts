@@ -1,5 +1,6 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
+import { getServerEnv } from './lib/server-runtime-env'
 
 /** Apply the same browser security headers to SSR pages and Start server functions. */
 const securityHeadersMiddleware = createMiddleware({ type: 'request' }).server(({ next }) => {
@@ -7,6 +8,9 @@ const securityHeadersMiddleware = createMiddleware({ type: 'request' }).server((
   setResponseHeader('X-Frame-Options', 'DENY')
   setResponseHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   setResponseHeader('Strict-Transport-Security', 'max-age=31536000')
+  if (getServerEnv('CONTEXT') === 'cloudflare-preview') {
+    setResponseHeader('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  }
   return next()
 })
 
