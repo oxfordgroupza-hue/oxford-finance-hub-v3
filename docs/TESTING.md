@@ -1,3 +1,15 @@
+> **Current-state correction — 26 November 2026**
+>
+> PR #9 has been merged into `recovery/import-verified-baseline` at commit `78fd5b978197ec0729bab0444a44b522300898ef`.
+>
+> Cloudflare Preview build `3839af89-e136-466c-a175-1bcc564e561a` for that exact merge commit completed successfully using `pnpm cf:build` and `npx wrangler preview` (26 November 2026, 06:04:40 UTC).
+>
+> **Important test boundary:** this result confirms the configured Cloudflare Preview build/deploy step only. It does not confirm Wrangler type generation, `pnpm typecheck`, `pnpm test`, or `pnpm lint`. The Preview build trigger does not execute those commands. GitHub combined status and workflow-run queries for the merge commit returned no checks/runs. No full-suite pass is currently recorded for the merged commit.
+>
+> The detailed results below refer to older commits and deployments. Retain them as historical test evidence only; do not attribute them to merge commit `78fd5b9...`. Run the full command below against the exact merged source and record its own result before treating automated quality checks as passed.
+>
+> Production was not deployed by the PR #9 merge. Authentication, role isolation, finance application workflows, document security, email delivery, and backup/restore still require acceptance testing.
+
 ## Current-state addendum — 25 November 2026
 
 See [RELEASE_READINESS.md](RELEASE_READINESS.md) for current evidence and blockers. The last successful full build was `b89bab04-9fec-4121-b1f0-860eb171b9df` for commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`. The newer bounded multipart stream parser and its regression tests have not yet passed a complete Cloudflare build. Intermediate build failures exposed a TypeScript BlobPart type mismatch and a malformed multipart test fixture; the source was corrected and a new build queued. Do not record the newer source as passed until its own build completes Vite, Wrangler type generation, TypeScript, Vitest and ESLint.
