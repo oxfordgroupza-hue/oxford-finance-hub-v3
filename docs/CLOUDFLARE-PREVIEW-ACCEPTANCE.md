@@ -5,7 +5,7 @@
 - Latest Preview deployment: `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`; deployment succeeded.
 - Stable Preview: `https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`.
 - GET checks for `/`, `/apply` and `/login` returned HTTP 200. No forms were submitted.
-- Production is a restricted public shell already deployed on `finance.oxfordbusinessgroup.co.za`; application and document-upload flags are false. Do not describe production as unchanged. PR #9 remains draft and unmerged.
+- Production is a restricted public shell already deployed on `finance.oxfordbusinessgroup.co.za`; application and document-upload flags are false. Do not describe production as unchanged. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
 - The 25 November build/deployment evidence below is historical; the 26 November build above is the latest verified Preview result.
 
 ---
@@ -17,7 +17,7 @@
 **Branch HEAD:** `aebe9893af6cf4bd9e6d2b535575172ab8c6d064`  
 **Stable Preview reference:** https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
 **Latest immutable Preview deployment:** https://9d173fa4-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/  
-**Production:** restricted public shell already deployed; applications/uploads disabled. Draft PR #9 remains open and unmerged.
+**Production:** restricted public shell already deployed; applications/uploads disabled. PR #9 was merged into `recovery/import-verified-baseline` on 26 November 2026 (merge commit `78fd5b978197ec0729bab0444a44b522300898ef`), not into `main`. The development branch has ten subsequent reconciliation commits that are not part of that merge. Do not reopen or merge into `main` without explicit approval.
 
 ## Release decision
 
