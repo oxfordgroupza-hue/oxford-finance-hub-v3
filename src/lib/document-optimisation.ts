@@ -1,4 +1,3 @@
-import { PDFDocument } from 'pdf-lib'
 import { MAX_FUNCTION_UPLOAD_BYTES } from './document-validation'
 
 export type OptimisedDocument = {
@@ -9,7 +8,7 @@ export type OptimisedDocument = {
 }
 
 function fileWithBlob(source: File, blob: Blob, extension: string, mimeType: string): File {
-  const name = source.name.replace(/\.[^.]+$/, '') || 'document'
+  const name = source.name.replace(/\\.[^.]+$/, '') || 'document'
   return new File([blob], `${name}.${extension}`, {
     type: mimeType,
     lastModified: source.lastModified,
@@ -65,42 +64,27 @@ async function optimiseImage(file: File): Promise<File> {
 }
 
 /**
- * Optimises selected files only after the applicant presses Submit.
- * Images are resized/re-encoded as JPEG; PDFs are re-saved without rasterising
- * their pages, preserving searchable text and the original document structure.
+ * Optimises selected images only after the applicant presses Submit.
+ * PDFs are deliberately preserved byte-for-byte: rewriting a PDF can invalidate
+ * digital signatures or alter embedded files, annotations and document metadata.
+ * Oversized PDFs must be exported smaller or split by the applicant.
  */
 export async function optimiseDocumentFile(file: File): Promise<OptimisedDocument> {
   let optimised: File
   if (file.type === 'image/jpeg' || file.type === 'image/png') {
     optimised = await optimiseImage(file)
   } else if (file.type === 'application/pdf') {
-    try {
-      const pdf = await PDFDocument.load(await file.arrayBuffer(), {
-        updateMetadata: false,
-        throwOnInvalidObject: true,
-      })
-      const bytes = await pdf.save({
-        useObjectStreams: true,
-        addDefaultPage: false,
-      })
-      const pdfBuffer = new ArrayBuffer(bytes.byteLength)
-      new Uint8Array(pdfBuffer).set(bytes)
-      const candidate = fileWithBlob(file, new Blob([pdfBuffer], { type: 'application/pdf' }), 'pdf', 'application/pdf')
-      optimised = candidate.size < file.size ? candidate : file
-    } catch {
-      if (file.size > MAX_FUNCTION_UPLOAD_BYTES) {
-        throw new Error(
-          'This PDF could not be safely compressed. Please save or export it as a smaller PDF and try again.',
-        )
-      }
-      optimised = file
-    }
+    optimised = file
   } else {
     throw new Error('Only PDF, JPG and PNG files can be uploaded.')
   }
 
   if (optimised.size > MAX_FUNCTION_UPLOAD_BYTES) {
-    throw new Error('This file is still larger than 4 MB after optimisation. Please split it into smaller documents.')
+    throw new Error(
+      file.type === 'application/pdf'
+        ? 'This PDF is larger than 4 MB. Please export it as a smaller PDF or split it into separate documents.'
+        : 'This file is still larger than 4 MB after optimisation. Please split it into smaller documents.',
+    )
   }
   return {
     file: optimised,
