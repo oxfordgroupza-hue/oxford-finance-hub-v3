@@ -1,7 +1,8 @@
-## Current-state addendum — 25 November 2026
+## Current-state addendum — 26 November 2026
 
-Read [RELEASE_READINESS.md](RELEASE_READINESS.md) for the full release assessment. A fresh read-only check found no Neon snapshot schedule for either the isolated Preview branch or the project default branch, no listed Neon snapshots, and no migration-history table in the Preview database. The existing no-compute checkpoint branch is not an independent backup. Do not claim database backup or restore readiness until provider retention, an independent backup, and a restore drill are verified. Production remains untouched.
+The production Worker is active on `finance.oxfordbusinessgroup.co.za` and uses Neon branch `production-2026-11-25`, whose parent is the isolated `cloudflare-preview` branch. Two point-in-time production checkpoint branches exist: `production-prelaunch-checkpoint-20261125` and `production-safety-checkpoint-2026-11-26`. They are Neon branches within the same project, not independent backups.
 
+No automatic Neon snapshot schedule is configured for the production, Preview or default branch. One manual snapshot exists on default `main`; it is not a production-branch backup. No restore drill has been completed. The production application and document-upload flags remain false. Do not claim backup/restore readiness or change production resources without separate approval.
 ---
 
 # Backup and recovery — Oxford Finance Hub V3
