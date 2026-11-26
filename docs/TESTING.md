@@ -1,7 +1,8 @@
-## Current-state addendum — 25 November 2026
+## Current-state addendum — 26 November 2026
 
-See [RELEASE_READINESS.md](RELEASE_READINESS.md) for current evidence and blockers. The last successful full build was `b89bab04-9fec-4121-b1f0-860eb171b9df` for commit `4e46a48da1460f61e090fcbcae4db9624d47f4eb`. The newer bounded multipart stream parser and its regression tests have not yet passed a complete Cloudflare build. Intermediate build failures exposed a TypeScript BlobPart type mismatch and a malformed multipart test fixture; the source was corrected and a new build queued. Do not record the newer source as passed until its own build completes Vite, Wrangler type generation, TypeScript, Vitest and ESLint.
+Latest development branch head: `045d5b1d6015ef02513e1694d660d9ea8823f23b`. Cloudflare Workers Build `0fa45b27-03c3-4c79-9e4b-807d907928f5` completed successfully and deployed Preview to `https://ec8f277b-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/`. The configured build command runs `pnpm cf:build`, Wrangler type generation, TypeScript, Vitest and ESLint. The build record confirms success; a separate current Vitest test-count summary was not surfaced, so the older 39-file/216-test count must not be presented as the latest count.
 
+Read-only GET checks of Preview `/`, `/apply` and `/login` returned HTTP 200. No application was submitted and no email was sent during this audit. Cloudflare Workers Builds is the active branch validation pipeline; GitHub Actions was not used for this build.
 ---
 
 # V3 testing and acceptance evidence
