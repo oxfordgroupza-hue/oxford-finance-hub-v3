@@ -1,11 +1,12 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, CircleUserRound, FlaskConical, ShieldCheck } from 'lucide-react'
+import { getServerEnv } from '@/lib/server-runtime-env'
 import { demoActors, demoEnvironment, demoPartnerSummary, demoSupportRequests, demoTimeline, getDemoVisibleApplications, getDemoVisibleEvents, type DemoRole, type DemoTimelineEvent } from '@/lib/demo-scenarios'
 
 export const Route = createFileRoute('/demo')({
   beforeLoad: () => {
-    if (process.env.CONTEXT !== 'deploy-preview' && process.env.CONTEXT !== 'cloudflare-preview') throw redirect({ to: '/' })
+    if (getServerEnv('CONTEXT') !== 'deploy-preview' && getServerEnv('CONTEXT') !== 'cloudflare-preview') throw redirect({ to: '/' })
   },
   head: () => ({ meta: [{ title: 'Role-play demo | Oxford Finance Hub' }, { name: 'robots', content: 'noindex,nofollow' }] }),
   component: DemoWorkspace,
