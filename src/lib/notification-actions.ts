@@ -179,9 +179,9 @@ function emailContent(template: string, payload: Record<string, unknown>) {
 
 export const processNotificationQueue = createServerFn({ method: 'POST' }).handler(async () => {
   const session = requireOfficeNotificationPermission(await getAuthorizationSnapshot(), 'notifications.manage')
-  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in the Cloudflare preview environment.')
+  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in the Cloudflare environment.')
   if (!deliveryEnabled()) {
-    throw new Error('Email delivery is disabled. Enable it only after the sender and preview test have been verified.')
+    throw new Error('Email delivery is disabled. Enable it only on an approved Cloudflare runtime after sender verification and acceptance testing.')
   }
 
   const apiKey = getServerEnv('BREVO_API_KEY')?.trim()
