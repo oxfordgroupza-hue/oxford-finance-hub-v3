@@ -55,7 +55,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
           <p className="eyebrow">My dashboard</p>
           <h1 className="mt-3 text-4xl font-medium md:text-5xl">Your finance applications.</h1>
         </div>
-        <div className="max-w-sm rounded-sm border border-border bg-card p-4 text-sm text-muted-foreground">New online applications are temporarily paused while Oxford verifies its secure application and document services.</div>
+        <Button asChild variant="outlineGold" className="rounded-sm"><Link to="/apply">Start a new application</Link></Button>
       </div>
 
       <section aria-labelledby="my-record-search" className="rounded-sm border border-border bg-card p-6">
@@ -73,7 +73,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
         {applications.length === 0 ? (
           <div className="rounded-sm border border-border bg-card p-8">
             <p className="text-lg">No applications yet</p>
-            <p className="mt-2 text-sm text-muted-foreground">Online applications are temporarily paused. When the secure service reopens, your application reference and progress will appear here.</p>
+            <p className="mt-2 text-sm text-muted-foreground">When you start an application, its reference and progress will appear here. You can begin a new application at any time.</p>
           </div>
         ) : applications.map((application) => {
           const stage = trackedStages.indexOf(application.status as (typeof trackedStages)[number])
@@ -148,7 +148,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
 
       <section aria-labelledby="drafts-h" className="rounded-sm border border-border bg-card p-6">
         <h2 id="drafts-h" className="flex items-center gap-2 text-2xl"><FilePen className="size-5 text-gold" /> Saved drafts</h2>
-        {drafts.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Online application and draft saving services are temporarily paused. Existing application records remain available in this dashboard.</p> : (
+        {drafts.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Your saved application drafts will appear here so you can return to them later.</p> : (
           <>
           <ul className="mt-5 space-y-4">
             {drafts.map((draft) => (
@@ -164,7 +164,7 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs text-muted-foreground">Drafts are encrypted in your Oxford account. You can resume and save changes in this Deploy Preview; final submission remains paused.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Your draft is saved securely in your Oxford account. Select Resume draft to continue where you left off.</p>
           </>
         )}
       </section>

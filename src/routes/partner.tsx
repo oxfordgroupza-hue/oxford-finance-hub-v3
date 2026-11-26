@@ -83,7 +83,7 @@ function PartnerWorkspace() {
             <h1 className="mt-3 text-4xl font-medium md:text-5xl">{workspace.partner.businessName}</h1>
             <p className="mt-3 text-sm text-muted-foreground">Welcome, {workspace.partner.contactName}. Review referral progress and manage your support requests.</p>
           </div>
-          <div className="max-w-sm rounded-sm border border-border bg-card p-4 text-sm text-muted-foreground">New online applications are temporarily paused while Oxford verifies its secure application and document services.</div>
+          <div className="max-w-sm rounded-sm border border-border bg-card p-4 text-sm text-muted-foreground">Use your referral link below to introduce customers to Oxford and track applications attributed to your partner account.</div>
         </header>
 
         <section className="grid gap-4 md:grid-cols-3">
@@ -101,7 +101,7 @@ function PartnerWorkspace() {
         {workspace.referralUrl ? (
         <section className="rounded-sm border border-gold/30 bg-card p-6 sm:p-8">
           <div className="flex items-center gap-3"><Handshake className="size-5 text-gold" /><h2 className="text-2xl">Your referral link</h2></div>
-          <p className="mt-2 text-sm text-muted-foreground">Your referral link remains assigned to your account. New online applications are temporarily paused; referral submissions will resume when the secure application service reopens.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Your referral link is assigned to your account. Share it with customers so their applications are attributed to your partner account.</p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <input aria-label="Partner referral link" readOnly value={referralUrl} className="min-w-0 flex-1 rounded-sm border border-border bg-background px-3 py-3 text-sm text-foreground" />
             <Button type="button" variant="outlineGold" className="rounded-sm" onClick={() => void copyReferralLink()} disabled={copyBusy}><Copy className="mr-2 size-4" />Copy link</Button>

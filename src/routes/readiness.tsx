@@ -23,8 +23,8 @@ export const Route = createFileRoute('/readiness')({
             </div>
           ),
         })),
-        { heading: 'About document collection', body: <p>Online applications and document uploads are temporarily paused while the secure application and document services are verified. Use this checklist to prepare, but do not submit personal, identity, banking or financial information or send supporting documents by email or general enquiry form. Oxford will announce when the secure application process reopens.</p> },
+        { heading: 'About document collection', body: <p>Submit your application and supporting documents through the secure Finance Hub application process. Do not send identity documents, bank statements or other sensitive records by email or general enquiry form. The application portal provides the secure upload steps when documents are requested.</p> },
       ]}
-      aside={<Button asChild variant="gold" size="xl"><Link to="/apply">View application status</Link></Button>} />
+      aside={<Button asChild variant="gold" size="xl"><Link to="/apply">Start an application</Link></Button>} />
   ),
 })
