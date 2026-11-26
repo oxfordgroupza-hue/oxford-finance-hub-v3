@@ -21,6 +21,15 @@ const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
 
 export const Route = createFileRoute('/')({
   loader: () => getHomePageData(),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/' }],
+    meta: [
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/' },
+      { property: 'og:image', content: 'https://finance.oxfordbusinessgroup.co.za/images/oxford-hero.jpg' },
+      { name: 'twitter:image', content: 'https://finance.oxfordbusinessgroup.co.za/images/oxford-hero.jpg' },
+      { name: 'robots', content: 'index,follow' },
+    ],
+  }),
   component: Home,
 })
 
@@ -59,6 +68,42 @@ function Home() {
   const content = publicConfig.content
   return (
     <SiteLayout overlayHeader>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@graph': [
+              {
+                '@type': 'Organization',
+                '@id': 'https://finance.oxfordbusinessgroup.co.za/#organization',
+                name: 'Oxford Business Group (Pty) Ltd',
+                alternateName: 'Oxford Finance Hub',
+                url: 'https://finance.oxfordbusinessgroup.co.za/',
+                description: 'Oxford Business Group facilitates finance enquiries and connects individuals and businesses with relevant finance providers. It is an intermediary, not a lender.',
+                areaServed: { '@type': 'Country', name: 'South Africa' },
+              },
+              {
+                '@type': 'WebSite',
+                '@id': 'https://finance.oxfordbusinessgroup.co.za/#website',
+                url: 'https://finance.oxfordbusinessgroup.co.za/',
+                name: 'Oxford Finance Hub',
+                publisher: { '@id': 'https://finance.oxfordbusinessgroup.co.za/#organization' },
+                inLanguage: 'en-ZA',
+              },
+              {
+                '@type': 'WebPage',
+                '@id': 'https://finance.oxfordbusinessgroup.co.za/#webpage',
+                url: 'https://finance.oxfordbusinessgroup.co.za/',
+                name: 'Oxford Finance Hub | Oxford Business Group',
+                isPartOf: { '@id': 'https://finance.oxfordbusinessgroup.co.za/#website' },
+                about: { '@id': 'https://finance.oxfordbusinessgroup.co.za/#organization' },
+                inLanguage: 'en-ZA',
+              },
+            ],
+          }),
+        }}
+      />
       {/* Cinematic hero */}
       <section className="relative isolate flex min-h-[100svh] items-end overflow-hidden">
         <img
