@@ -1,6 +1,6 @@
 ## Current audit reconciliation — 26 November 2026
 
-The current release candidate is under controlled validation in PR #13. Production remains online with application intake and document uploads disabled. The current reconciled Preview candidate has not yet completed its full build/test pipeline. Older build counts and status statements below are historical unless they match the exact commit being tested.
+The current release candidate is under controlled validation in PR #13. Production remains online with application intake and document uploads disabled. The current reconciled Preview candidate completed its full build/test pipeline: 41 test files and 274 tests passed, with TypeScript, ESLint and Preview deployment successful. Older build counts and status statements below are historical unless they match the exact commit being tested.
 
 The code audit added regression coverage and rectified authentication retry, Preview host validation, fail-closed email delivery and notification environment gating. Do not treat those code changes as accepted until the latest candidate build passes.
 
