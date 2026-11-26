@@ -1,3 +1,22 @@
+> **Current-state correction — 26 November 2026 (supersedes stale branch/build statements below)**
+>
+> PR #9 is now **merged** into `recovery/import-verified-baseline`. Merge commit: `78fd5b978197ec0729bab0444a44b522300898ef`. The PR is closed and merged; it is not an open draft.
+>
+> Cloudflare Workers Builds confirms the merged recovery-branch commit completed a Preview build successfully:
+> - Build ID: `3839af89-e136-466c-a175-1bcc564e561a`
+> - Commit: `78fd5b978197ec0729bab0444a44b522300898ef`
+> - Build command: `pnpm cf:build`
+> - Deploy command: `npx wrangler preview`
+> - Build outcome: **success** (26 November 2026, 06:04:40 UTC).
+>
+> This is evidence that the Cloudflare Preview build/deploy command completed. It is **not** evidence that the full quality pipeline passed: this Preview trigger does not run Wrangler type generation, TypeScript, Vitest or ESLint. GitHub reported no commit status checks and no workflow runs for the merge commit when checked. Those checks remain outstanding and must be run against this exact merged commit.
+>
+> The earlier statements below naming `work/v3-cloudflare-native-auth` as the active branch, describing PR #9 as open/draft, and citing earlier queued builds are historical and superseded by this addendum. The earlier build evidence is not proof for the merged commit.
+>
+> Production was not deployed or changed by this merge. Production Worker, database, secrets, DNS and feature flags remain outside this recovery-branch operation. Live authentication, first Super Administrator bootstrap, role isolation, application journeys, document workflows, email delivery, backup/restore and legal review remain unaccepted. Keep Production applications and document uploads disabled.
+>
+> **Release verdict remains NOT READY.** Do not treat a successful Preview build as permission to accept real applicants or cut over Production.
+
 # Oxford Finance Hub V3 — release readiness report
 
 **Assessment date:** 25 November 2026  
