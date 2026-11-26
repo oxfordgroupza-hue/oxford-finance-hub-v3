@@ -8,6 +8,7 @@ export const Route = createFileRoute('/privacy')({
       { title: 'Privacy Policy | Oxford Finance Hub' },
       { name: 'description', content: 'Read how Oxford Business Group collects, uses, stores and protects personal information submitted through Oxford Finance Hub.' },
       { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/privacy' },
+      { name: 'robots', content: 'noindex,follow' },
     ],
   }),
   component: () => (
