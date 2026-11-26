@@ -71,3 +71,9 @@ export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean 
 export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
   return isApprovedHttpsHost(requestUrl, 'finance.oxfordbusinessgroup.co.za')
 }
+
+export function isApprovedCloudflareRuntimeRequest(requestUrl: string, context: string | undefined): boolean {
+  if (context === 'cloudflare-preview') return isApprovedCloudflarePreviewRequest(requestUrl)
+  if (context === 'cloudflare-production') return isApprovedCloudflareProductionRequest(requestUrl)
+  return false
+}
