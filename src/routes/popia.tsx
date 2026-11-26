@@ -8,6 +8,7 @@ export const Route = createFileRoute('/popia')({
       { title: 'POPIA Privacy Notice | Oxford Finance Hub' },
       { name: 'description', content: 'Understand how Oxford Business Group processes personal information and how to exercise your rights under South Africa's POPIA.' },
       { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/popia' },
+      { name: 'robots', content: 'noindex,follow' },
     ],
   }),
   component: () => (
