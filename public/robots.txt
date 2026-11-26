@@ -4,6 +4,7 @@ Disallow: /admin
 Disallow: /office
 Disallow: /partner$
 Disallow: /partner/
+Disallow: /partner-payouts
 Disallow: /dashboard
 Disallow: /profile
 Disallow: /login
