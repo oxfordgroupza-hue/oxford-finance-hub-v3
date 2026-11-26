@@ -164,7 +164,7 @@ function LoginPage() {
           <h1 className="mt-3 font-serif text-4xl text-white">{title}</h1>
           <p className="mt-3 text-sm leading-6 text-white/65">
             {mode === 'signup'
-              ? 'Initial administrator setup is restricted to the designated Oxford mailbox. Use the approved administrator email address.'
+              ? 'Create an Oxford Finance Hub account using your email address. While initial administrator bootstrap is enabled, registration is restricted to the designated Oxford mailbox.'
               : 'Secure access for customers and authorised Oxford office personnel.'}
           </p>
 
@@ -197,7 +197,7 @@ function LoginPage() {
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <a href="/login?signup=1" className="text-[#d7b96f] hover:text-white">Set up Oxford administrator account</a>
+              <a href="/login?signup=1" className="text-[#d7b96f] hover:text-white">Create account</a>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
