@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
+import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
 
 export function PartnerReferralDocumentUpload({ applicationId, applicantType, category, canUploadSupportingDocuments }: {
   applicationId: string
@@ -21,30 +22,35 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [busyLabel, setBusyLabel] = useState('')
 
   const upload = async () => {
     if (!file || busy) return
-    if (file.size > 4 * 1024 * 1024) {
-      setMessage('Files must be no larger than 4 MB.')
-      return
-    }
     setBusy(true)
+    setBusyLabel('Optimising…')
     setMessage('')
-    try {      const form = new FormData()
+    try {
+      const prepared = await optimiseDocumentForUpload(file)
+      setBusyLabel('Uploading…')
+      const form = new FormData()
       form.set('applicationId', applicationId)
       form.set('documentKey', documentType)
-      form.set('file', file)
+      form.set('file', prepared.file)
       const response = await fetch('/api/oxford-api?action=upload-document', {
-        method: 'POST',        body: form,
+        method: 'POST',
+        body: form,
       })
       const result = await response.json() as { error?: string }
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')
       setFile(null)
-      setMessage('Document uploaded successfully.')
+      setMessage(prepared.optimised
+        ? `Document optimised from ${(prepared.originalSize / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalSize / (1024 * 1024)).toFixed(2)} MB and uploaded successfully.`
+        : 'Document uploaded successfully; original file quality was preserved.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'The document could not be uploaded.')
     } finally {
       setBusy(false)
+      setBusyLabel('')
     }
   }
 
@@ -58,10 +64,10 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
             {partnerChecklist.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-xs text-white/60"><span className="block">PDF, JPG or PNG · max 4 MB</span>
+        <label className="space-y-1 text-xs text-white/60"><span className="block">PDF max 4 MB · large JPG/PNG images are optimised automatically</span>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="block w-full text-xs text-white/60" />
         </label>
-        <Button type="button" size="sm" variant="gold" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? 'Uploading…' : 'Upload'}</Button>
+        <Button type="button" size="sm" variant="gold" onClick={() => void upload()} disabled={!file || busy}><FileUp className="mr-2 size-4" />{busy ? busyLabel || 'Working…' : 'Upload'}</Button>
       </div>
       {message && <p role="status" className="mt-2 text-xs text-[#d8bd7c]">{message}</p>}
     </div>
