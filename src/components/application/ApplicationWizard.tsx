@@ -12,7 +12,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import {
   applicantTypes,
-  documentCollectionNotice,
   financeCategories,
   getCategory,
   getDocumentChecklist,
@@ -26,6 +25,8 @@ import { cn } from '@/lib/utils'
 import { submitFinanceApplication, saveFinanceDraft, loadMyFinanceDraft, deleteMyFinanceDraft, loadMyOfficeApplicationDraft, saveMyOfficeApplicationDraft } from '@/lib/application-actions'
 import { getPublicAssetCatalogue } from '@/lib/catalog-actions'
 import { getAuthorizationSnapshot } from '@/lib/auth'
+import { optimiseDocumentFile } from '@/lib/document-optimisation'
+import { MAX_FUNCTION_UPLOAD_BYTES } from '@/lib/document-validation'
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -264,6 +265,9 @@ export function ApplicationWizard({
   const [submittedRef, setSubmittedRef] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
   const [serverDraftId, setServerDraftId] = useState<string | null>(initialDraftId ?? null)
+  const [selectedDocuments, setSelectedDocuments] = useState<Record<string, File>>({})
+  const [uploadedDocumentTypes, setUploadedDocumentTypes] = useState<string[]>([])
+  const [documentUploadStatus, setDocumentUploadStatus] = useState('')
   const [assetCatalogue, setAssetCatalogue] = useState<{
     industries: Array<{ id: string; name: string; description: string; sortOrder: number }>
     categories: Array<{ id: string; industryId: string; financeCategory: FinanceCategoryId; name: string; description: string; sortOrder: number }>
@@ -445,10 +449,8 @@ export function ApplicationWizard({
   }
 
   const submit = async () => {
-    if (submitting || submittedRef) return // guard against double clicks
+    if (submitting || submittedRef) return
 
-    // Revalidate the full application, not just consent. ID numbers are intentionally
-    // excluded from local drafts, so a restored draft must supply them again.
     const invalid = findFirstInvalidApplicationStep(form)
     if (invalid) {
       setErrors(invalid.errors)
@@ -461,7 +463,6 @@ export function ApplicationWizard({
     setErrors({})
     setSubmitting(true)
     try {
-      // Reuse the same key for retries so a slow response cannot create duplicate applications.
       idempotencyKey.current ??= crypto.randomUUID()
       let draftId = serverDraftId
       if (!initialApplicationId && !draftId) {
@@ -479,8 +480,65 @@ export function ApplicationWizard({
         setServerDraftId(saved.id)
       }
       if (initialApplicationId) {
-        await saveMyOfficeApplicationDraft({ data: { applicationId: initialApplicationId, stepIndex, form: form as unknown as Record<string, unknown> } })
+        await saveMyOfficeApplicationDraft({
+          data: { applicationId: initialApplicationId, stepIndex, form: form as unknown as Record<string, unknown> },
+        })
       }
+
+      const checklist = getDocumentChecklist(form.applicantType!, form.category!, form.entityType)
+      const listUploadedDocuments = async () => {
+        const endpoint = initialApplicationId
+          ? `/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(initialApplicationId)}`
+          : `/api/oxford-api?action=list-draft-documents&draftId=${encodeURIComponent(draftId!)}`
+        const response = await fetch(endpoint, { cache: 'no-store' })
+        const payload = await response.json() as { documents?: Array<{ documentType: string }>; error?: string }
+        if (!response.ok) throw new Error(payload.error || 'Uploaded document status could not be verified.')
+        return new Set((payload.documents ?? []).map((document) => document.documentType))
+      }
+
+      let uploadedTypes = await listUploadedDocuments()
+      const requiredTypes = checklist.filter((document) => document.required).map((document) => document.id)
+      const missingWithoutFile = requiredTypes.filter((documentType) => !uploadedTypes.has(documentType) && !selectedDocuments[documentType])
+      if (missingWithoutFile.length) {
+        throw new Error(`Please attach the required documents before submitting: ${missingWithoutFile.join(', ')}.`)
+      }
+
+      const selectedEntries = Object.entries(selectedDocuments)
+      if (selectedEntries.length) {
+        const healthResponse = await fetch('/api/oxford-api?action=health', { cache: 'no-store' })
+        if (!healthResponse.ok) throw new Error('Secure document availability could not be checked.')
+        const health = await healthResponse.json() as { documentUploadsEnabled?: boolean }
+        if (!health.documentUploadsEnabled) {
+          throw new Error('Secure document uploads are temporarily disabled while Oxford completes the required storage and access checks. Your application draft has been kept.')
+        }
+      }
+
+      for (let index = 0; index < selectedEntries.length; index += 1) {
+        const [documentType, originalFile] = selectedEntries[index]
+        setDocumentUploadStatus(`Optimising document ${index + 1} of ${selectedEntries.length}: ${originalFile.name}`)
+        const optimised = await optimiseDocumentFile(originalFile)
+        setDocumentUploadStatus(`Uploading document ${index + 1} of ${selectedEntries.length} (${Math.ceil(optimised.finalBytes / 1024)} KB)…`)
+        const uploadForm = new FormData()
+        uploadForm.set(initialApplicationId ? 'applicationId' : 'draftId', initialApplicationId ?? draftId!)
+        uploadForm.set('documentKey', documentType)
+        uploadForm.set('file', optimised.file)
+        const uploadResponse = await fetch(
+          `/api/oxford-api?action=${initialApplicationId ? 'upload-document' : 'upload-draft-document'}`,
+          { method: 'POST', body: uploadForm },
+        )
+        const uploadResult = await uploadResponse.json() as { error?: string }
+        if (!uploadResponse.ok) throw new Error(uploadResult.error || `The ${documentType} document could not be uploaded.`)
+      }
+
+      setDocumentUploadStatus('Verifying every required document in secure storage…')
+      uploadedTypes = await listUploadedDocuments()
+      const missingAfterUpload = requiredTypes.filter((documentType) => !uploadedTypes.has(documentType))
+      if (missingAfterUpload.length) {
+        throw new Error(`The following required documents could not be verified: ${missingAfterUpload.join(', ')}. Your draft and successfully uploaded files have been kept.`)
+      }
+      setUploadedDocumentTypes([...uploadedTypes])
+      setDocumentUploadStatus('All required documents are verified. Finalising your application…')
+
       const result = await submitFinanceApplication({
         data: {
           idempotencyKey: idempotencyKey.current,
@@ -491,10 +549,10 @@ export function ApplicationWizard({
       })
       removeStoredDraft()
       setServerDraftId(null)
+      setSelectedDocuments({})
+      setDocumentUploadStatus('')
       setSubmittedRef(result.reference)
-      if (result.duplicate) {
-        toast.info('Your application was already received. We have restored its reference.')
-      }
+      if (result.duplicate) toast.info('Your application was already received. We have restored its reference.')
       if (!result.packGenerated) {
         toast.info('Your application was received. The complete document pack is pending and Office can retry its generation.')
       } else if (!result.duplicate) {
@@ -502,7 +560,10 @@ export function ApplicationWizard({
       }
       scrollTop()
     } catch (error) {
-      toast.error('We could not complete the application. Your draft has been kept.', { description: error instanceof Error ? error.message : 'Please try again later.' })
+      setDocumentUploadStatus('Submission paused. Your saved draft and successfully uploaded documents have been kept.')
+      toast.error('We could not complete the application. Your draft has been kept.', {
+        description: error instanceof Error ? error.message : 'Please try again later.',
+      })
     } finally {
       setSubmitting(false)
     }
@@ -569,13 +630,29 @@ export function ApplicationWizard({
             </p>
           )}
           <div className="gold-rule my-8 opacity-40" />
+          {documentUploadStatus && <p role="status" className="mb-6 text-sm text-muted-foreground">{documentUploadStatus}</p>}
 
           {step.id === 'path' && <PathStep form={form} errors={errors} update={update} referralLocked={referralLocked} />}
           {step.id === 'details' && <DetailsStep form={form} errors={errors} update={update} />}
           {step.id === 'identity' && <IdentityStep form={form} errors={errors} update={update} setErrors={setErrors} />}
           {step.id === 'financial' && <FinancialStep form={form} errors={errors} update={update} />}
           {step.id === 'finance' && <FinanceStep form={form} errors={errors} update={update} catalogue={assetCatalogue} catalogueLoading={assetCatalogueLoading} />}
-          {step.id === 'documents' && <DocumentsStep form={form} />}
+          {step.id === 'documents' && (
+            <DocumentsStep
+              form={form}
+              draftId={serverDraftId}
+              applicationId={initialApplicationId}
+              selectedDocuments={selectedDocuments}
+              onFileChange={(documentType, file) => setSelectedDocuments((current) => {
+                const next = { ...current }
+                if (file) next[documentType] = file
+                else delete next[documentType]
+                return next
+              })}
+              uploadedDocumentTypes={uploadedDocumentTypes}
+              onUploadedDocumentTypesChange={setUploadedDocumentTypes}
+            />
+          )}
           {step.id === 'review' && <ReviewStep form={form} errors={errors} update={update} goTo={setStepIndex} />}
 
           <div className="mt-10 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:justify-between">
@@ -588,7 +665,7 @@ export function ApplicationWizard({
               </Button>
               {step.id === 'review' ? (
                 <Button type="button" variant="gold" size="lg" className="rounded-sm" onClick={submit} disabled={submitting} aria-busy={submitting}>
-                  {submitting ? 'Submitting…' : 'Submit application'}
+                  {submitting ? 'Optimising & submitting…' : 'Submit application'}
                 </Button>
               ) : (
                 <Button type="button" variant="gold" size="lg" className="rounded-sm" onClick={next}>
@@ -922,32 +999,92 @@ function FinanceStep({
   )
 }
 
-function DocumentsStep({ form }: { form: ApplicationForm }) {
+function DocumentsStep({
+  form, draftId, applicationId, selectedDocuments, onFileChange, uploadedDocumentTypes, onUploadedDocumentTypesChange,
+}: {
+  form: ApplicationForm
+  draftId: string | null
+  applicationId?: string
+  selectedDocuments: Record<string, File>
+  onFileChange: (documentType: string, file: File | null) => void
+  uploadedDocumentTypes: string[]
+  onUploadedDocumentTypesChange: (types: string[]) => void
+}) {
   const list = getDocumentChecklist(form.applicantType ?? 'individual', form.category ?? 'other', form.entityType)
+  const [uploadEnabled, setUploadEnabled] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const healthResponse = await fetch('/api/oxford-api?action=health', { cache: 'no-store' })
+        if (!healthResponse.ok) throw new Error('Secure document availability could not be checked.')
+        const health = await healthResponse.json() as { documentUploadsEnabled?: boolean }
+        let types: string[] = []
+        if (applicationId || draftId) {
+          const endpoint = applicationId
+            ? `/api/oxford-api?action=list-documents&applicationId=${encodeURIComponent(applicationId)}`
+            : `/api/oxford-api?action=list-draft-documents&draftId=${encodeURIComponent(draftId!)}`
+          const response = await fetch(endpoint, { cache: 'no-store' })
+          const payload = await response.json() as { documents?: Array<{ documentType: string }>; error?: string }
+          if (!response.ok) throw new Error(payload.error || 'Previously uploaded documents could not be loaded.')
+          types = (payload.documents ?? []).map((document) => document.documentType)
+        }
+        if (active) {
+          setUploadEnabled(health.documentUploadsEnabled === true)
+          onUploadedDocumentTypesChange(types)
+        }
+      } catch (error) {
+        if (active) setLoadError(error instanceof Error ? error.message : 'Document status could not be loaded.')
+      }
+    })()
+    return () => { active = false }
+  }, [draftId, applicationId, onUploadedDocumentTypesChange])
+
   return (
     <div className="space-y-6">
       <p className="leading-relaxed text-muted-foreground">
-        These are the documents a finance provider usually needs for a{' '}
-        <span className="text-foreground">{applicantTypes[form.applicantType ?? 'individual'].label.toLowerCase()}</span>{' '}
-        <span className="text-foreground">{getCategory(form.category)?.name ?? 'finance'}</span> application. Gather them now
-        so that your application can move quickly once our office contacts you.
+        Attach the supporting documents for your {applicantTypes[form.applicantType ?? 'individual'].label.toLowerCase()} {getCategory(form.category)?.name ?? 'finance'} application. Files are held in private storage and are not made public.
       </p>
-      <ul className="divide-y divide-border rounded-sm border border-border">
-        {list.map((d) => (
-          <li key={d.id} className="flex items-start gap-4 p-4">
-            <FileText className="mt-0.5 size-5 shrink-0 text-gold" aria-hidden="true" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">{d.label}</p>
-              {d.note && <p className="mt-0.5 text-xs text-muted-foreground">{d.note}</p>}
-            </div>
-            <span className={cn('text-xs', d.required ? 'text-gold' : 'text-muted-foreground')}>{d.required ? 'Required' : 'If applicable'}</span>
-          </li>
-        ))}
-      </ul>
       <PreviewNotice>
-        <strong className="font-semibold">Secure upload is not yet open.</strong> {documentCollectionNotice} Our office will
-        request documents through a private channel once your application has been reviewed.
+        When you press Submit, images are resized and compressed in the background. PDFs are kept unchanged to protect signatures and document content. Each uploaded file must be no larger than {Math.round(MAX_FUNCTION_UPLOAD_BYTES / (1024 * 1024))} MB. If a file cannot be reduced safely, your draft is kept and you can provide a smaller copy.
       </PreviewNotice>
+      <ul className="divide-y divide-border rounded-sm border border-border">
+        {list.map((document) => {
+          const selected = selectedDocuments[document.id]
+          const uploaded = uploadedDocumentTypes.includes(document.id)
+          return (
+            <li key={document.id} className="space-y-3 p-4">
+              <div className="flex items-start gap-4">
+                <FileText className="mt-0.5 size-5 shrink-0 text-gold" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{document.label}</p>
+                  {document.note && <p className="mt-0.5 text-xs text-muted-foreground">{document.note}</p>}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selected ? `Selected: ${selected.name} (${Math.ceil(selected.size / 1024)} KB)` : uploaded ? 'Already uploaded securely' : document.required ? 'Required before submission' : 'Optional'}
+                  </p>
+                </div>
+                <span className={cn('text-xs', uploaded ? 'text-emerald-600' : document.required ? 'text-gold' : 'text-muted-foreground')}>
+                  {uploaded ? 'Uploaded' : document.required ? 'Required' : 'If applicable'}
+                </span>
+              </div>
+              <label className="block space-y-1 text-xs text-muted-foreground">
+                <span>{selected ? 'Choose a different file' : uploaded ? 'Replace this file (optional)' : 'Choose file (PDF, JPG or PNG)'}</span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                  disabled={!uploadEnabled}
+                  onChange={(event) => onFileChange(document.id, event.target.files?.[0] ?? null)}
+                  className="block w-full text-xs file:mr-3 file:rounded-sm file:border file:border-border file:bg-card file:px-3 file:py-2"
+                />
+              </label>
+            </li>
+          )
+        })}
+      </ul>
+      {!uploadEnabled && <p role="status" className="text-sm text-muted-foreground">Secure uploads are currently disabled until the storage and access checks are enabled for this environment. Do not email identity documents or bank statements.</p>}
+      {loadError && <p role="alert" className="text-sm text-red-500">{loadError}</p>}
     </div>
   )
 }

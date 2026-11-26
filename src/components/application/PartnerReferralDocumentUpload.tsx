@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FileUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
-import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
+import { optimiseDocumentFile } from '@/lib/document-optimisation'
 
 export function PartnerReferralDocumentUpload({ applicationId, applicantType, category, canUploadSupportingDocuments }: {
   applicationId: string
@@ -30,7 +30,7 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
     setBusyLabel('Optimising…')
     setMessage('')
     try {
-      const prepared = await optimiseDocumentForUpload(file)
+      const prepared = await optimiseDocumentFile(file)
       setBusyLabel('Uploading…')
       const form = new FormData()
       form.set('applicationId', applicationId)
@@ -43,8 +43,8 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
       const result = await response.json() as { error?: string }
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')
       setFile(null)
-      setMessage(prepared.optimised
-        ? `Document optimised from ${(prepared.originalSize / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalSize / (1024 * 1024)).toFixed(2)} MB and uploaded successfully.`
+      setMessage(prepared.reduced
+        ? `Document optimised from ${(prepared.originalBytes / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalBytes / (1024 * 1024)).toFixed(2)} MB and uploaded successfully.`
         : 'Document uploaded successfully; original file quality was preserved.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'The document could not be uploaded.')

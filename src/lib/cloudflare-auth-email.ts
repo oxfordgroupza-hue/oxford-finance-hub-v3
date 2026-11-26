@@ -25,30 +25,44 @@ function configuration() {
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
     throw new Error('Oxford account email delivery is disabled for this environment.')
   }
-  const apiKey = runtime.BREVO_API_KEY
-  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL
+  const apiKey = runtime.BREVO_API_KEY?.trim()
+  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL?.trim()
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
     throw new Error('Oxford account email delivery is not configured for this Cloudflare environment.')
   }
-  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME || 'Oxford Finance Hub' }
+  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME?.trim() || 'Oxford Finance Hub' }
 }
 
 export function assertOxfordAuthEmailConfigured() {
   configuration()
 }
 
+/**
+ * Keep first-administrator registration restricted to the designated mailbox.
+ * Ordinary customer registration remains closed until application intake is enabled.
+ */
+export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
+  const email = recipient.trim().toLowerCase()
+  const bootstrapEnabled = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true'
+  const bootstrapEmail = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+
+  if (bootstrapEnabled) {
+    if (!bootstrapEmail || email !== bootstrapEmail) {
+      throw new Error('Initial Oxford registration is restricted to the designated administrator mailbox.')
+    }
+    return
+  }
+
+  if (getServerEnv('OXFORD_APPLICATIONS_ENABLED') !== 'true') {
+    throw new Error('Customer registration is not currently available.')
+  }
+}
+
 /** Check the Preview recipient before creating a user or recovery challenge. */
 function isApprovedAuthPreviewRequest(request: Request) {
-  const context = getServerEnv('CONTEXT')
   const approvedPreviewHost = isApprovedCloudflarePreviewRequest(request.url)
-  if (context === 'cloudflare-preview' && !approvedPreviewHost) {
+  if (getServerEnv('CONTEXT') === 'cloudflare-preview' && !approvedPreviewHost) {
     throw new Error('Preview authentication email delivery is available only on the approved branch Preview host.')
-  }
-  if (context === 'cloudflare-production' && !isApprovedCloudflareProductionRequest(request.url)) {
-    throw new Error('Production authentication email delivery is available only on the approved Oxford Finance Hub domain.')
-  }
-  if (context !== 'cloudflare-preview' && context !== 'cloudflare-production') {
-    throw new Error('Authentication email delivery is not enabled for this environment.')
   }
   return approvedPreviewHost
 }
@@ -56,6 +70,9 @@ function isApprovedAuthPreviewRequest(request: Request) {
 /** Check the Preview recipient before creating a user or recovery challenge. */
 export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
   const request = getRequest()
+  if (getServerEnv('CONTEXT') === 'cloudflare-production' && !isApprovedCloudflareProductionRequest(request.url)) {
+    throw new Error('Production authentication email requests are available only on the canonical Oxford Finance Hub host.')
+  }
   if (!isApprovedAuthPreviewRequest(request)) return
   const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
   const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
@@ -76,18 +93,19 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  const target = new URL(input.url)
   if (isApprovedAuthPreviewRequest(request)) {
     assertOxfordAuthEmailRecipientAllowed(input.to)
-    const requestedUrl = new URL(input.url)
-    if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
+    if (!isApprovedCloudflarePreviewRequest(target.toString()) || target.origin !== new URL(request.url).origin) {
+      throw new Error('Preview account links must remain on the same approved isolated Preview host.')
+    }
+  } else if (getServerEnv('CONTEXT') === 'cloudflare-production') {
+    if (!isApprovedCloudflareProductionRequest(request.url) || !isApprovedCloudflareProductionRequest(target.toString()) || target.origin !== new URL(request.url).origin) {
+      throw new Error('Production account links must remain on the canonical Oxford Finance Hub host.')
+    }
   }
-  const target = new URL(input.url)
   if (target.protocol !== 'https:' || target.username || target.password) {
     throw new Error('The Oxford account link is not a secure HTTPS URL.')
-  }
-  if (target.origin !== new URL(request.url).origin) {
-    throw new Error('The Oxford account link must remain on the same approved Finance Hub domain.')
   }
   const recovery = input.purpose === 'recovery'
   const staffInvitation = input.purpose === 'staff_invitation'

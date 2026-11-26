@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Download, FileUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
-import { optimiseDocumentForUpload } from '@/lib/document-optimisation'
+import { optimiseDocumentFile } from '@/lib/document-optimisation'
 
 type DocumentRow = {
   id: string
@@ -65,7 +65,7 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
     setError('')
     setNotice('')
     try {
-      const prepared = await optimiseDocumentForUpload(file)
+      const prepared = await optimiseDocumentFile(file)
       setBusyLabel('Uploading…')
       const form = new FormData()
       form.set('applicationId', applicationId)
@@ -79,8 +79,8 @@ export function DocumentUploadPanel({ applicationId, applicantType, category }: 
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')
       setFile(null)
       setDocuments(await fetchDocuments(applicationId))
-      setNotice(prepared.optimised
-        ? `Image optimised from ${(prepared.originalSize / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalSize / (1024 * 1024)).toFixed(2)} MB before upload.`
+      setNotice(prepared.reduced
+        ? `Image optimised from ${(prepared.originalBytes / (1024 * 1024)).toFixed(2)} MB to ${(prepared.finalBytes / (1024 * 1024)).toFixed(2)} MB before upload.`
         : 'Document uploaded without conversion to preserve its original quality.')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The document could not be uploaded.')

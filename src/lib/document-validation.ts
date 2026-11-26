@@ -20,7 +20,8 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
 export type AllowedDocumentMimeType = typeof ALLOWED_DOCUMENT_MIME_TYPES[number]
 
 export type DocumentUploadValidation = {
-  applicationId: string
+  applicationId?: string
+  draftId?: string
   documentType: string
   fileSize: number
   mimeType: string
@@ -35,7 +36,11 @@ export function validateDocumentFileSize(fileSize: number): string | null {
 }
 
 export function validateDocumentUpload(input: DocumentUploadValidation): string | null {
-  if (!/^[0-9a-f-]{36}$/i.test(input.applicationId)) return 'A valid application is required.'
+  const hasApplicationId = typeof input.applicationId === 'string'
+  const hasDraftId = typeof input.draftId === 'string'
+  if (hasApplicationId === hasDraftId) return 'A valid application or saved draft is required.'
+  if (hasApplicationId && !/^[0-9a-f-]{36}$/i.test(input.applicationId!)) return 'A valid application or saved draft is required.'
+  if (hasDraftId && !/^[0-9a-f-]{36}$/i.test(input.draftId!)) return 'A valid application or saved draft is required.'
   if (!input.documentType || input.documentType.length > 40) return 'Select a valid document checklist item.'
   const sizeError = validateDocumentFileSize(input.fileSize)
   if (sizeError) return sizeError
