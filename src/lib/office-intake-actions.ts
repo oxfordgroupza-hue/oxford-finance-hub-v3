@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -21,11 +22,11 @@ import { getAuthorizationSnapshot } from './auth'
 import { getVerifiedSessionIdentity } from './verified-session'
 import { createApplicationReference } from './application-reference'
 import { decryptApplicantData, encryptApplicantData, fingerprintApplicantData } from './pii-crypto.server'
-import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
 import { partnerApplicantIntakeInput } from './partner-intake-validation'
 import { createOfficeInvitationToken } from './office-intake-security'
 import { getOfficeInvitationClaimBlockReason } from './office-intake-security'
 import { hashOfficeInvitationToken } from './office-intake-security'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 const intakeInput = z.object({
   applicantEmail: z.string().trim().email().max(254),
@@ -51,7 +52,11 @@ async function requireIntakeOffice() {
 }
 
 function previewOrigin() {
-  return getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
+  const url = new URL(getRequest().url)
+  if (!isApprovedCloudflarePreviewRequest(url.toString())) {
+    throw new Error('Applicant invitations are available only in the approved Cloudflare preview environment.')
+  }
+  return url.origin
 }
 
 function invitationUrl(token: string, origin: string) {

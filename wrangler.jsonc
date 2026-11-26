@@ -1,0 +1,65 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "oxford-finance-hub-v3-preview",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-11-24",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "6dd54a2875c646608281c9e0e67a380e"
+    }
+  ],
+  "previews": {
+    "vars": {
+      "CONTEXT": "cloudflare-preview",
+      "OXFORD_APPLICATIONS_ENABLED": "true",
+      "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
+      "SUPABASE_BUCKET": "oxford-customer-documents",
+      "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
+      "OXFORD_EMAIL_DELIVERY_ENABLED": "true",
+      "OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED": "true",
+      "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+      "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+      "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
+      "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group"
+    },
+    "hyperdrive": [
+      {
+        "binding": "HYPERDRIVE",
+        "id": "6dd54a2875c646608281c9e0e67a380e"
+      }
+    ]
+  },
+  "env": {
+    "production": {
+      "name": "oxford-finance-hub-v3-production",
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "83594d99b138428fb3ef94ebd114601d"
+        }
+      ],
+      "vars": {
+        "CONTEXT": "cloudflare-production",
+        "OXFORD_APPLICATIONS_ENABLED": "false",
+        "OXFORD_DOCUMENT_UPLOADS_ENABLED": "false",
+        "OXFORD_EMAIL_DELIVERY_ENABLED": "true",
+        "OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED": "true",
+        "OXFORD_INITIAL_SUPER_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+        "OXFORD_NOTIFICATION_ADMIN_EMAIL": "oxfordbusinessgroup@outlook.com",
+        "OXFORD_NOTIFICATION_FROM_EMAIL": "elizeb@oxfordbusinessgroup.co.za",
+        "OXFORD_NOTIFICATION_FROM_NAME": "Oxford Business Group",
+        "SUPABASE_URL": "https://wgcnawtnkblivfirclvz.supabase.co",
+        "SUPABASE_BUCKET": "oxford-customer-documents"
+      },
+      "workers_dev": false
+    }
+  }
+}

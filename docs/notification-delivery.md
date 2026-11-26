@@ -1,48 +1,36 @@
-# Transactional email delivery — Oxford Finance Hub
+# Transactional email delivery — V3
 
-## Provider
+## Provider and boundary
 
-The application uses the Brevo transactional email API. Email content is generated server-side; the browser never receives the API key. The office notification panel displays queue status and can process queued messages when the provider is fully configured.
+V3 uses Brevo transactional email from Cloudflare Worker server functions. The Brevo API key is a server-only encrypted Worker secret. The ChatGPT Brevo connector is separate and does not configure the application runtime.
 
-## Netlify variables
+Neon is the authoritative queue/database. Messages must be created and processed server-side with explicit template and recipient allow-lists.
 
-Configure these on the Oxford Finance Hub Netlify site, scoped to Functions:
+## Environment
 
-- BREVO_API_KEY — secret transactional API key.
-- OXFORD_NOTIFICATION_FROM_EMAIL — an active, verified Brevo sender address.
-- OXFORD_NOTIFICATION_FROM_NAME — optional sender display name; defaults to Oxford Finance Hub.
-- OXFORD_NOTIFICATION_ADMIN_EMAIL — the office inbox that receives new support and partner-registration alerts.
-- OXFORD_EMAIL_DELIVERY_ENABLED — leave false or unset until sender verification and a controlled test are complete. Set true only after the test gate below passes.
+- `BREVO_API_KEY` — encrypted server-only secret.
+- `OXFORD_NOTIFICATION_FROM_EMAIL` — verified sender.
+- `OXFORD_NOTIFICATION_FROM_NAME`.
+- `OXFORD_NOTIFICATION_ADMIN_EMAIL`.
+- `OXFORD_EMAIL_DELIVERY_ENABLED` — Preview gate.
+- Recipient allow-list for the initial bootstrap/verification flow — approved Oxford-owned Preview mailbox only.
 
-The Brevo account connection in ChatGPT is separate from the application runtime. It does not automatically place an API key in Netlify. The application must not try to read or reuse the ChatGPT connector credential.
+The branch Preview deployment contains the encrypted Brevo secret and approved sender/recipient configuration. No email has been sent in the current acceptance pass. Presence of the key does not prove delivery.
 
-## Supported transactional messages
+## Privacy and delivery rules
 
-- application_received — sent to the applicant after submission.
-- application_status_updated — sent to the applicant after an application status change, unless the applicant has disabled status emails.
-- new_support_request — office alert that a support request is waiting in the authenticated office inbox.
-- new_partner_registration — office alert that a partner registration is waiting for review.
-- partner_referral_registered — sent to an approved merchant partner when Office or Super Admin registers that partner as the referrer on an existing application. It contains only the application reference and selected asset description; it explicitly confirms that no applicant document access is granted.
+- Generate content and resolve recipients on the server.
+- Use allow-listed template names and exact permitted recipients.
+- Keep messages minimal and reference-based.
+- Never include ID numbers, bank statements, payslips, private documents, passwords, verification tokens or application PDF packs as ordinary attachments.
+- Keep marketing consent separate from transactional notices.
+- Respect customer status-email preferences.
+- Sanitize provider errors; never log secrets or raw provider response bodies.
+- Retry only with bounded attempts and backoff. Record skipped/failed outcomes safely.
+- Do not claim unattended scheduled delivery until a scheduled worker is implemented and tested.
 
-Emails contain only the application reference or a generic inbox alert. They do not include identity numbers, bank details, supporting documents, or generated PDF packs.
+## Acceptance gate
 
-Marketing email consent is separate from transactional status notifications. The queue processor must not use transactional consent to send marketing messages.
+Test verification, recovery, staff invitation and queue/provider failure paths only to the approved Preview mailbox. Verify templates, sender, recipient allow-list, preference handling, retry and failure logging. No customer/partner email or WhatsApp delivery is authorised by this Preview configuration.
 
-## Processing
-
-Authorised office users can review the notification queue. Users with notifications.manage can process queued and retryable failed messages. A message is skipped if no eligible recipient exists; failed attempts are capped at five.
-
-Delivery is manual from the office workspace. No scheduled worker is enabled yet. This avoids unattended sending until the sender, reply address, office recipient and retry behaviour have been verified.
-
-## Test gate
-
-1. Configure a verified sender and API key in the Deploy Preview context only.
-2. Keep OXFORD_EMAIL_DELIVERY_ENABLED false while checking the queue and recipient resolution.
-3. Enable it in the Deploy Preview only and use a controlled test inbox owned by the Oxford team.
-4. Confirm each supported template, sender identity, reply handling and unsubscribe/marketing separation.
-5. Confirm the status-email preference is respected.
-6. Confirm no identity, financial or document content appears in the email.
-7. Confirm provider failures are recorded without exposing API response bodies or secrets.
-8. Only after approval should production credentials and the production delivery flag be considered.
-
-No test or customer email is sent by the code merely because the API key exists. The explicit OXFORD_EMAIL_DELIVERY_ENABLED flag must also be true.
+Production credentials, production delivery flags and any external customer/partner communication require separate approval.

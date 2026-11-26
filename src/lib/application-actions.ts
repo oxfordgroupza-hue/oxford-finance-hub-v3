@@ -1,4 +1,7 @@
-import { createServerFn } from '@tanstack/react-start'
+﻿import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
+import { getServerEnv } from './server-runtime-env'
+import { isApprovedCloudflarePreviewRequest as isApprovedCloudflarePreviewOrigin } from './document-storage-security'
 import { randomUUID } from 'node:crypto'
 import { getAuthorizationSnapshot } from './auth'
 import type { PermissionKey } from './access-control'
@@ -54,18 +57,32 @@ const consentVersion = '2026-11-08-v1'
  * private Supabase Storage integration and launch acceptance tests are complete.
  * This flag is server-only; browser code cannot enable application processing.
  */
+function isApprovedCloudflarePreviewRequest() {
+  const request = getRequest()
+  return getServerEnv('CONTEXT') === 'cloudflare-preview' &&
+    isApprovedCloudflarePreviewOrigin(request.url)
+}
+
 function assertApplicationProcessingEnabled() {
-  // Even an accidentally enabled production environment variable must never
-  // activate live applicant intake. This code path is preview-only.
-  if (process.env.CONTEXT !== 'deploy-preview' || process.env.OXFORD_APPLICATIONS_ENABLED !== 'true') {
+  // Intake remains disabled unless the deployment-specific server-side flag is
+  // explicitly enabled. Cloudflare is additionally pinned to its preview host.
+  const enabled = getServerEnv('CONTEXT') === 'deploy-preview'
+    ? process.env.OXFORD_APPLICATIONS_ENABLED === 'true'
+    : isApprovedCloudflarePreviewRequest() && getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  if (!enabled) {
     throw new Error('Online applications and saved drafts are temporarily unavailable while Oxford completes secure platform verification. Please contact Oxford Business Group for assistance.')
   }
 }
 
-/** Existing encrypted drafts may be edited only in Deploy Preview. This does not enable new intake or submission. */
+/** Existing encrypted drafts may be edited only on an approved non-production preview host. */
 function assertExistingDraftEditingEnabled() {
-  if (process.env.CONTEXT !== 'deploy-preview') {
-    throw new Error('Saved draft editing is available only in the secure Deploy Preview while Oxford completes platform verification.')
+  const allowed = getServerEnv('CONTEXT') === 'deploy-preview' || (
+    isApprovedCloudflarePreviewRequest() &&
+    getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true' &&
+    Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY'))
+  )
+  if (!allowed) {
+    throw new Error('Saved draft editing is available only in the secure preview while Oxford completes platform verification.')
   }
 }
 
@@ -77,12 +94,10 @@ async function requireVerifiedIdentity(): Promise<{ id: string; email: string }>
   if (!session.authenticated || !session.provisioned || session.blocked) {
     throw new Error('Please sign in and verify your email before submitting an application or saving a draft.')
   }
-  const [account] = await db.select({ identityId: users.identityId })
-    .from(users).where(eq(users.id, session.user.id)).limit(1)
-  if (!account?.identityId || !session.user.email) {
-    throw new Error('Your Oxford account could not be securely matched to its verified Identity account.')
+  if (!session.user.id || !session.user.email) {
+    throw new Error('Your Oxford account could not be securely matched to its verified session.')
   }
-  return { id: account.identityId, email: session.user.email }
+  return { id: session.user.id, email: session.user.email }
 }
 
 async function requireCustomerPermission(permission: PermissionKey) {
@@ -258,7 +273,7 @@ export const submitFinanceApplication = createServerFn({ method: 'POST' })
 
     const submission = await db.transaction(async (tx) => {
       const [account] = await tx.select().from(users)
-        .where(and(eq(users.identityId, identity.id), eq(users.status, 'active')))
+        .where(and(eq(users.id, identity.id), eq(users.status, 'active')))
         .limit(1)
       if (!account || account.accountType !== 'customer') {
         throw new Error('Your account is not enabled for customer applications. Please contact Oxford support.')
@@ -581,7 +596,7 @@ async function requireCustomerAccount(permission: PermissionKey) {
   await requireCustomerPermission(permission)
   const identity = await requireVerifiedIdentity()
   const [account] = await db.select().from(users)
-    .where(and(eq(users.identityId, identity.id), eq(users.status, 'active'))).limit(1)
+    .where(and(eq(users.id, identity.id), eq(users.status, 'active'))).limit(1)
   if (!account || account.accountType !== 'customer') {
     throw new Error('An active customer account is required to save a server-side draft.')
   }

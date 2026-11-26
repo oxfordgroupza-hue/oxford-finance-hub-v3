@@ -1,12 +1,13 @@
+import { getServerEnv } from './server-runtime-env'
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db } from '../../db'
 import { auditEvents, customerPreferences, customers, notifications, users } from '../../db/schema'
 import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
-import { getOfficeIntakePreviewOrigin } from './office-intake-validation'
-import { isPreviewEmailDeliveryEnabled } from './netlify-preview'
+import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -20,21 +21,11 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  // Even an accidentally broad feature flag cannot enable delivery outside
-  // this exact V3 Deploy Preview.
-  return isPreviewEmailDeliveryEnabled(
-    process.env.CONTEXT,
-    process.env.DEPLOY_PRIME_URL,
-    process.env.OXFORD_EMAIL_DELIVERY_ENABLED,
-  )
+  return isApprovedCloudflarePreviewRequest(getRequest().url) && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
 }
 
 function configured() {
-  return Boolean(
-    process.env.BREVO_API_KEY &&
-    process.env.OXFORD_NOTIFICATION_FROM_EMAIL &&
-    process.env.OXFORD_NOTIFICATION_ADMIN_EMAIL,
-  )
+  return Boolean(getServerEnv('BREVO_API_KEY') && getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL') && getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
 }
 
 export const getNotificationQueue = createServerFn({ method: 'GET' }).handler(async () => {
@@ -50,11 +41,7 @@ export const getNotificationQueue = createServerFn({ method: 'GET' }).handler(as
     createdAt: notifications.createdAt,
     sentAt: notifications.sentAt,
   }).from(notifications).orderBy(desc(notifications.createdAt)).limit(100)
-  return {
-    notifications: rows,
-    providerConfigured: configured(),
-    deliveryEnabled: deliveryEnabled(),
-  }
+  return { notifications: rows, providerConfigured: configured(), deliveryEnabled: deliveryEnabled() }
 })
 
 function escapeHtml(value: string) {
@@ -87,7 +74,7 @@ function notificationApplicantPii(payload: Record<string, unknown>) {
 async function resolveRecipient(item: typeof notifications.$inferSelect) {
   const payload = item.payload ?? {}
   if (item.template === 'new_support_request' || item.template === 'new_partner_registration') {
-    return validEmail(process.env.OXFORD_NOTIFICATION_ADMIN_EMAIL)
+    return validEmail(getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
   }
   if (item.userId) {
     const [account] = await db.select({ email: users.email }).from(users).where(eq(users.id, item.userId)).limit(1)
@@ -140,7 +127,7 @@ function emailContent(template: string, payload: Record<string, unknown>) {
     })()
     let actionUrl = ''
     try {
-      const expectedOrigin = getOfficeIntakePreviewOrigin(process.env.CONTEXT, process.env.DEPLOY_PRIME_URL)
+      const expectedOrigin = new URL(getRequest().url).origin
       const parsed = new URL(rawUrl)
       if (parsed.origin === expectedOrigin && parsed.pathname === '/invitation') actionUrl = parsed.toString()
     } catch { actionUrl = '' }
@@ -191,14 +178,14 @@ function emailContent(template: string, payload: Record<string, unknown>) {
 
 export const processNotificationQueue = createServerFn({ method: 'POST' }).handler(async () => {
   const session = requireOfficeNotificationPermission(await getAuthorizationSnapshot(), 'notifications.manage')
-  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in Netlify.')
+  if (!configured()) throw new Error('Brevo transactional email is not configured. Add the API key, verified sender and office notification address in the Cloudflare preview environment.')
   if (!deliveryEnabled()) {
     throw new Error('Email delivery is disabled. Enable it only after the sender and preview test have been verified.')
   }
 
-  const apiKey = process.env.BREVO_API_KEY
-  const senderEmail = process.env.OXFORD_NOTIFICATION_FROM_EMAIL
-  const senderName = process.env.OXFORD_NOTIFICATION_FROM_NAME || 'Oxford Finance Hub'
+  const apiKey = getServerEnv('BREVO_API_KEY')
+  const senderEmail = getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL')
+  const senderName = getServerEnv('OXFORD_NOTIFICATION_FROM_NAME') || 'Oxford Finance Hub'
   if (!apiKey || !senderEmail) throw new Error('Brevo sender configuration is incomplete.')
 
   // Recover messages left in "processing" after a timed-out function invocation.
@@ -238,6 +225,13 @@ export const processNotificationQueue = createServerFn({ method: 'POST' }).handl
 
     try {
       const recipient = await resolveRecipient(item)
+      if (isApprovedCloudflarePreviewRequest(getRequest().url)) {
+        const allowedRecipient = validEmail(getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
+        if (!allowedRecipient || recipient?.toLowerCase() !== allowedRecipient.toLowerCase()) {
+          await db.update(notifications).set({ status: 'skipped', lastError: 'Preview delivery is restricted to the configured Oxford test recipient.', updatedAt: new Date() }).where(eq(notifications.id, item.id))
+          continue
+        }
+      }
       if (!recipient) {
         await db.update(notifications).set({
           status: 'skipped',

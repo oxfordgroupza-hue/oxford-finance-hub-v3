@@ -1,7 +1,4 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import { handleAuthCallback } from '@netlify/identity'
-import { useEffect } from 'react'
-import { getAuthorizationSnapshot } from '@/lib/auth'
 
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -67,46 +64,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <AuthCallbackHandler />
-        <TooltipProvider>{children}</TooltipProvider>
+<TooltipProvider>{children}</TooltipProvider>
         <Toaster />
         <Scripts />
       </body>
     </html>
   )
-}
-
-
-/** Complete Identity confirmation, recovery and invitation callbacks on any landing route. */
-function AuthCallbackHandler() {
-  useEffect(() => {
-    let active = true
-    void (async () => {
-      try {
-        if (window.location.pathname === '/login') return
-        const result = await handleAuthCallback()
-        if (!active || !result) return
-        if (result.type === 'invite' && result.token) {
-          window.location.replace(`/login#invite_token=${encodeURIComponent(result.token)}`)
-        } else if (result.type === 'recovery') {
-          window.location.replace('/login?reset=1')
-        } else if (result.user) {
-          const session = await getAuthorizationSnapshot()
-          if (!active) return
-          const destination = session.authenticated && session.provisioned && !session.blocked
-            ? session.isSuperAdmin ? '/admin'
-              : session.user.accountType === 'office' && session.permissions.includes('office.view') ? '/office'
-                : session.user.accountType === 'partner' && session.permissions.includes('partner_referrals.view') ? '/partner'
-                  : '/dashboard'
-            : '/login'
-          window.location.replace(destination)
-        }
-      } catch {
-        // The login route owns user-facing authentication errors.
-      }
-    })()
-    return () => { active = false }
-  }, [])
-
-  return null
 }

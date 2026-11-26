@@ -1,4 +1,15 @@
 export const MAX_FUNCTION_UPLOAD_BYTES = 4 * 1024 * 1024
+// Allow bounded multipart fields and headers around the single 4 MB document.
+export const MAX_DOCUMENT_REQUEST_BYTES = MAX_FUNCTION_UPLOAD_BYTES + 128 * 1024
+
+export function validateDocumentRequestContentLength(contentLength: string | null): string | null {
+  if (contentLength === null) return null
+  if (!/^[0-9]+$/.test(contentLength)) return 'The upload request has an invalid content length.'
+  const requestBytes = Number(contentLength)
+  if (!Number.isSafeInteger(requestBytes) || requestBytes < 1) return 'The upload request has an invalid content length.'
+  if (requestBytes > MAX_DOCUMENT_REQUEST_BYTES) return 'The upload request exceeds the secure upload limit.'
+  return null
+}
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
   'application/pdf',
@@ -16,12 +27,18 @@ export type DocumentUploadValidation = {
   signature: Uint8Array
 }
 
+export function validateDocumentFileSize(fileSize: number): string | null {
+  if (!Number.isSafeInteger(fileSize) || fileSize < 1 || fileSize > MAX_FUNCTION_UPLOAD_BYTES) {
+    return 'Files must be between 1 byte and 4 MB for secure server-mediated uploads.'
+  }
+  return null
+}
+
 export function validateDocumentUpload(input: DocumentUploadValidation): string | null {
   if (!/^[0-9a-f-]{36}$/i.test(input.applicationId)) return 'A valid application is required.'
   if (!input.documentType || input.documentType.length > 40) return 'Select a valid document checklist item.'
-  if (!Number.isSafeInteger(input.fileSize) || input.fileSize < 1 || input.fileSize > MAX_FUNCTION_UPLOAD_BYTES) {
-    return 'Files must be between 1 byte and 4 MB for secure server-mediated uploads.'
-  }
+  const sizeError = validateDocumentFileSize(input.fileSize)
+  if (sizeError) return sizeError
   if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(input.mimeType as AllowedDocumentMimeType)) {
     return 'Only PDF, JPEG and PNG files are accepted.'
   }
@@ -39,4 +56,44 @@ export function validateDocumentUpload(input: DocumentUploadValidation): string 
 export function sanitizeDocumentFilename(name: string): string {
   const leafName = name.split(/[\\/]/).pop() ?? ''
   return leafName.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 100) || 'document'
+}
+
+
+/**
+ * Reads multipart bodies under a strict byte ceiling before parsing them.
+ * This protects requests that omit Content-Length (for example, streamed HTTP/2 bodies).
+ */
+export async function parseBoundedDocumentFormData(request: Request): Promise<FormData> {
+  const contentType = request.headers.get('content-type') ?? ''
+  if (!contentType.toLowerCase().startsWith('multipart/form-data;')) {
+    throw new Error('The upload request must use multipart form data.')
+  }
+  if (!request.body) throw new Error('The upload request is empty.')
+
+  const reader = request.body.getReader()
+  // A single fixed-capacity buffer prevents an attacker from creating millions
+  // of tiny stream chunks and exhausting memory through per-chunk allocations.
+  const buffer = new Uint8Array(MAX_DOCUMENT_REQUEST_BYTES)
+  let totalBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value.byteLength > MAX_DOCUMENT_REQUEST_BYTES - totalBytes) {
+        await reader.cancel()
+        throw new RangeError('The upload request exceeds the secure upload limit.')
+      }
+      buffer.set(value, totalBytes)
+      totalBytes += value.byteLength
+    }
+  } catch (error) {
+    try { await reader.cancel() } catch { /* The stream may already be closed. */ }
+    throw error
+  }
+
+  // Copy only the received bytes into an exact-sized backing buffer for Blob.
+  const exactBody = new ArrayBuffer(totalBytes)
+  new Uint8Array(exactBody).set(buffer.subarray(0, totalBytes))
+  const body = new Blob([exactBody], { type: contentType })
+  return await new Response(body, { headers: { 'content-type': contentType } }).formData()
 }

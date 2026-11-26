@@ -1,4 +1,3 @@
-import { logout } from '@netlify/identity'
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -6,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import { getAuthorizationSnapshot, logoutWithIdentity } from '@/lib/auth'
+import { getAuthorizationSnapshot, logoutOxfordSession } from '@/lib/auth'
 import { BrandLogo } from './BrandLogo'
 
 export const primaryNav = [
@@ -29,7 +28,7 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
     void (async () => {
       try {
         // The server-managed HttpOnly cookie is authoritative; do not depend on
-        // a separate browser Identity SDK token being present in local storage.
+        // any browser-side identity SDK token or local storage state.
         const session = await getAuthorizationSnapshot()
         if (!active) return
         setAuthenticated(session.authenticated)
@@ -63,10 +62,9 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
     setMobileMenuOpen(false)
     setSigningOut(true)
     try {
-      // Remove the app's server-side cookies before clearing browser Identity state.
-      await logoutWithIdentity()
-      await logout().catch(() => undefined)
-      setAuthenticated(false)
+      // Revoke the database session and expire the secure session cookie.
+      await logoutOxfordSession()
+setAuthenticated(false)
       setWorkspace(null)
       window.location.assign('/')
     } catch {
@@ -120,7 +118,7 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
             </Link>
           )}
           <Button asChild size="sm" className="rounded-sm px-5 tracking-wide">
-            <Link to="/apply">Applications paused</Link>
+            <Link to="/apply">Apply for finance</Link>
           </Button>
         </nav>
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -164,7 +162,7 @@ export function SiteHeader({ overlay = false }: { overlay?: boolean }) {
                 </Link>
               )}
               <Button asChild className="mt-6" size="lg">
-                <Link to="/apply" onClick={() => setMobileMenuOpen(false)}>Applications paused</Link>
+                <Link to="/apply" onClick={() => setMobileMenuOpen(false)}>Apply for finance</Link>
               </Button>
             </nav>
           </SheetContent>

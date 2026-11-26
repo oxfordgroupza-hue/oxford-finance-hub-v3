@@ -73,3 +73,26 @@ describe('deploy-preview-only storage gate', () => {
     expect(isApprovedDeployPreviewRequest(previewUrl, previewContext, '')).toBe(false)
   })
 })
+
+
+describe('Cloudflare Worker preview storage gate', () => {
+  const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
+
+  it('accepts only the exact HTTPS Cloudflare preview hostname', async () => {
+    const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
+    expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl)).toBe(true)
+  })
+
+  it('rejects the previous stale preview hostname', async () => {
+    const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
+    expect(isApprovedCloudflarePreviewRequest('https://oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford')).toBe(false)
+  })
+
+  it('rejects production, HTTP, credentials and nonstandard ports', async () => {
+    const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
+    expect(isApprovedCloudflarePreviewRequest('https://finance.oxfordbusinessgroup.co.za/api/oxford')).toBe(false)
+    expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('https://','http://'))).toBe(false)
+    expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('://','://user:pass@'))).toBe(false)
+    expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('.workers.dev/','.workers.dev:8443/'))).toBe(false)
+  })
+})

@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -75,7 +76,7 @@ export const getPartnerWorkspaceData = createServerFn({ method: 'GET' }).handler
       intake.tokenExpiresAt.getTime() <= now ? 'expired' : intake.status,
   }))
 
-  const siteUrl = process.env.DEPLOY_PRIME_URL || process.env.URL
+  const siteUrl = new URL(getRequest().url).origin
   const referralUrl = registration.status === 'Approved' && registration.referralCode && siteUrl
     ? new URL(`/apply?ref=${encodeURIComponent(registration.referralCode)}`, siteUrl).toString()
     : null

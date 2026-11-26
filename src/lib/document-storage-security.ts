@@ -41,3 +41,13 @@ export function isApprovedDeployPreviewRequest(
     context?.deploy?.context === 'deploy-preview' &&
     /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
+
+export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
+  try {
+    const parsed = new URL(requestUrl)
+    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
+      parsed.hostname.toLowerCase() === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+  } catch {
+    return false
+  }
+}

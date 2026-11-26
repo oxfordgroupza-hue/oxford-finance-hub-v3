@@ -1,19 +1,7 @@
 import { useState } from 'react'
-import { getUser } from '@netlify/identity'
 import { FileUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getDocumentChecklist } from '@/lib/finance-config'
-
-async function identityToken() {
-  const user = await getUser()
-  if (!user) throw new Error('Please sign in again to upload documents.')
-  const tokenUser = user as unknown as { token?: string | { access_token?: string }; jwt?: () => Promise<string> }
-  const token = typeof tokenUser.jwt === 'function'
-    ? await tokenUser.jwt()
-    : typeof tokenUser.token === 'string' ? tokenUser.token : tokenUser.token?.access_token
-  if (!token) throw new Error('Your secure sign-in token is unavailable. Please sign in again.')
-  return token
-}
 
 export function PartnerReferralDocumentUpload({ applicationId, applicantType, category, canUploadSupportingDocuments }: {
   applicationId: string
@@ -42,16 +30,12 @@ export function PartnerReferralDocumentUpload({ applicationId, applicantType, ca
     }
     setBusy(true)
     setMessage('')
-    try {
-      const token = await identityToken()
-      const form = new FormData()
+    try {      const form = new FormData()
       form.set('applicationId', applicationId)
       form.set('documentKey', documentType)
       form.set('file', file)
-      const response = await fetch('/.netlify/functions/oxford-api?action=upload-document', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
-        body: form,
+      const response = await fetch('/api/oxford-api?action=upload-document', {
+        method: 'POST',        body: form,
       })
       const result = await response.json() as { error?: string }
       if (!response.ok) throw new Error(result.error || 'The document could not be uploaded.')

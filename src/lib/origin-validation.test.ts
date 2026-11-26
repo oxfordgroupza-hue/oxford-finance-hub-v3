@@ -21,7 +21,16 @@ describe('same-origin request validation', () => {
     expect(isSameOriginRequest('not-an-origin', requestUrl)).toBe(false)
   })
 
-  it('allows requests without an Origin header for non-browser callers', () => {
+  it('allows requests without an Origin header for non-browser read-only callers', () => {
     expect(isSameOriginRequest(null, requestUrl)).toBe(true)
+  })
+
+  it('rejects state-changing requests without an Origin header', () => {
+    expect(isSameOriginRequest(null, requestUrl, true)).toBe(false)
+  })
+
+  it('rejects requests explicitly marked as cross-site even with a matching Origin', () => {
+    expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'cross-site')).toBe(false)
+    expect(isSameOriginRequest('https://deploy-preview-2--oxford-finance-hub-v3-c28z.netlify.app', requestUrl, true, 'same-origin')).toBe(true)
   })
 })

@@ -1,14 +1,26 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { ArrowRight, Briefcase, FileCheck2, Handshake, LayoutDashboard, ShieldCheck, User2, Waypoints } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteLayout } from '@/components/site/SiteLayout'
 import { PreviewNotice } from '@/components/site/PreviewNotice'
 import { applicantTypes, documentCollectionNotice, financeCategories, intermediaryDisclaimer } from '@/lib/finance-config'
 import { img, imgSrcSet } from '@/lib/images'
-import { getPublicSiteConfig } from '@/lib/catalog-actions'
+import { getPublicSiteConfigWithFallback } from '@/lib/catalog-actions'
+import { getServerEnv } from '@/lib/server-runtime-env'
+import { getRequest } from '@tanstack/react-start/server'
+import { isApprovedCloudflarePreviewRequest } from '@/lib/document-storage-security'
+
+const getHomePageData = createServerFn({ method: 'GET' }).handler(async () => {
+  const previewApplicationsEnabled = getServerEnv('CONTEXT') === 'cloudflare-preview' &&
+    isApprovedCloudflarePreviewRequest(getRequest().url) &&
+    getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true'
+  const publicConfig = await getPublicSiteConfigWithFallback()
+  return { ...publicConfig, previewApplicationsEnabled }
+})
 
 export const Route = createFileRoute('/')({
-  loader: () => getPublicSiteConfig(),
+  loader: () => getHomePageData(),
   component: Home,
 })
 
@@ -20,27 +32,10 @@ const featureStrip = [
 ]
 
 const categorySlides: Record<string, { file: string; alt: string }[]> = {
-  vehicle: [
-    { file: 'vehicle-g63.jpg', alt: 'White Mercedes-Benz G 63 AMG' },
-    { file: 'vehicle-mclaren.jpg', alt: 'Green McLaren 750S Spider featured in the supplied Car and Classic listing' },
-  ],
-  'commercial-asset': [
-    { file: 'commercial.png', alt: 'Commercial asset finance' },
-    { file: 'commercial-asset-added.jpg', alt: 'Commercial truck for asset finance' },
-  ],
-  equipment: [
-    { file: 'equipment-solar.jpg', alt: 'Solar panels and wind turbines for renewable energy projects' },
-    { file: 'equipment-grader.jpg', alt: 'Yellow Bell 670G motor grader' },
-    { file: 'equipment-excavator.jpg', alt: 'Excavator at work on a construction site' },
-    { file: 'equipment-dialysis.jpg', alt: 'Hemodialysis dialysis machine on a clean white background' },
-    { file: 'equipment-dental.jpg', alt: 'Modern empty dental consultation room with a dental chair and no people' },
-  ],
-  other: [
-    { file: 'other-villa.jpg', alt: 'Family-friendly Constantia villa' },
-    { file: 'other-private-asset.jpg', alt: 'Private aviation and luxury asset' },
-    { file: 'other-yacht.jpg', alt: 'Luxury yacht' },
-    { file: 'other-helicopter.jpg', alt: 'Hill Helicopters aircraft' },
-  ],
+  vehicle: [{ file: 'vehicle.png', alt: 'Illustrative vehicle finance asset' }],
+  'commercial-asset': [{ file: 'commercial.png', alt: 'Illustrative commercial and industrial asset' }],
+  equipment: [{ file: 'equipment.png', alt: 'Illustrative machinery and equipment' }],
+  other: [{ file: 'about.png', alt: 'Illustrative specialised finance asset' }],
 }
 
 const steps = [
@@ -52,6 +47,7 @@ const steps = [
 
 function Home() {
   const publicConfig = Route.useLoaderData()
+  const previewApplicationsEnabled = publicConfig.previewApplicationsEnabled
   const products = publicConfig.products
   const categories = products.length
     ? financeCategories.flatMap((category) => {
@@ -88,7 +84,7 @@ function Home() {
           <div className="fade-up mt-10 flex flex-col gap-3 sm:flex-row">
             <Button asChild variant="gold" size="xl">
               <Link to="/apply">
-                Applications paused <ArrowRight />
+                {previewApplicationsEnabled ? 'Start a test application' : 'Applications paused'} <ArrowRight />
               </Link>
             </Button>
             <Button asChild variant="outlineGold" size="xl">
@@ -98,11 +94,14 @@ function Home() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-content px-4 pt-8 sm:px-6">
-        <PreviewNotice>
-          Online applications and private document uploads are temporarily unavailable while Oxford verifies its secure services. Do not submit real personal, identity, banking or financial information through this preview, general enquiry forms or email.
-        </PreviewNotice>
-      </div>
+      {previewApplicationsEnabled && (
+        <div className="mx-auto max-w-content px-4 pt-8 sm:px-6">
+          <PreviewNotice>
+            Preview testing only. Use synthetic test information and dummy documents. Do not submit real personal,
+            identity, banking or financial information. Test submissions remain in the isolated preview environment.
+          </PreviewNotice>
+        </div>
+      )}
 
       {/* Four-part feature strip */}
       <section aria-label="Why Oxford" className="border-y border-border bg-charcoal/60">
@@ -112,7 +111,7 @@ function Home() {
               <f.icon className="mt-1 size-5 shrink-0 text-gold" aria-hidden="true" />
               <div>
                 <h2 className="font-sans text-sm font-semibold tracking-wide">{f.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{previewApplicationsEnabled && f.title === 'Application status' ? 'Track progress through your secure customer workspace.' : previewApplicationsEnabled && f.title === 'Private document handling' ? 'Private document uploads remain disabled while the isolated preview storage checks are completed.' : f.body}</p>
               </div>
             </div>
           ))}
@@ -169,7 +168,7 @@ function Home() {
                 <h3 className="mt-4 text-2xl font-medium">{c.name}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{c.short}</p>
                 <span className="mt-5 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-gold uppercase">
-                  Applications paused <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                  {previewApplicationsEnabled ? 'Start test application' : 'Applications paused'} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
             </Link>
@@ -187,7 +186,7 @@ function Home() {
             <p className="eyebrow">Enquiries</p>
             <h2 className="mt-4 text-4xl font-medium">Finance enquiries for individuals and businesses.</h2>
             <p className="mt-5 leading-relaxed text-muted-foreground">
-              When secure online applications reopen, the journey will be tailored to your applicant type and finance category.
+              {previewApplicationsEnabled ? 'Choose your applicant type to begin a synthetic preview application.' : 'When secure online applications reopen, the journey will be tailored to your applicant type and finance category.'}
             </p>
           </div>
           {(['individual', 'business'] as const).map((t) => {
@@ -205,7 +204,7 @@ function Home() {
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{applicantTypes[t].blurb}</p>
                 </div>
                 <span className="mt-10 inline-flex items-center gap-2 text-sm text-gold">
-                  Applications paused
+                  {previewApplicationsEnabled ? 'Start test application' : 'Applications paused'}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </Link>
@@ -217,7 +216,7 @@ function Home() {
       {/* How it works */}
       <section className="mx-auto max-w-content px-4 py-24 sm:px-6">
         <p className="eyebrow">How it works</p>
-        <h2 className="mt-4 max-w-2xl text-4xl font-medium md:text-5xl">What happens when applications reopen.</h2>
+        <h2 className="mt-4 max-w-2xl text-4xl font-medium md:text-5xl">{previewApplicationsEnabled ? 'How the Oxford application process works.' : 'What happens when applications reopen.'}</h2>
         <ol className="mt-14 grid gap-10 md:grid-cols-4">
           {steps.map((s) => (
             <li key={s.n} className="border-t border-gold/40 pt-6">
@@ -238,7 +237,7 @@ function Home() {
             <LayoutDashboard className="size-6 text-gold" aria-hidden="true" />
             <h2 className="mt-5 text-3xl font-medium">Your customer dashboard</h2>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              Sign in to access your workspace. Online application submission is currently paused while secure services are verified.
+              {previewApplicationsEnabled ? 'Sign in to access your workspace and review your preview test applications.' : 'Sign in to access your workspace. Online application submission is currently paused while secure services are verified.'}
             </p>
             <Button asChild variant="outlineGold" className="mt-8 rounded-sm">
               <Link to="/dashboard">Open my dashboard</Link>

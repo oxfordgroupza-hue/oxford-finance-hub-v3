@@ -1,7 +1,12 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_DOCUMENT_REQUEST_BYTES,
   MAX_FUNCTION_UPLOAD_BYTES,
+  parseBoundedDocumentFormData,
   sanitizeDocumentFilename,
+  validateDocumentFileSize,
+  validateDocumentRequestContentLength,
   validateDocumentUpload,
 } from './document-validation'
 
@@ -10,6 +15,88 @@ const base = {
   documentType: 'id',
   fileSize: 128,
 }
+
+describe('validateDocumentRequestContentLength', () => {
+  it('allows absent length and bounded multipart requests', () => {
+    expect(validateDocumentRequestContentLength(null)).toBeNull()
+    expect(validateDocumentRequestContentLength('1')).toBeNull()
+    expect(validateDocumentRequestContentLength(String(MAX_DOCUMENT_REQUEST_BYTES))).toBeNull()
+  })
+
+  it('rejects oversized, malformed and unsafe request lengths', () => {
+    expect(validateDocumentRequestContentLength(String(MAX_DOCUMENT_REQUEST_BYTES + 1))).toContain('exceeds')
+    expect(validateDocumentRequestContentLength('unknown')).toContain('invalid')
+    expect(validateDocumentRequestContentLength('0')).toContain('invalid')
+    expect(validateDocumentRequestContentLength('9'.repeat(30))).toContain('invalid')
+  })
+})
+
+describe('parseBoundedDocumentFormData', () => {
+  it('parses a bounded multipart request when Content-Length is absent', async () => {
+    const boundary = '----oxford-preview-test-boundary'
+    const body = [
+      `--${boundary}\r\nContent-Disposition: form-data; name="applicationId"\r\n\r\n${base.applicationId}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="documentKey"\r\n\r\nid\r\n`,
+      `--${boundary}--\r\n`,
+    ].join('')
+    const request = new Request('https://example.test/upload', {
+      method: 'POST',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      body,
+    })
+    expect(request.headers.get('content-length')).toBeNull()
+    const parsed = await parseBoundedDocumentFormData(request)
+    expect(parsed.get('applicationId')).toBe(base.applicationId)
+    expect(parsed.get('documentKey')).toBe('id')
+  })
+
+  it('rejects streamed multipart bodies over the byte ceiling', async () => {
+    const body = new Blob(['x'.repeat(MAX_DOCUMENT_REQUEST_BYTES + 1)])
+    const request = new Request('https://example.test/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=test-boundary' },
+      body,
+    })
+    await expect(parseBoundedDocumentFormData(request)).rejects.toThrow(/exceeds the secure upload limit/)
+  })
+
+  it('parses valid multipart data delivered in many tiny stream chunks', async () => {
+    const boundary = '----oxford-fragmented-boundary'
+    const body = [
+      `--${boundary}\r\nContent-Disposition: form-data; name="applicationId"\r\n\r\n${base.applicationId}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="documentKey"\r\n\r\nid\r\n`,
+      `--${boundary}--\r\n`,
+    ].join('')
+    const bytes = new TextEncoder().encode(body)
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]))
+        controller.close()
+      },
+    })
+    const request = {
+      headers: new Headers({ 'content-type': `multipart/form-data; boundary=${boundary}` }),
+      body: stream,
+    } as Request
+    const parsed = await parseBoundedDocumentFormData(request)
+    expect(parsed.get('applicationId')).toBe(base.applicationId)
+    expect(parsed.get('documentKey')).toBe('id')
+  })
+})
+
+describe('validateDocumentFileSize', () => {
+  it('accepts non-empty files up to the upload limit', () => {
+    expect(validateDocumentFileSize(1)).toBeNull()
+    expect(validateDocumentFileSize(MAX_FUNCTION_UPLOAD_BYTES)).toBeNull()
+  })
+
+  it('rejects empty, oversized and unsafe file sizes before reading file contents', () => {
+    expect(validateDocumentFileSize(0)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(MAX_FUNCTION_UPLOAD_BYTES + 1)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(Number.NaN)).toContain('between 1 byte and 4 MB')
+    expect(validateDocumentFileSize(Number.POSITIVE_INFINITY)).toContain('between 1 byte and 4 MB')
+  })
+})
 
 describe('validateDocumentUpload', () => {
   it('accepts PDF, JPEG and PNG files with matching signatures', () => {

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getUser } from '@netlify/identity'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, FileText, Lock, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -26,6 +25,7 @@ import { calculateFinanceAmount } from '@/lib/fee-calculation'
 import { cn } from '@/lib/utils'
 import { submitFinanceApplication, saveFinanceDraft, loadMyFinanceDraft, deleteMyFinanceDraft, loadMyOfficeApplicationDraft, saveMyOfficeApplicationDraft } from '@/lib/application-actions'
 import { getPublicAssetCatalogue } from '@/lib/catalog-actions'
+import { getAuthorizationSnapshot } from '@/lib/auth'
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -384,8 +384,8 @@ export function ApplicationWizard({
     }
     if (form.applicantType && form.category) {
       try {
-        const identity = await getUser()
-        if (identity) {
+        const session = await getAuthorizationSnapshot()
+        if (session.authenticated && session.provisioned && !session.blocked && session.user.accountType === 'customer') {
           const result = await saveFinanceDraft({
             data: {
               draftId: serverDraftId ?? undefined,

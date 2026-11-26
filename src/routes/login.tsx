@@ -1,10 +1,9 @@
-import { acceptInvite, getUser, handleAuthCallback, requestPasswordRecovery, signup, updateUser } from '@netlify/identity'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { SiteLayout } from '@/components/site/SiteLayout'
-import { getAuthorizationSnapshot, loginWithIdentity } from '@/lib/auth'
+import { getAuthorizationSnapshot, loginWithPassword, registerCustomer, requestPasswordRecovery, completePasswordRecovery, verifyCustomerEmail } from '@/lib/auth'
 
-type AuthMode = 'login' | 'signup' | 'recovery' | 'invite' | 'reset'
+type AuthMode = 'login' | 'signup' | 'recovery' | 'reset'
 
 export const Route = createFileRoute('/login')({
   head: () => ({ meta: [{ title: 'Sign in | Oxford Finance Hub' }, { name: 'robots', content: 'noindex' }] }),
@@ -16,19 +15,15 @@ function LoginPage() {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
-  const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [resetToken, setResetToken] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const continueToWorkspace = useCallback(async () => {
+  const continueToWorkspace = useCallback(async (silent = false) => {
     const session = await getAuthorizationSnapshot()
-    if ('identityUnavailable' in session && session.identityUnavailable) {
-      setError('Netlify Identity is not available yet. The project must be connected to a Netlify site with Identity enabled.')
-      return
-    }
-    if ('identityVerificationUnavailable' in session && session.identityVerificationUnavailable) {
-      setError('Your sign-in succeeded, but Netlify could not confirm your email verification status. Please try again shortly; Oxford has not changed your account permissions.')
+    if (!session.authenticated) {
+      if (!silent) setMessage('Your Oxford session could not be confirmed. Please sign in again.')
       return
     }
     if (session.authenticated && 'emailVerificationRequired' in session && session.emailVerificationRequired) {
@@ -56,7 +51,7 @@ function LoginPage() {
       return
     }
     if (session.authenticated && !session.provisioned) {
-      setMessage('Your sign-in is recognised, but your Oxford account record is still being prepared. Please contact Oxford Business Group if this continues.')
+      setMessage('Your account needs secure activation or email verification before workspace access can be granted.')
       return
     }
     setMessage('Your sign-in could not be confirmed. Please sign in again.')
@@ -66,44 +61,45 @@ function LoginPage() {
     let active = true
     void (async () => {
       try {
-        const initialSearch = new URLSearchParams(window.location.search)
-        if (initialSearch.get('signup') === '1' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
-          window.location.replace('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('verify')) {
+          await verifyCustomerEmail({ data: { token: params.get('verify')! } })
+          window.history.replaceState(null, '', '/login')
+          if (active) setMessage('Your email address has been verified. You can now sign in.')
           return
         }
-        // Process Identity callback tokens before reading the reset query. A recovery
-        // email may land directly on /login with its token in the URL fragment.
-        const callback = await handleAuthCallback()
-        if (!active) return
-        if (callback?.type === 'invite' && callback.token) {
-          setInviteToken(callback.token)
-          setMode('invite')
-          setMessage('An Oxford invitation was found. Choose a password to activate your account.')
-          return
-        }
-        if (callback?.type === 'recovery' || new URLSearchParams(window.location.search).get('reset') === '1') {
+        if (params.get('reset') === '1' && params.get('token')) {
+          setResetToken(params.get('token'))
           setMode('reset')
-          setMessage('Choose a new password to complete account recovery.')
+          window.history.replaceState(null, '', '/login?reset=1')
           return
         }
-        if (callback?.user) {
-          await continueToWorkspace()
-          return
+        if (params.get('signup') === '1') setMode('signup')
+        if (params.get('resolve') === '1') await continueToWorkspace()
+        else {
+          const session = await getAuthorizationSnapshot()
+          if (active && session.authenticated) await continueToWorkspace()
         }
-        const searchParams = new URLSearchParams(window.location.search)
-        if (searchParams.get('signup') === '1') {
-          setMode('signup')
-          return
-        }
-        const shouldResolveSession = searchParams.get('resolve') === '1'
-        let currentUser = null
-        try { currentUser = await getUser() } catch { /* The server-side cookie check below is authoritative after login. */ }
-        if (currentUser || shouldResolveSession) await continueToWorkspace()
       } catch {
-        if (active) setError('Netlify Identity is not available yet. The project must be connected to a Netlify site with Identity enabled.')
+        if (active) setError('The secure Oxford sign-in service is temporarily unavailable. Please try again shortly.')
       }
     })()
-    return () => { active = false }
+    // A login page may remain open in another tab while the user verifies email
+    // or signs in elsewhere. Re-check the server session when this tab becomes active.
+    const resumeIfAuthenticated = () => {
+      if (active && document.visibilityState === 'visible') {
+        void continueToWorkspace(true).catch(() => {
+          // Keep the current screen usable if the session check is temporarily unavailable.
+        })
+      }
+    }
+    window.addEventListener('focus', resumeIfAuthenticated)
+    document.addEventListener('visibilitychange', resumeIfAuthenticated)
+    return () => {
+      active = false
+      window.removeEventListener('focus', resumeIfAuthenticated)
+      document.removeEventListener('visibilitychange', resumeIfAuthenticated)
+    }
   }, [continueToWorkspace])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -111,54 +107,41 @@ function LoginPage() {
     setError('')
     setMessage('')
 
-    // Netlify confirmation links inherit the site origin that initiated signup.
-    // Keep all new customer registrations on the production Identity origin.
-    if (mode === 'signup' && window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') {
-      window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1')
-      return
-    }
 
     if (['login', 'signup', 'recovery'].includes(mode) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Enter a valid email address to continue.')
       return
     }
-    if (['login', 'signup', 'invite', 'reset'].includes(mode) && password.length < 8) {
-      setError('Your password must contain at least 8 characters.')
+    if (['login', 'signup', 'reset'].includes(mode) && password.length < 12) {
+      setError('Your password must contain at least 12 characters.')
       return
     }
     if (mode === 'signup' && !fullName.trim()) {
       setError('Enter your full name to create an account.')
       return
     }
-    if (mode === 'invite' && !inviteToken) {
-      setError('This invitation link is missing or has expired. Ask Oxford Business Group for a new invitation.')
-      return
-    }
 
     setBusy(true)
     try {
       if (mode === 'login') {
-        // Establish the Identity session in the Netlify server runtime so its
-        // nf_jwt and refresh cookies are attached to the response. A full document
-        // navigation then resolves the authoritative server-side role from those cookies.
-        await loginWithIdentity({ data: { email: email.trim(), password } })
+        await loginWithPassword({ data: { email: email.trim(), password } })
         window.location.assign('/login?resolve=1')
         return
-      } else if (mode === 'signup') {
-        await signup(email.trim(), password, { full_name: fullName.trim() })
-        setMessage('Your account request has been received. Check your email for the confirmation link before signing in.')
-        setMode('login')
-        setPassword('')
-      } else if (mode === 'recovery') {
-        await requestPasswordRecovery(email.trim())
-        setMessage('If the address is registered, a password recovery link will be sent to it.')
-      } else if (mode === 'invite' && inviteToken) {
-        await acceptInvite(inviteToken, password)
-        setInviteToken(null)
-        await continueToWorkspace()
-      } else if (mode === 'reset') {
-        await updateUser({ password })
-        await continueToWorkspace()
+      }
+      if (mode === 'signup') {
+        await registerCustomer({ data: { email: email.trim(), fullName: fullName.trim(), password } })
+        setMessage('If the address can be registered, a verification email will be sent. Follow its link before signing in.')
+        setMode('login'); setPassword(''); return
+      }
+      if (mode === 'recovery') {
+        await requestPasswordRecovery({ data: { email: email.trim() } })
+        setMessage('If the address belongs to an active Oxford account, a recovery email will be sent.')
+        return
+      }
+      if (mode === 'reset' && resetToken) {
+        await completePasswordRecovery({ data: { token: resetToken, password } })
+        setResetToken(null); setPassword(''); setMode('login')
+        setMessage('Your password has been updated. You can now sign in.')
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The request could not be completed. Please try again.')
@@ -169,7 +152,6 @@ function LoginPage() {
 
   const title = mode === 'signup' ? 'Create a customer account'
     : mode === 'recovery' ? 'Recover your account'
-      : mode === 'invite' ? 'Accept your invitation'
         : mode === 'reset' ? 'Set a new password'
           : 'Welcome back'
 
@@ -199,24 +181,24 @@ function LoginPage() {
                 <input required autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="w-full rounded-lg border border-white/15 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#c7a45a]" />
               </label>
             )}
-            {(mode === 'login' || mode === 'signup' || mode === 'invite' || mode === 'reset') && (
+            {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
               <label className="block space-y-2">
                 <span className="text-sm text-white/80">{mode === 'login' ? 'Password' : 'Choose a password'}</span>
-                <input required minLength={8} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-white/15 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#c7a45a]" />
+                <input required minLength={12} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-white/15 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#c7a45a]" />
               </label>
             )}
             <button type="submit" disabled={busy} className="w-full rounded-lg bg-[#c7a45a] px-5 py-3 font-semibold text-black transition hover:bg-[#d9bd7e] disabled:cursor-not-allowed disabled:opacity-60">
-              {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'recovery' ? 'Send recovery link' : mode === 'invite' ? 'Accept invitation' : 'Update password'}
+              {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : mode === 'recovery' ? 'Send recovery link' : mode === 'reset' ? 'Update password' : 'Continue'}
             </button>
           </form>
 
           {mode === 'login' && (
             <div className="mt-6 flex flex-wrap justify-between gap-3 text-sm">
-              <button type="button" onClick={() => { if (window.location.hostname !== 'oxford-finance-hub-v3-c28z.netlify.app') { window.location.assign('https://oxford-finance-hub-v3-c28z.netlify.app/login?signup=1'); return } setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
+              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage('') }} className="text-[#d7b96f] hover:text-white">Create customer account</button>
               <button type="button" onClick={() => { setMode('recovery'); setError(''); setMessage('') }} className="text-white/60 hover:text-white">Forgot password?</button>
             </div>
           )}
-          {mode !== 'login' && mode !== 'invite' && mode !== 'reset' && (
+          {mode !== 'login' && (
             <button type="button" onClick={() => { setMode('login'); setError(''); setMessage('') }} className="mt-6 text-sm text-[#d7b96f] hover:text-white">Return to sign in</button>
           )}
         </div>

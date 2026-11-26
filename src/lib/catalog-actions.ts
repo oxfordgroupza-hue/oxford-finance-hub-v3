@@ -189,6 +189,18 @@ export const getPublicSiteConfig = createServerFn({ method: 'GET' }).handler(asy
   return { products, content: Object.fromEntries(content.map((item) => [item.key, item.body])) as Record<string, string> }
 })
 
+/** Public landing-page data may use safe defaults until Cloudflare Hyperdrive is configured. */
+export async function getPublicSiteConfigWithFallback() {
+  try {
+    return await getPublicSiteConfig()
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Cloudflare Hyperdrive is not configured.')) {
+      return { products: [], content: {} } satisfies Awaited<ReturnType<typeof getPublicSiteConfig>>
+    }
+    throw error
+  }
+}
+
 export const getCatalogWorkspaceData = createServerFn({ method: 'GET' }).handler(async () => {
   const session = await requireOffice()
   const canProducts = session.isSuperAdmin || session.permissions.includes('products.view')
