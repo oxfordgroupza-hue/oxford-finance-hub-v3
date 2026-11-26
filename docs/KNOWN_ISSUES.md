@@ -24,7 +24,7 @@ Keep Production applications and document uploads disabled until acceptance is c
 
 The bounded multipart parser is now included in the current successful Cloudflare Build and Preview deployment (branch head `045d5b1`). The 25 November statement that this build was still pending is historical.
 
-Current source review also confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and implemented staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake gate is host-restricted and feature-flagged. Older review notes describing these source items as absent are stale; their full end-to-end acceptance remains open.
+Current source review also confirms transactional customer registration, transactional recovery-challenge replacement, atomic SQL failed-login increments, and implemented staff invitation creation/acceptance handlers plus the activation route. The Cloudflare Preview intake and document-upload flags are both disabled. Older review notes describing these source items as absent are stale; their full end-to-end acceptance remains open.
 
 Production is not untouched: the restricted Worker and finance custom domain are already attached. Applications and document uploads remain disabled. The Neon production branch has no automatic snapshot schedule or accepted restore drill.
 ---
