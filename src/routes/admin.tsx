@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import { Activity, ArrowLeft, Database, LockKeyhole, ShieldCheck, Users, Workflow } from 'lucide-react'
 import { getAuthorizationSnapshot } from '@/lib/auth'
+import { getServerEnv } from '@/lib/server-runtime-env'
 import { permissionCatalogue, roleTemplates } from '@/lib/access-control'
 import { WorkspaceSignOutButton } from '@/components/site/WorkspaceSignOutButton'
 
@@ -54,7 +55,7 @@ const panels = [
 
 function SuperAdministratorDashboard() {
   const session = Route.useLoaderData()
-  const isDeployPreview = process.env.CONTEXT === 'deploy-preview' || process.env.CONTEXT === 'cloudflare-preview'
+  const isDeployPreview = getServerEnv('CONTEXT') === 'deploy-preview' || getServerEnv('CONTEXT') === 'cloudflare-preview'
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   if (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/asset-catalogue') || pathname.startsWith('/admin/partner-permissions') || pathname.startsWith('/admin/settlements')) return <Outlet />
   const displayName = session.user.displayName?.trim() || session.user.email
