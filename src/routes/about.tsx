@@ -6,7 +6,14 @@ import { intermediaryDisclaimer } from '@/lib/finance-config'
 import { img } from '@/lib/images'
 
 export const Route = createFileRoute('/about')({
-  head: () => ({ meta: [{ title: 'About us | Oxford Business Group' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/about' }],
+    meta: [
+      { title: 'About Oxford Business Group | Oxford Finance Hub' },
+      { name: 'description', content: 'Learn how Oxford Business Group connects individuals and businesses with relevant finance providers as a finance intermediary in South Africa.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/about' },
+    ],
+  }),
   component: AboutPage,
 })
 
