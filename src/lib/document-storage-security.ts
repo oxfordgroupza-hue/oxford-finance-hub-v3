@@ -42,12 +42,32 @@ export function isApprovedDeployPreviewRequest(
     /^deploy-preview-\d+--[a-z0-9-]+\.netlify\.app$/.test(hostname)
 }
 
+const APPROVED_CLOUDFLARE_PREVIEW_HOSTS = new Set([
+  'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+  'recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+  'release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
+])
+
+function isApprovedHttpsHost(requestUrl: string, hostname: string): boolean {
+  try {
+    const parsed = new URL(requestUrl)
+    return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
+      parsed.hostname.toLowerCase() === hostname
+  } catch {
+    return false
+  }
+}
+
 export function isApprovedCloudflarePreviewRequest(requestUrl: string): boolean {
   try {
     const parsed = new URL(requestUrl)
     return parsed.protocol === 'https:' && !parsed.port && !parsed.username && !parsed.password &&
-      parsed.hostname.toLowerCase() === 'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
+      APPROVED_CLOUDFLARE_PREVIEW_HOSTS.has(parsed.hostname.toLowerCase())
   } catch {
     return false
   }
+}
+
+export function isApprovedCloudflareProductionRequest(requestUrl: string): boolean {
+  return isApprovedHttpsHost(requestUrl, 'finance.oxfordbusinessgroup.co.za')
 }
