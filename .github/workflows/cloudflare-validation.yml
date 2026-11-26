@@ -1,0 +1,54 @@
+name: Cloudflare application validation
+
+on:
+  push:
+    branches:
+      - recovery/import-verified-baseline
+  pull_request:
+    branches:
+      - recovery/import-verified-baseline
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Build, typecheck, test and lint (no deployment)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Cloudflare application
+        run: pnpm cf:build
+
+      - name: Generate Cloudflare Worker types
+        run: pnpm exec wrangler types worker-configuration.d.ts
+
+      - name: TypeScript validation
+        run: pnpm typecheck
+
+      - name: Run test suite
+        run: pnpm test
+
+      - name: Run ESLint
+        run: pnpm lint
