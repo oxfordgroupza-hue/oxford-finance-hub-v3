@@ -9,6 +9,7 @@ export const Route = createFileRoute('/complaints')({
       { title: 'Complaints Process | Oxford Finance Hub' },
       { name: 'description', content: 'Learn how to submit a complaint to Oxford Business Group, how it is reviewed and how provider-related complaints are handled.' },
       { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/complaints' },
+      { name: 'robots', content: 'noindex,follow' },
     ],
   }),
   component: () => (
