@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { hasEncryptedBrowserDraftForEmail } from '@/lib/browser-draft-vault'
 import { downloadMyApplicationPack } from '@/lib/pdf-pack-actions'
 import { searchMyRecords } from '@/lib/directory-actions'
 import { toast } from 'sonner'
@@ -30,8 +31,16 @@ type CustomerDraft = {
 }
 type CustomerSupportRequest = { id: string; channel: string; status: string; subject: string; createdAt: Date | string; updatedAt: Date | string }
 
-export function CustomerDashboard({ applications, drafts, supportRequests }: { applications: CustomerApplication[]; drafts: CustomerDraft[]; supportRequests: CustomerSupportRequest[] }) {
+export function CustomerDashboard({ applications, drafts, supportRequests, accountEmail }: { applications: CustomerApplication[]; drafts: CustomerDraft[]; supportRequests: CustomerSupportRequest[]; accountEmail: string }) {
   const [recordQuery, setRecordQuery] = useState('')
+  const [localDraftAvailable, setLocalDraftAvailable] = useState(false)
+  useEffect(() => {
+    let active = true
+    void hasEncryptedBrowserDraftForEmail(accountEmail).then((available) => {
+      if (active) setLocalDraftAvailable(available)
+    })
+    return () => { active = false }
+  }, [accountEmail])
   const [recordResults, setRecordResults] = useState<Array<{ reference: string; category: string; status: CustomerApplication['status']; identityNumber: string }>>([])
   const [recordSearchBusy, setRecordSearchBusy] = useState(false)
   const runRecordSearch = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -57,6 +66,18 @@ export function CustomerDashboard({ applications, drafts, supportRequests }: { a
         </div>
         <Button asChild variant="outlineGold" className="rounded-sm"><Link to="/apply">Start a new application</Link></Button>
       </div>
+
+      {localDraftAvailable && (
+        <section aria-label="Application saved on this device" className="rounded-sm border border-[#c7a45a]/40 bg-[#c7a45a]/5 p-5">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-lg font-medium">Continue your saved application</h2>
+              <p className="mt-1 text-sm text-muted-foreground">An unfinished application for this account is saved securely in this browser. You can continue where you left off.</p>
+            </div>
+            <Button asChild variant="outlineGold" className="rounded-sm"><Link to="/apply">Resume saved application</Link></Button>
+          </div>
+        </section>
+      )}
 
       <section aria-labelledby="my-record-search" className="rounded-sm border border-border bg-card p-6">
         <h2 id="my-record-search" className="text-xl">Find my records</h2>

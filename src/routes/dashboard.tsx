@@ -20,19 +20,21 @@ export const Route = createFileRoute('/dashboard')({
     }
   },
   loader: async () => {
-    const [applications, drafts, supportRequests] = await Promise.all([getMyFinanceApplications(), getMyFinanceDrafts(), getMySupportRequests()])
-    return { applications, drafts, supportRequests }
+    const [applications, drafts, supportRequests, session] = await Promise.all([
+      getMyFinanceApplications(), getMyFinanceDrafts(), getMySupportRequests(), getAuthorizationSnapshot(),
+    ])
+    return { applications, drafts, supportRequests, accountEmail: session.authenticated && session.user ? session.user.email : '' }
   },
   head: () => ({ meta: [{ title: 'My dashboard | Oxford Finance Hub' }] }),
   component: CustomerDashboardPage,
 })
 
 function CustomerDashboardPage() {
-  const { applications, drafts, supportRequests } = Route.useLoaderData()
+  const { applications, drafts, supportRequests, accountEmail } = Route.useLoaderData()
   return (
     <SiteLayout>
       <div className="mx-auto max-w-content px-4 py-14 sm:px-6">
-        <CustomerDashboard applications={applications} drafts={drafts} supportRequests={supportRequests} />
+        <CustomerDashboard applications={applications} drafts={drafts} supportRequests={supportRequests} accountEmail={accountEmail} />
       </div>
     </SiteLayout>
   )

@@ -104,6 +104,20 @@ export async function loadEncryptedBrowserDraft<T>(): Promise<RestoredBrowserDra
   }
 }
 
+export async function hasEncryptedBrowserDraftForEmail(email: string): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return false
+  try {
+    const draft = await loadEncryptedBrowserDraft<{ email?: unknown }>()
+    return Boolean(
+      draft && typeof draft.form.email === 'string' &&
+      draft.form.email.trim().toLowerCase() === normalizedEmail,
+    )
+  } catch {
+    return false
+  }
+}
+
 export async function clearEncryptedBrowserDraft(): Promise<void> {
   const database = await openDraftDatabase()
   try {
