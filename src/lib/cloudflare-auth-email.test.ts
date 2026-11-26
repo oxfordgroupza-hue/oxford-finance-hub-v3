@@ -2,7 +2,7 @@
 import { getServerEnv } from './server-runtime-env'
 import { getRequest } from '@tanstack/react-start/server'
 import { isApprovedCloudflarePreviewRequest, isApprovedCloudflareProductionRequest } from './document-storage-security'
-import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed } from './cloudflare-auth-email'
+import { assertOxfordAuthEmailConfigured, assertOxfordAuthEmailRecipientAllowed, assertOxfordCustomerRegistrationAllowed } from './cloudflare-auth-email'
 
 vi.mock('./server-runtime-env', () => ({ getServerEnv: vi.fn() }))
 vi.mock('@tanstack/react-start/server', () => ({ getRequest: vi.fn() }))
@@ -103,5 +103,31 @@ describe('Oxford authentication email recipient restrictions', () => {
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).toThrow(
       'Production authentication email requests are available only on the canonical Oxford Finance Hub host.',
     )
+  })
+})
+
+
+describe('Oxford customer registration gate', () => {
+  it('restricts initial registration to the designated administrator mailbox', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'true'
+    values.OXFORD_INITIAL_SUPER_ADMIN_EMAIL = 'oxfordbusinessgroup@outlook.com'
+    expect(() => assertOxfordCustomerRegistrationAllowed('oxfordbusinessgroup@outlook.com')).not.toThrow()
+    expect(() => assertOxfordCustomerRegistrationAllowed('other@example.com')).toThrow(
+      'Initial Oxford registration is restricted to the designated administrator mailbox.',
+    )
+  })
+
+  it('keeps customer registration closed while application intake is disabled', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'false'
+    values.OXFORD_APPLICATIONS_ENABLED = 'false'
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).toThrow(
+      'Customer registration is not currently available.',
+    )
+  })
+
+  it('allows ordinary customer registration only after the application flag is enabled', () => {
+    values.OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED = 'false'
+    values.OXFORD_APPLICATIONS_ENABLED = 'true'
+    expect(() => assertOxfordCustomerRegistrationAllowed('customer@example.com')).not.toThrow()
   })
 })
