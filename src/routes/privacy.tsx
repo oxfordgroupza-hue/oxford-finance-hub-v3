@@ -2,7 +2,14 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { InformationPage } from '@/components/site/InformationPage'
 
 export const Route = createFileRoute('/privacy')({
-  head: () => ({ meta: [{ title: 'Privacy policy | Oxford Finance Hub' }] }),
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://finance.oxfordbusinessgroup.co.za/privacy' }],
+    meta: [
+      { title: 'Privacy Policy | Oxford Finance Hub' },
+      { name: 'description', content: 'Read how Oxford Business Group collects, uses, stores and protects personal information submitted through Oxford Finance Hub.' },
+      { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/privacy' },
+    ],
+  }),
   component: () => (
     <InformationPage eyebrow="Legal" title="Privacy policy" draftNotice
       intro="How Oxford Business Group (Pty) Ltd collects, uses and protects personal information."
