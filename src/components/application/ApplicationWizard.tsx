@@ -1048,7 +1048,7 @@ function DocumentsStep({
         Attach the supporting documents for your {applicantTypes[form.applicantType ?? 'individual'].label.toLowerCase()} {getCategory(form.category)?.name ?? 'finance'} application. Files are held in private storage and are not made public.
       </p>
       <PreviewNotice>
-        When you press Submit, images are resized and compressed in the background, and PDFs are safely re-saved without converting pages into pictures. Each uploaded file must be no larger than {Math.round(MAX_FUNCTION_UPLOAD_BYTES / (1024 * 1024))} MB. If a file cannot be reduced safely, your draft is kept and you can provide a smaller copy.
+        When you press Submit, images are resized and compressed in the background. PDFs are kept unchanged to protect signatures and document content. Each uploaded file must be no larger than {Math.round(MAX_FUNCTION_UPLOAD_BYTES / (1024 * 1024))} MB. If a file cannot be reduced safely, your draft is kept and you can provide a smaller copy.
       </PreviewNotice>
       <ul className="divide-y divide-border rounded-sm border border-border">
         {list.map((document) => {
