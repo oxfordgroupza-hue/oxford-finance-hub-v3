@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../../db'
 import {
   applicationDocuments,
@@ -6,6 +6,7 @@ import {
   auditEvents,
   customers,
   financeApplications,
+  financeDrafts,
   integrationOperations,
   permissions,
   partnerRegistrations,
@@ -25,7 +26,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isApprovedCloudflareApplicationRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { isApprovedCloudflareRuntimeRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
@@ -33,7 +34,7 @@ import { getServerEnv } from './server-runtime-env'
 const MAX_DOCUMENTS_PER_APPLICATION = 20
 const ALLOWED_DOCUMENT_KEYS = new Set([
   'id', 'payslips', 'bank', 'address', 'licence', 'cipc', 'directors-id',
-  'afs', 'resolution', 'quote', 'contracts', 'motivation',
+  'afs', 'resolution', 'quote', 'contracts', 'motivation', 'income',
 ])
 
 type IdentityUser = { id: string; email: string; emailVerifiedAt: Date }
@@ -230,9 +231,9 @@ function storageObjectPath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
-// Both Preview and Production require their exact approved Cloudflare origin.
-function isApprovedApplicationRequest(request: Request) {
-  return isApprovedCloudflareApplicationRequest(request.url, getServerEnv('CONTEXT'))
+// Storage operations require the canonical host for the current Cloudflare environment.
+function isApprovedCloudflareRuntime(request: Request) {
+  return isApprovedCloudflareRuntimeRequest(request.url, getServerEnv('CONTEXT'))
 }
 
 export async function handleCloudflareOxfordApi(request: Request) {
@@ -253,10 +254,10 @@ export async function handleCloudflareOxfordApi(request: Request) {
         bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
-        documentUploadsEnabled: isApprovedApplicationRequest(request) &&
+        // Exact environment-host guard plus the explicit server-side upload flag.
+        documentUploadsEnabled: isApprovedCloudflareRuntime(request) &&
           getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') === 'true' && storageVerified,
-        liveApplicationsEnabled: isApprovedApplicationRequest(request) &&
-          getServerEnv('OXFORD_APPLICATIONS_ENABLED') === 'true',
+        liveApplicationsEnabled: false,
         authoritativeDatabase: 'neon',
       })
     }
@@ -270,9 +271,183 @@ export async function handleCloudflareOxfordApi(request: Request) {
       throw new HttpError('Applications are submitted through the Oxford Finance Hub application wizard. The legacy parallel application endpoint is disabled.', 410)
     }
 
+    if (request.method === 'GET' && action === 'list-draft-documents') {
+      if (!isApplicant || !customer || !account.permissions.has('own_documents.view')) {
+        throw new HttpError('Customer account required.', 403)
+      }
+      const draftId = url.searchParams.get('draftId') || ''
+      if (!/^[0-9a-f-]{36}$/i.test(draftId)) throw new HttpError('A valid saved draft is required.', 400)
+      const [draft] = await db.select({ id: financeDrafts.id }).from(financeDrafts)
+        .where(and(eq(financeDrafts.id, draftId), eq(financeDrafts.customerId, customer.id), gt(financeDrafts.expiresAt, new Date())))
+        .limit(1)
+      if (!draft) throw new HttpError('Saved draft not found or expired.', 404)
+      const rows = await db.select({
+        requestMetadata: integrationOperations.requestMetadata,
+        resultMetadata: integrationOperations.resultMetadata,
+      }).from(integrationOperations).where(and(
+        eq(integrationOperations.provider, 'supabase-storage'),
+        eq(integrationOperations.operation, 'upload_draft_document'),
+        eq(integrationOperations.status, 'completed'),
+        sql`${integrationOperations.requestMetadata}->>'draftId' = ${draftId}`,
+        sql`${integrationOperations.requestMetadata}->>'customerId' = ${customer.id}`,
+      ))
+      return json({
+        documents: rows
+          .filter((row) => typeof row.resultMetadata.storagePath === 'string')
+          .map((row) => ({
+            documentType: String(row.requestMetadata.documentType || ''),
+            filename: String(row.requestMetadata.originalName || 'document'),
+            contentType: String(row.requestMetadata.mimeType || ''),
+            size: Number(row.requestMetadata.sizeBytes || 0),
+            status: 'Received',
+          })),
+      })
+    }
+
+    if (request.method === 'POST' && action === 'upload-draft-document') {
+      if (!isApprovedCloudflareRuntime(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
+        throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
+      }
+      if (!isApplicant || !customer || !account.permissions.has('own_documents.create')) {
+        throw new HttpError('Your customer account does not have permission to upload application documents.', 403)
+      }
+      const requestLengthError = validateDocumentRequestContentLength(request.headers.get('content-length'))
+      if (requestLengthError) throw new HttpError(requestLengthError, 413)
+      let form: FormData
+      try {
+        form = await parseBoundedDocumentFormData(request)
+      } catch (error) {
+        if (error instanceof RangeError) throw new HttpError(error.message, 413)
+        throw new HttpError('The multipart upload could not be parsed.', 400)
+      }
+      const draftId = String(form.get('draftId') || '')
+      const rawType = String(form.get('documentKey') || '')
+      const file = form.get('file')
+      if (!(file instanceof File)) throw new HttpError('A valid saved draft and file are required.', 400)
+      const documentType = rawType.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
+      if (!ALLOWED_DOCUMENT_KEYS.has(documentType)) throw new HttpError('Select a valid document checklist item.', 400)
+      const bytes = await file.arrayBuffer()
+      const validationError = validateDocumentUpload({
+        draftId,
+        documentType,
+        fileSize: file.size,
+        mimeType: file.type,
+        signature: new Uint8Array(bytes.slice(0, 8)),
+      })
+      if (validationError) throw new HttpError(validationError, 400)
+
+      const [draft] = await db.select({ id: financeDrafts.id }).from(financeDrafts)
+        .where(and(eq(financeDrafts.id, draftId), eq(financeDrafts.customerId, customer.id), gt(financeDrafts.expiresAt, new Date())))
+        .limit(1)
+      if (!draft) throw new HttpError('Saved draft not found or expired.', 404)
+
+      const digest = await crypto.subtle.digest('SHA-256', bytes)
+      const hash = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('')
+      const idempotencyKey = `draft-document:${draftId}:${documentType}:${hash}`
+      const existingWhere = and(
+        eq(integrationOperations.idempotencyKey, idempotencyKey),
+        eq(integrationOperations.provider, 'supabase-storage'),
+        eq(integrationOperations.operation, 'upload_draft_document'),
+      )
+      const [existing] = await db.select().from(integrationOperations).where(existingWhere).limit(1)
+      if (existing?.status === 'completed' && typeof existing.resultMetadata.storagePath === 'string') {
+        return json({ filename: String(existing.requestMetadata.originalName || file.name), size: Number(existing.requestMetadata.sizeBytes || file.size), duplicate: true })
+      }
+
+      const allDraftUploads = await db.select({ id: integrationOperations.id }).from(integrationOperations).where(and(
+        eq(integrationOperations.provider, 'supabase-storage'),
+        eq(integrationOperations.operation, 'upload_draft_document'),
+        eq(integrationOperations.status, 'completed'),
+        sql`${integrationOperations.requestMetadata}->>'draftId' = ${draftId}`,
+        sql`${integrationOperations.requestMetadata}->>'customerId' = ${customer.id}`,
+      ))
+      if (!existing && allDraftUploads.length >= MAX_DOCUMENTS_PER_APPLICATION) {
+        throw new HttpError(`A saved application may contain no more than ${MAX_DOCUMENTS_PER_APPLICATION} documents.`, 400)
+      }
+
+      if (!(await verifyStorageBucket().catch(() => false))) {
+        throw new HttpError('The private document bucket could not be verified. Uploads remain disabled.', 503)
+      }
+      const { bucket } = storageConfig()
+      let operationId = existing?.id ?? null
+      if (existing) {
+        if (existing.status === 'pending' && existing.updatedAt < new Date(Date.now() - 15 * 60 * 1000)) {
+          const [claimed] = await db.update(integrationOperations).set({
+            attempts: existing.attempts + 1,
+            lastError: 'Recovered an interrupted draft upload attempt.',
+            updatedAt: new Date(),
+          }).where(and(eq(integrationOperations.id, existing.id), eq(integrationOperations.status, 'pending'), lt(integrationOperations.updatedAt, new Date(Date.now() - 15 * 60 * 1000))))
+            .returning({ id: integrationOperations.id })
+          operationId = claimed?.id ?? null
+        } else if (existing.status === 'failed' && existing.attempts < 5) {
+          const [claimed] = await db.update(integrationOperations).set({
+            status: 'pending',
+            attempts: existing.attempts + 1,
+            lastError: null,
+            updatedAt: new Date(),
+          }).where(and(eq(integrationOperations.id, existing.id), eq(integrationOperations.status, 'failed')))
+            .returning({ id: integrationOperations.id })
+          operationId = claimed?.id ?? null
+        } else {
+          throw new HttpError('This document is already being processed. Please wait before retrying.', 409)
+        }
+      } else {
+        const [created] = await db.insert(integrationOperations).values({
+          provider: 'supabase-storage',
+          operation: 'upload_draft_document',
+          idempotencyKey,
+          status: 'pending',
+          attempts: 1,
+          requestMetadata: {
+            draftId,
+            customerId: customer.id,
+            uploadedBy: account.account.id,
+            documentType,
+            originalName: sanitizeDocumentFilename(file.name),
+            mimeType: file.type,
+            sizeBytes: file.size,
+            checksum: hash,
+          },
+        }).onConflictDoNothing().returning({ id: integrationOperations.id })
+        operationId = created?.id ?? null
+      }
+      if (!operationId) throw new HttpError('This document is already being processed. Please retry shortly.', 409)
+
+      const ext = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/jpeg' ? 'jpg' : 'png'
+      const path = `drafts/${customer.id}/${draftId}/${documentType}-${hash.slice(0, 24)}.${ext}`
+      try {
+        await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, {
+          method: 'POST',
+          headers: { 'content-type': file.type, 'x-upsert': 'true' },
+          body: bytes,
+        })
+        await db.update(integrationOperations).set({
+          status: 'completed',
+          resultMetadata: { storagePath: path, checksum: hash, storageUploadSucceeded: true },
+          updatedAt: new Date(),
+        }).where(eq(integrationOperations.id, operationId))
+        await db.insert(auditEvents).values({
+          actorUserId: account.account.id,
+          event: 'application.draft_document_uploaded',
+          resource: 'finance_draft',
+          resourceId: draftId,
+          details: { documentType, sizeBytes: file.size, checksum: hash },
+        })
+        return json({ filename: sanitizeDocumentFilename(file.name), size: file.size, duplicate: false }, 201)
+      } catch (error) {
+        await storage(`object/${encodeURIComponent(bucket)}/${storageObjectPath(path)}`, { method: 'DELETE' }).catch(() => null)
+        await db.update(integrationOperations).set({
+          status: 'failed',
+          lastError: 'Draft document upload or metadata persistence failed.',
+          updatedAt: new Date(),
+        }).where(eq(integrationOperations.id, operationId)).catch(() => null)
+        throw error
+      }
+    }
+
     if (request.method === 'POST' && action === 'upload-document') {
-      if (!isApprovedApplicationRequest(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
-        throw new HttpError('Secure document uploads are not enabled for this Oxford Finance Hub environment.', 503)
+      if (!isApprovedCloudflareRuntime(request) || getServerEnv('OXFORD_DOCUMENT_UPLOADS_ENABLED') !== 'true') {
+        throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
       }
       // Partners use a narrower referral-ownership and document-type policy below.
       const requiredPermission = requiredDocumentUploadPermission(account.account.accountType as 'customer' | 'partner' | 'office')

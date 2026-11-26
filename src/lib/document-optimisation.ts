@@ -1,119 +1,95 @@
-export const MAX_DOCUMENT_UPLOAD_BYTES = 4 * 1024 * 1024
-const OPTIMISE_FROM_BYTES = 1.5 * 1024 * 1024
-const TARGET_IMAGE_BYTES = 2.5 * 1024 * 1024
-const MAX_IMAGE_EDGE = 2400
+import { MAX_FUNCTION_UPLOAD_BYTES } from './document-validation'
 
-export type DocumentOptimisationResult = {
+export type OptimisedDocument = {
   file: File
-  originalSize: number
-  finalSize: number
-  optimised: boolean
+  originalBytes: number
+  finalBytes: number
+  reduced: boolean
 }
 
-function formatSize(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+function fileWithBlob(source: File, blob: Blob, extension: string, mimeType: string): File {
+  const name = source.name.replace(/\\.[^.]+$/, '') || 'document'
+  return new File([blob], `${name}.${extension}`, {
+    type: mimeType,
+    lastModified: source.lastModified,
+  })
 }
 
-function canvasBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error('The selected image could not be prepared safely. Please try another file.'))
-    }, type, quality)
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('The image could not be optimised in this browser.'))
+      },
+      'image/jpeg',
+      quality,
+    )
   })
 }
 
-/**
- * Optimise large image scans in the browser before sending them to the private
- * document API. PDFs are never rasterised or rewritten: doing so can damage
- * searchable text, signatures and document legibility.
- */
-export async function optimiseDocumentForUpload(file: File): Promise<DocumentOptimisationResult> {
-  const unchanged = (): DocumentOptimisationResult => ({
-    file,
-    originalSize: file.size,
-    finalSize: file.size,
-    optimised: false,
-  })
-
-  if (file.type === 'application/pdf') {
-    if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-      throw new Error(`This PDF is ${formatSize(file.size)}. The secure limit is 4 MB. Please export a smaller PDF or split it into separate documents; PDFs are kept intact to protect text and signatures.`)
-    }
-    return unchanged()
+async function optimiseImage(file: File): Promise<File> {
+  if (typeof createImageBitmap !== 'function') {
+    if (file.size <= MAX_FUNCTION_UPLOAD_BYTES) return file
+    throw new Error('This browser cannot safely optimise this image. Please use a smaller JPG or PNG.')
   }
 
-  if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
-    throw new Error('Only PDF, JPEG and PNG documents are accepted.')
-  }
-  if (file.size <= OPTIMISE_FROM_BYTES) {
-    if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-      throw new Error('This image exceeds the 4 MB secure upload limit and could not be optimised.')
-    }
-    return unchanged()
-  }
-
-  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') {
-    if (file.size <= MAX_DOCUMENT_UPLOAD_BYTES) return unchanged()
-    throw new Error('Automatic image optimisation is unavailable in this browser. Please use a supported browser or a smaller image.')
-  }
-
-  let bitmap: ImageBitmap
+  const bitmap = await createImageBitmap(file)
   try {
-    bitmap = await createImageBitmap(file)
-  } catch {
-    if (file.size <= MAX_DOCUMENT_UPLOAD_BYTES) return unchanged()
-    throw new Error('This image could not be opened for optimisation. Please save it as a JPEG or PNG and try again.')
-  }
-
-  try {
-    const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height))
+    const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height))
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(bitmap.width * scale))
     canvas.height = Math.max(1, Math.round(bitmap.height * scale))
     const context = canvas.getContext('2d')
-    if (!context) {
-      if (file.size <= MAX_DOCUMENT_UPLOAD_BYTES) return unchanged()
-      throw new Error('This browser could not prepare the image for secure upload.')
-    }
+    if (!context) throw new Error('Image optimisation is unavailable in this browser.')
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
 
-    // Preserve PNG transparency and format. JPEG scans use progressively lower
-    // quality only as needed, with a conservative floor for readable documents.
-    const type = file.type
-    const qualities = type === 'image/jpeg' ? [0.86, 0.78, 0.68, 0.58] : [undefined]
-    let best: Blob | null = null
-    for (const quality of qualities) {
-      const candidate = await canvasBlob(canvas, type, quality)
+    let best: File | null = null
+    for (const quality of [0.88, 0.82, 0.76, 0.7]) {
+      const blob = await canvasBlob(canvas, quality)
+      const candidate = fileWithBlob(file, blob, 'jpg', 'image/jpeg')
       if (!best || candidate.size < best.size) best = candidate
-      if (candidate.size <= TARGET_IMAGE_BYTES) {
-        best = candidate
-        break
-      }
+      if (candidate.size <= MAX_FUNCTION_UPLOAD_BYTES) return candidate
     }
-
-    if (!best || best.size >= file.size) {
-      if (file.size <= MAX_DOCUMENT_UPLOAD_BYTES) return unchanged()
-      throw new Error(`This image remains larger than 4 MB after optimisation. Please use a clearer, smaller scan or split the document.`)
-    }
-    if (best.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-      throw new Error(`This image is still ${formatSize(best.size)} after optimisation. The secure limit is 4 MB; please use a smaller scan.`)
-    }
-
-    const name = type === 'image/jpeg'
-      ? file.name.replace(/\.(png|jpe?g)$/i, '.jpg')
-      : file.name.replace(/\.(png|jpe?g)$/i, '.png')
-    const optimisedFile = new File([best], name, {
-      type,
-      lastModified: file.lastModified,
-    })
-    return {
-      file: optimisedFile,
-      originalSize: file.size,
-      finalSize: optimisedFile.size,
-      optimised: true,
-    }
+    if (file.size <= MAX_FUNCTION_UPLOAD_BYTES && best && best.size >= file.size) return file
+    if (best && best.size <= MAX_FUNCTION_UPLOAD_BYTES) return best
+    throw new Error(
+      'This image is still larger than 4 MB after optimisation. Please use a clearer, smaller scan or split the document.',
+    )
   } finally {
     bitmap.close()
+  }
+}
+
+/**
+ * Optimises selected images only after the applicant presses Submit.
+ * PDFs are deliberately preserved byte-for-byte: rewriting a PDF can invalidate
+ * digital signatures or alter embedded files, annotations and document metadata.
+ * Oversized PDFs must be exported smaller or split by the applicant.
+ */
+export async function optimiseDocumentFile(file: File): Promise<OptimisedDocument> {
+  let optimised: File
+  if (file.type === 'image/jpeg' || file.type === 'image/png') {
+    optimised = await optimiseImage(file)
+  } else if (file.type === 'application/pdf') {
+    optimised = file
+  } else {
+    throw new Error('Only PDF, JPG and PNG files can be uploaded.')
+  }
+
+  if (optimised.size > MAX_FUNCTION_UPLOAD_BYTES) {
+    throw new Error(
+      file.type === 'application/pdf'
+        ? 'This PDF is larger than 4 MB. Please export it as a smaller PDF or split it into separate documents.'
+        : 'This file is still larger than 4 MB after optimisation. Please split it into smaller documents.',
+    )
+  }
+  return {
+    file: optimised,
+    originalBytes: file.size,
+    finalBytes: optimised.size,
+    reduced: optimised.size < file.size,
   }
 }
