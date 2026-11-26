@@ -279,7 +279,7 @@ export default async (request: Request, context?: NetlifyRuntimeContext) => {
     }
 
     if (request.method === 'POST' && action === 'upload-document') {
-      if (!isDeployPreviewRequest(request, context) || process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED !== 'true') {
+      if (!isDeployPreviewRequest(request, context) || String(process.env.OXFORD_DOCUMENT_UPLOADS_ENABLED) !== 'true') {
         throw new HttpError('Secure document uploads are disabled until the full preview test matrix has passed.', 503)
       }
       // Partners use a narrower referral-ownership and document-type policy below.
