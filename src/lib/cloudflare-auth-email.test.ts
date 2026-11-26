@@ -74,7 +74,18 @@ describe('Oxford authentication email recipient restrictions', () => {
     )
   })
 
+  it('fails closed on immutable deployment URLs in Cloudflare Preview context', () => {
+    values.CONTEXT = 'cloudflare-preview'
+    vi.mocked(getRequest).mockReturnValue(new Request('https://83efb790-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/'))
+    vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
+
+    expect(() => assertOxfordAuthEmailRecipientAllowed('other@example.com')).toThrow(
+      'Preview authentication email delivery is available only on the approved branch Preview host.',
+    )
+  })
+
   it('does not apply the preview mailbox restriction outside the approved preview host', () => {
+    values.CONTEXT = 'cloudflare-production'
     vi.mocked(isApprovedCloudflarePreviewRequest).mockReturnValue(false)
 
     expect(() => assertOxfordAuthEmailRecipientAllowed('customer@example.com')).not.toThrow()
