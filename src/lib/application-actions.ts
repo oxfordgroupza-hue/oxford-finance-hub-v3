@@ -53,9 +53,9 @@ type SerializableRecord = { [key: string]: SerializableJson }
 const consentVersion = '2026-11-08-v1'
 
 /**
- * Fail closed until the Netlify Database + Netlify Identity application flow,
- * private Supabase Storage integration and launch acceptance tests are complete.
- * This flag is server-only; browser code cannot enable application processing.
+ * Fail closed until the Cloudflare application workflow, private Supabase
+ * Storage integration and launch acceptance tests are complete. These flags
+ * are server-only; browser code cannot enable application processing.
  */
 function isApprovedCloudflareRuntime() {
   const request = getRequest()
@@ -64,7 +64,7 @@ function isApprovedCloudflareRuntime() {
 
 function assertApplicationProcessingEnabled() {
   // Intake remains disabled unless the deployment-specific server-side flag is
-  // explicitly enabled. Cloudflare is additionally pinned to its preview host.
+  // explicitly enabled and the request uses the approved host for that runtime.
   const context = getServerEnv('CONTEXT')
   const enabled = context === 'deploy-preview'
     ? String(process.env.OXFORD_APPLICATIONS_ENABLED ?? '') === 'true'
@@ -74,7 +74,7 @@ function assertApplicationProcessingEnabled() {
   }
 }
 
-/** Existing encrypted drafts may be edited only on an approved non-production preview host. */
+/** Existing encrypted drafts may be edited only on an approved runtime host with intake explicitly enabled. */
 function assertExistingDraftEditingEnabled() {
   const allowed = getServerEnv('CONTEXT') === 'deploy-preview' || (
     isApprovedCloudflareRuntime() &&
