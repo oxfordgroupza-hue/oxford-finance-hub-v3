@@ -1,5 +1,3 @@
-﻿// Cloudflare Workers WebCrypto rejects PBKDF2 iteration counts above 100,000.
-// Keep this at the runtime-supported ceiling so registration and login use the same derivation.
 const PASSWORD_ITERATIONS = 100_000
 const PASSWORD_KEY_LENGTH = 256
 const PASSWORD_SALT_BYTES = 16
@@ -75,4 +73,3 @@ export async function hashOpaqueToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(token).buffer as ArrayBuffer)
   return toBase64Url(new Uint8Array(digest))
 }
-
