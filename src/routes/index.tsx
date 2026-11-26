@@ -41,10 +41,26 @@ const featureStrip = [
 ]
 
 const categorySlides: Record<string, { file: string; alt: string }[]> = {
-  vehicle: [{ file: 'vehicle.png', alt: 'Illustrative vehicle finance asset' }],
-  'commercial-asset': [{ file: 'commercial.png', alt: 'Illustrative commercial and industrial asset' }],
-  equipment: [{ file: 'equipment.png', alt: 'Illustrative machinery and equipment' }],
-  other: [{ file: 'about.png', alt: 'Illustrative specialised finance asset' }],
+  vehicle: [
+    { file: 'vehicle-g63.jpg', alt: 'White Mercedes-Benz G-Class luxury SUV' },
+    { file: 'vehicle-mclaren.jpg', alt: 'McLaren high-performance sports car' },
+  ],
+  equipment: [
+    { file: 'equipment-excavator.jpg', alt: 'Yellow excavator for earthmoving and plant finance' },
+    { file: 'equipment-grader.jpg', alt: 'Motor grader preparing a road construction site' },
+    { file: 'equipment-solar.jpg', alt: 'Commercial solar panel installation' },
+    { file: 'equipment-dialysis.jpg', alt: 'Medical equipment in a clinical setting' },
+    { file: 'equipment-dental.jpg', alt: 'Modern dental treatment room and equipment' },
+  ],
+  'commercial-asset': [
+    { file: 'commercial-asset-added.jpg', alt: 'Commercial truck and trailer at a logistics facility' },
+    { file: 'equipment-excavator.jpg', alt: 'Heavy plant and earthmoving equipment' },
+  ],
+  other: [
+    { file: 'other-yacht.jpg', alt: 'Luxury yacht on open water' },
+    { file: 'other-private-asset.jpg', alt: 'Private business jet' },
+    { file: 'other-villa.jpg', alt: 'Modern luxury villa with a pool' },
+  ],
 }
 
 const steps = [

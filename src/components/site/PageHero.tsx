@@ -20,7 +20,7 @@ export function PageHero({
         src={img(image, 1600, 60)}
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 size-full object-cover opacity-25"
+        className="absolute inset-0 size-full object-cover opacity-40"
       />
       <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/40" />
       <div className="relative mx-auto max-w-content px-4 py-20 sm:px-6 md:py-28">

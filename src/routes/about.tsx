@@ -21,7 +21,7 @@ function AboutPage() {
     <SiteLayout>
       <PageHero eyebrow="About us" title="Oxford Business Group" intro="A South African finance intermediary helping individuals and businesses access vehicle, equipment and commercial asset finance." />
       <section className="mx-auto grid max-w-content items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
-        <img src={img('about.png', 1100)} alt="A dark boardroom with city views at dusk" loading="lazy" className="aspect-[4/3] w-full rounded-sm border border-border object-cover" />
+        <img src={img('about.png', 1100)} alt="A contemporary glass-walled executive meeting room" loading="lazy" className="aspect-[4/3] w-full rounded-sm border border-border object-cover" />
         <div>
           <p className="eyebrow">Our role</p>
           <h2 className="mt-4 text-4xl font-medium">Between you and the right finance provider.</h2>
