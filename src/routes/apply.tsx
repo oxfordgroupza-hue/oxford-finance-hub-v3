@@ -43,7 +43,7 @@ const getApplyPreviewAccess = createServerFn({ method: 'GET' }).handler(async ()
 export const Route = createFileRoute('/apply')({
   validateSearch,
   loader: () => getApplyPreviewAccess(),
-  head: () => ({ meta: [{ title: 'Apply for finance | Oxford Finance Hub' }] }),
+  head: () => ({ meta: [{ title: 'Apply for finance | Oxford Finance Hub' }, { name: 'robots', content: 'noindex,follow' }] }),
   component: ApplyPage,
 })
 
