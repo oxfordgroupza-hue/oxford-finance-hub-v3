@@ -5,6 +5,7 @@ import {
   isApprovedDeployPreviewRequest,
   isApprovedCloudflarePreviewRequest,
   isApprovedCloudflareProductionRequest,
+  isApprovedCloudflareRuntimeRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from './document-storage-security'
@@ -104,6 +105,14 @@ describe('Cloudflare Worker preview storage gate', () => {
 describe('Cloudflare production host gate', () => {
   it('accepts only the canonical HTTPS Finance Hub hostname', () => {
     expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/')).toBe(true)
+  })
+
+  it('maps each deployment context only to its matching canonical host', () => {
+    expect(isApprovedCloudflareRuntimeRequest(cloudflarePreviewUrl, 'cloudflare-preview')).toBe(true)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'cloudflare-production')).toBe(true)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'cloudflare-preview')).toBe(false)
+    expect(isApprovedCloudflareRuntimeRequest(cloudflarePreviewUrl, 'cloudflare-production')).toBe(false)
+    expect(isApprovedCloudflareRuntimeRequest('https://finance.oxfordbusinessgroup.co.za/', 'deploy-preview')).toBe(false)
   })
 
   it('rejects other hosts, HTTP, credentials and nonstandard ports', () => {
