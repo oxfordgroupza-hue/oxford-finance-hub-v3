@@ -8,6 +8,7 @@ import { getAuthorizationSnapshot } from './auth'
 import { decryptApplicantData } from './pii-crypto.server'
 import { isNotificationRetryEligible } from './notification-retry-policy'
 import { isApprovedCloudflarePreviewRequest } from './document-storage-security'
+import { isTransactionalEmailDeliveryEnabled } from './notification-delivery-policy'
 
 type AuthenticatedOfficeSession = Extract<Awaited<ReturnType<typeof getAuthorizationSnapshot>>, { authenticated: true; provisioned: true }>
 
@@ -21,11 +22,11 @@ function requireOfficeNotificationPermission(session: Awaited<ReturnType<typeof 
 }
 
 function deliveryEnabled() {
-  return isApprovedCloudflarePreviewRequest(getRequest().url) && getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED') === 'true'
+  return isTransactionalEmailDeliveryEnabled(getRequest().url, getServerEnv('CONTEXT'), getServerEnv('OXFORD_EMAIL_DELIVERY_ENABLED'))
 }
 
 function configured() {
-  return Boolean(getServerEnv('BREVO_API_KEY') && getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL') && getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'))
+  return Boolean(getServerEnv('BREVO_API_KEY')?.trim() && getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL')?.trim() && getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim())
 }
 
 export const getNotificationQueue = createServerFn({ method: 'GET' }).handler(async () => {
@@ -183,9 +184,9 @@ export const processNotificationQueue = createServerFn({ method: 'POST' }).handl
     throw new Error('Email delivery is disabled. Enable it only after the sender and preview test have been verified.')
   }
 
-  const apiKey = getServerEnv('BREVO_API_KEY')
-  const senderEmail = getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL')
-  const senderName = getServerEnv('OXFORD_NOTIFICATION_FROM_NAME') || 'Oxford Finance Hub'
+  const apiKey = getServerEnv('BREVO_API_KEY')?.trim()
+  const senderEmail = getServerEnv('OXFORD_NOTIFICATION_FROM_EMAIL')?.trim()
+  const senderName = getServerEnv('OXFORD_NOTIFICATION_FROM_NAME')?.trim() || 'Oxford Finance Hub'
   if (!apiKey || !senderEmail) throw new Error('Brevo sender configuration is incomplete.')
 
   // Recover messages left in "processing" after a timed-out function invocation.
