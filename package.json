@@ -70,7 +70,8 @@
     "typescript-eslint": "8.72.1",
     "vite": "8.3.5",
     "vitest": "5.0.5",
-    "wrangler": "^4.166.0"
+    "wrangler": "^4.166.0",
+    "@tanstack/router-plugin": "1.168.48"
   },
   "engines": {
     "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
