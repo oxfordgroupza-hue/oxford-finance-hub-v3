@@ -9,6 +9,7 @@ export const Route = createFileRoute('/terms')({
       { title: 'Terms & Conditions | Oxford Finance Hub' },
       { name: 'description', content: 'Review the terms governing use of Oxford Finance Hub and Oxford Business Group's finance-intermediary services.' },
       { property: 'og:url', content: 'https://finance.oxfordbusinessgroup.co.za/terms' },
+      { name: 'robots', content: 'noindex,follow' },
     ],
   }),
   component: () => (
