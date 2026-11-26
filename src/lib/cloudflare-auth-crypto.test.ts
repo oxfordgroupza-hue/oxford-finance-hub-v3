@@ -1,8 +1,8 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createOpaqueToken, hashOpaqueToken, hashPassword, verifyPassword } from './cloudflare-auth-crypto'
 
 describe('Cloudflare authentication cryptography', () => {
-  it('uses unique salts for identical passwords', async () => {
+  it('uses unique salts and a Cloudflare-supported PBKDF2 iteration count', async () => {
     const first = await hashPassword('A sufficiently long passphrase 1!')
     const second = await hashPassword('A sufficiently long passphrase 1!')
     expect(first.algorithm).toBe('pbkdf2-sha256')
