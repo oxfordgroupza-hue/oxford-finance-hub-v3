@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
+  EXPECTED_PREVIEW_DOCUMENT_BUCKET,
+  getDocumentStoragePolicy,
   isApprovedDeployPreviewRequest,
   isApprovedCloudflarePreviewRequest,
   isApprovedCloudflareProductionRequest,
   isApprovedCloudflareRuntimeRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
+  MAX_PREVIEW_BUCKET_FILE_BYTES,
 } from './document-storage-security'
 
 const validBucket = {
@@ -25,6 +28,23 @@ const previewContext = {
 const previewUrl = 'https://deploy-preview-27--oxford-finance-hub-v3.netlify.app/.netlify/functions/oxford-api'
 
 describe('private document bucket verification', () => {
+  it('accepts the isolated Preview bucket with its smaller upload limit', () => {
+    const policy = getDocumentStoragePolicy('cloudflare-preview')
+    expect(policy).toEqual({ bucket: EXPECTED_PREVIEW_DOCUMENT_BUCKET, maxFileBytes: MAX_PREVIEW_BUCKET_FILE_BYTES })
+    expect(isStorageBucketVerified({
+      id: EXPECTED_PREVIEW_DOCUMENT_BUCKET,
+      public: false,
+      file_size_limit: MAX_PREVIEW_BUCKET_FILE_BYTES,
+      allowed_mime_types: [...ALLOWED_DOCUMENT_STORAGE_TYPES],
+    }, policy!.bucket, policy!.maxFileBytes)).toBe(true)
+    expect(isStorageBucketVerified(validBucket, policy!.bucket, policy!.maxFileBytes)).toBe(false)
+  })
+
+  it('keeps the production bucket and limit separate from Preview', () => {
+    expect(getDocumentStoragePolicy('cloudflare-production')).toEqual({ bucket: EXPECTED_DOCUMENT_BUCKET, maxFileBytes: MAX_BUCKET_FILE_BYTES })
+    expect(getDocumentStoragePolicy('unknown')).toBeNull()
+  })
+
   it('accepts only the exact private bucket configuration', () => {
     expect(isStorageBucketVerified(validBucket)).toBe(true)
   })
@@ -87,9 +107,10 @@ describe('Cloudflare Worker preview storage gate', () => {
     expect(isApprovedCloudflarePreviewRequest('https://release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/')).toBe(true)
   })
 
-  it('rejects the previous stale preview hostname', async () => {
+  it('accepts the dedicated Preview Worker hostname and rejects unrelated workers.dev hosts', async () => {
     const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
-    expect(isApprovedCloudflarePreviewRequest('https://oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford')).toBe(false)
+    expect(isApprovedCloudflarePreviewRequest('https://oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford')).toBe(true)
+    expect(isApprovedCloudflarePreviewRequest('https://unrelated-preview.oxfordbusinessgroup.workers.dev/api/oxford')).toBe(false)
   })
 
   it('rejects production, HTTP, credentials and nonstandard ports', async () => {

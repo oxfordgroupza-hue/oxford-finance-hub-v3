@@ -19,7 +19,7 @@ import { formatZAR } from './format'
 import { calculateFinanceAmount } from './fee-calculation'
 import { mergeSupportingDocumentsIntoPdf } from './application-pack-pdf'
 import { applicantStoragePrefix, documentStorageCategory } from './application-document-storage'
-import { isStorageBucketVerified } from './document-storage-security'
+import { getDocumentStoragePolicy, isStorageBucketVerified } from './document-storage-security'
 
 function pdfText(value: unknown) {
   const text = String(value ?? '—').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
@@ -71,10 +71,11 @@ async function persistPrivatePdf(objectKey: string, bytes: Uint8Array) {
   const url = getServerEnv('SUPABASE_URL')?.replace(/\/+$/, '')
   const key = getServerEnv('SUPABASE_SECRET_KEY')
   const bucket = getServerEnv('SUPABASE_BUCKET')
-  if (!url || !key || bucket !== 'oxford-customer-documents') throw new Error('Private application-pack storage is not configured.')
+  const policy = getDocumentStoragePolicy(getServerEnv('CONTEXT'))
+  if (!url || !key || !bucket || !policy || bucket !== policy.bucket) throw new Error('Private application-pack storage is not configured for this environment.')
   const bucketResponse = await fetch(`${url}/storage/v1/bucket/${encodeURIComponent(bucket)}`, { headers: { apikey: key }, cache: 'no-store' })
-  if (!bucketResponse.ok || !isStorageBucketVerified(await bucketResponse.json())) throw new Error('The configured document bucket does not match the approved private-storage security settings.')
-  if (bytes.byteLength < 1 || bytes.byteLength > 10 * 1024 * 1024) throw new Error('The completed application pack exceeds the private storage limit. Office must review the original documents.')
+  if (!bucketResponse.ok || !isStorageBucketVerified(await bucketResponse.json(), bucket, policy.maxFileBytes)) throw new Error('The configured document bucket does not match the approved private-storage security settings.')
+  if (bytes.byteLength < 1 || bytes.byteLength > policy.maxFileBytes) throw new Error('The completed application pack exceeds the private storage limit. Office must review the original documents.')
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
   const upload = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedKey}`, {
     method: 'POST', headers: { apikey: key, 'content-type': 'application/pdf', 'x-upsert': 'true' }, body: Buffer.from(bytes), cache: 'no-store',
@@ -86,7 +87,8 @@ async function persistPrivatePdf(objectKey: string, bytes: Uint8Array) {
 async function removePrivatePdf(storageUrl: string, objectKey: string) {
   const key = getServerEnv('SUPABASE_SECRET_KEY')
   const bucket = getServerEnv('SUPABASE_BUCKET')
-  if (!key || bucket !== 'oxford-customer-documents') return
+  const policy = getDocumentStoragePolicy(getServerEnv('CONTEXT'))
+  if (!key || !bucket || !policy || bucket !== policy.bucket) return
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
   await fetch(`${storageUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedKey}`, {
     method: 'DELETE',

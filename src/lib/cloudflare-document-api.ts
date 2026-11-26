@@ -26,7 +26,7 @@ import { applicationDocumentStoragePath } from '../../src/lib/application-docume
 import { decryptApplicantData } from '../../src/lib/pii-crypto.server'
 import { sanitizeDocumentFilename, validateDocumentFileSize, validateDocumentRequestContentLength, parseBoundedDocumentFormData, validateDocumentUpload } from '../../src/lib/document-validation'
 import { isSameOriginRequest } from '../../src/lib/origin-validation'
-import { isApprovedCloudflareRuntimeRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
+import { getDocumentStoragePolicy, isApprovedCloudflareRuntimeRequest, isStorageBucketVerified } from '../../src/lib/document-storage-security'
 import { hashOpaqueToken } from '../../src/lib/cloudflare-auth-crypto'
 import { getServerEnv } from './server-runtime-env'
 
@@ -68,9 +68,10 @@ function storageConfig() {
   const url = getServerEnv('SUPABASE_URL')
   const key = supabaseSecretKey()
   const bucket = getServerEnv('SUPABASE_BUCKET')
-  if (!url || !key || !bucket) throw new HttpError('Private document storage is not configured.', 503)
-  if (bucket !== 'oxford-customer-documents') throw new HttpError('The configured document bucket is not approved.', 503)
-  return { url: url.replace(/\/$/, ''), key, bucket }
+  const policy = getDocumentStoragePolicy(getServerEnv('CONTEXT'))
+  if (!url || !key || !bucket || !policy) throw new HttpError('Private document storage is not configured for this environment.', 503)
+  if (bucket !== policy.bucket) throw new HttpError('The configured document bucket is not approved for this environment.', 503)
+  return { url: url.replace(/\/$/, ''), key, bucket, maxFileBytes: policy.maxFileBytes }
 }
 
 async function storage(path: string, init: RequestInit = {}) {
@@ -222,9 +223,9 @@ async function applicationAccess(applicationId: string, account: Awaited<ReturnT
 }
 
 async function verifyStorageBucket() {
-  const { bucket } = storageConfig()
+  const { bucket, maxFileBytes } = storageConfig()
   const details = await storage(`bucket/${encodeURIComponent(bucket)}`) as Row
-  return isStorageBucketVerified(details)
+  return isStorageBucketVerified(details, bucket, maxFileBytes)
 }
 
 function storageObjectPath(path: string) {
@@ -244,14 +245,16 @@ export async function handleCloudflareOxfordApi(request: Request) {
     const url = new URL(request.url)
     const action = url.searchParams.get('action')
     if (request.method === 'GET' && action === 'health') {
-      const storageConfigured = Boolean(getServerEnv('SUPABASE_URL') && supabaseSecretKey() && getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents')
+      const storagePolicy = getDocumentStoragePolicy(getServerEnv('CONTEXT'))
+      const bucketConfigured = Boolean(storagePolicy && getServerEnv('SUPABASE_BUCKET') === storagePolicy.bucket)
+      const storageConfigured = Boolean(getServerEnv('SUPABASE_URL') && supabaseSecretKey() && bucketConfigured)
       let storageVerified = false
       if (storageConfigured) {
         try { storageVerified = await verifyStorageBucket() } catch { storageVerified = false }
       }
       return json({
         configured: storageConfigured,
-        bucketConfigured: getServerEnv('SUPABASE_BUCKET') === 'oxford-customer-documents',
+        bucketConfigured,
         storageVerified,
         encryptionConfigured: Boolean(getServerEnv('OXFORD_PII_ENCRYPTION_KEY')),
         // Exact environment-host guard plus the explicit server-side upload flag.

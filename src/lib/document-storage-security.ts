@@ -1,6 +1,18 @@
 export const EXPECTED_DOCUMENT_BUCKET = 'oxford-customer-documents'
+export const EXPECTED_PREVIEW_DOCUMENT_BUCKET = 'oxford-preview-documents'
 export const MAX_BUCKET_FILE_BYTES = 10 * 1024 * 1024
+export const MAX_PREVIEW_BUCKET_FILE_BYTES = 4 * 1024 * 1024
 export const ALLOWED_DOCUMENT_STORAGE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
+
+export function getDocumentStoragePolicy(context: string | undefined) {
+  if (context === 'cloudflare-preview') {
+    return { bucket: EXPECTED_PREVIEW_DOCUMENT_BUCKET, maxFileBytes: MAX_PREVIEW_BUCKET_FILE_BYTES }
+  }
+  if (context === 'cloudflare-production') {
+    return { bucket: EXPECTED_DOCUMENT_BUCKET, maxFileBytes: MAX_BUCKET_FILE_BYTES }
+  }
+  return null
+}
 
 export type StorageBucketDetails = {
   id?: unknown
@@ -9,11 +21,15 @@ export type StorageBucketDetails = {
   allowed_mime_types?: unknown
 }
 
-export function isStorageBucketVerified(details: StorageBucketDetails): boolean {
+export function isStorageBucketVerified(
+  details: StorageBucketDetails,
+  expectedBucket = EXPECTED_DOCUMENT_BUCKET,
+  maxFileBytes = MAX_BUCKET_FILE_BYTES,
+): boolean {
   const allowedTypes = Array.isArray(details.allowed_mime_types) ? details.allowed_mime_types : []
-  return details.id === EXPECTED_DOCUMENT_BUCKET &&
+  return details.id === expectedBucket &&
     details.public === false &&
-    Number(details.file_size_limit) === MAX_BUCKET_FILE_BYTES &&
+    Number(details.file_size_limit) === maxFileBytes &&
     ALLOWED_DOCUMENT_STORAGE_TYPES.length === allowedTypes.length &&
     ALLOWED_DOCUMENT_STORAGE_TYPES.every((type) => allowedTypes.includes(type))
 }
@@ -43,6 +59,7 @@ export function isApprovedDeployPreviewRequest(
 }
 
 const APPROVED_CLOUDFLARE_PREVIEW_HOSTS = new Set([
+  'oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
   'work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
   'recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
   'release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev',
