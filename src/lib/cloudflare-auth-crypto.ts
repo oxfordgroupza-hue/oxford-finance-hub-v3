@@ -1,3 +1,5 @@
+// Cloudflare Workers WebCrypto rejects PBKDF2 iteration counts above 100,000.
+// Keep registration and login on the same runtime-supported derivation count.
 const PASSWORD_ITERATIONS = 100_000
 const PASSWORD_KEY_LENGTH = 256
 const PASSWORD_SALT_BYTES = 16
