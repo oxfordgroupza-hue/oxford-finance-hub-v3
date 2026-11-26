@@ -103,6 +103,8 @@ describe('Cloudflare Worker preview storage gate', () => {
 
 
 describe('Cloudflare production host gate', () => {
+  const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
+
   it('accepts only the canonical HTTPS Finance Hub hostname', () => {
     expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/')).toBe(true)
   })
