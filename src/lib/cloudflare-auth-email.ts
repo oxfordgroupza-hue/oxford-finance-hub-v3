@@ -20,17 +20,15 @@ function configuration() {
     OXFORD_NOTIFICATION_ADMIN_EMAIL: getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL'),
     OXFORD_INITIAL_SUPER_ADMIN_EMAIL: getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL'),
   }
-  // Fail closed: authentication emails must obey the same explicit preview/production
-  // delivery switch as every other Oxford notification. Missing means disabled.
   if (runtime.OXFORD_EMAIL_DELIVERY_ENABLED !== 'true') {
     throw new Error('Oxford account email delivery is disabled for this environment.')
   }
-  const apiKey = runtime.BREVO_API_KEY
-  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL
+  const apiKey = runtime.BREVO_API_KEY?.trim()
+  const sender = runtime.OXFORD_NOTIFICATION_FROM_EMAIL?.trim()
   if (!apiKey || !sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
     throw new Error('Oxford account email delivery is not configured for this Cloudflare environment.')
   }
-  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME || 'Oxford Finance Hub' }
+  return { apiKey, sender, senderName: runtime.OXFORD_NOTIFICATION_FROM_NAME?.trim() || 'Oxford Finance Hub' }
 }
 
 export function assertOxfordAuthEmailConfigured() {
@@ -38,9 +36,30 @@ export function assertOxfordAuthEmailConfigured() {
 }
 
 /**
- * Keep the first-administrator registration window restricted to the configured
- * mailbox. Ordinary customer registration stays closed until applications are enabled.
+ * Validate the runtime host before any account challenge is created or any
+ * authentication email is sent. Preview sends are restricted to the owner mailbox.
  */
+export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
+  const request = getRequest()
+  const context = getServerEnv('CONTEXT')
+
+  if (context === 'cloudflare-preview') {
+    if (!isApprovedCloudflarePreviewRequest(request.url)) {
+      throw new Error('Preview authentication email delivery is available only on an approved Oxford Preview Worker host.')
+    }
+    const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
+    const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
+    if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
+      throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
+    }
+    return
+  }
+
+  if (context === 'cloudflare-production' && isApprovedCloudflareProductionRequest(request.url)) return
+
+  throw new Error('Oxford authentication email delivery is unavailable on this runtime host.')
+}
+
 export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
   const email = recipient.trim().toLowerCase()
   const bootstrapEnabled = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_BOOTSTRAP_ENABLED') === 'true'
@@ -58,17 +77,6 @@ export function assertOxfordCustomerRegistrationAllowed(recipient: string) {
   }
 }
 
-/** Check the Preview recipient before creating a user or recovery challenge. */
-export function assertOxfordAuthEmailRecipientAllowed(recipient: string) {
-  const request = getRequest()
-  if (!isApprovedCloudflarePreviewRequest(request.url)) return
-  const allowedRecipient = getServerEnv('OXFORD_NOTIFICATION_ADMIN_EMAIL')?.trim().toLowerCase()
-  const bootstrapRecipient = getServerEnv('OXFORD_INITIAL_SUPER_ADMIN_EMAIL')?.trim().toLowerCase()
-  if (!allowedRecipient || allowedRecipient !== bootstrapRecipient || recipient.trim().toLowerCase() !== allowedRecipient) {
-    throw new Error('Preview email delivery is restricted to the configured Oxford test recipient.')
-  }
-}
-
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character)
 }
@@ -81,21 +89,14 @@ export async function sendOxfordAuthEmail(input: {
 }) {
   const config = configuration()
   const request = getRequest()
-  const previewHost = 'production-cloudflare-cutover-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev'
-  if (isApprovedCloudflarePreviewRequest(request.url)) {
-    assertOxfordAuthEmailRecipientAllowed(input.to)
-    const requestedUrl = new URL(input.url)
-    if (!isApprovedCloudflarePreviewRequest(requestedUrl.toString()) || requestedUrl.hostname !== previewHost) throw new Error('Preview account links must remain on the isolated preview host.')
-  }
+  assertOxfordAuthEmailRecipientAllowed(input.to)
+
   const target = new URL(input.url)
-  if (target.protocol !== 'https:' || target.username || target.password) {
-    throw new Error('The Oxford account link is not a secure HTTPS URL.')
+  const requestOrigin = new URL(request.url).origin
+  if (target.protocol !== 'https:' || target.username || target.password || target.origin !== requestOrigin) {
+    throw new Error('Oxford account links must remain on the approved HTTPS host for this environment.')
   }
-  if (getServerEnv('CONTEXT') === 'cloudflare-production') {
-    if (!isApprovedCloudflareProductionRequest(request.url) || target.origin !== new URL(request.url).origin) {
-      throw new Error('Production account links must remain on the approved Oxford Finance Hub domain.')
-    }
-  }
+
   const recovery = input.purpose === 'recovery'
   const staffInvitation = input.purpose === 'staff_invitation'
   const subject = recovery ? 'Oxford Finance Hub | Password recovery' : staffInvitation ? 'Oxford Finance Hub | Staff account invitation' : 'Verify your Oxford Finance Hub email'
