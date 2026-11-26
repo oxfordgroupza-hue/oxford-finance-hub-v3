@@ -3,6 +3,8 @@ import {
   ALLOWED_DOCUMENT_STORAGE_TYPES,
   EXPECTED_DOCUMENT_BUCKET,
   isApprovedDeployPreviewRequest,
+  isApprovedCloudflarePreviewRequest,
+  isApprovedCloudflareProductionRequest,
   isStorageBucketVerified,
   MAX_BUCKET_FILE_BYTES,
 } from './document-storage-security'
@@ -78,9 +80,10 @@ describe('deploy-preview-only storage gate', () => {
 describe('Cloudflare Worker preview storage gate', () => {
   const cloudflarePreviewUrl = 'https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/api/oxford'
 
-  it('accepts only the exact HTTPS Cloudflare preview hostname', async () => {
-    const { isApprovedCloudflarePreviewRequest } = await import('./document-storage-security')
+  it('accepts only the explicitly named stable branch Preview hostnames', () => {
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl)).toBe(true)
+    expect(isApprovedCloudflarePreviewRequest('https://recovery-import-verified-baseline-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/')).toBe(true)
+    expect(isApprovedCloudflarePreviewRequest('https://release-v3-production-2026-11-25-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/')).toBe(true)
   })
 
   it('rejects the previous stale preview hostname', async () => {
@@ -94,5 +97,20 @@ describe('Cloudflare Worker preview storage gate', () => {
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('https://','http://'))).toBe(false)
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('://','://user:pass@'))).toBe(false)
     expect(isApprovedCloudflarePreviewRequest(cloudflarePreviewUrl.replace('.workers.dev/','.workers.dev:8443/'))).toBe(false)
+  })
+})
+
+
+describe('Cloudflare production host gate', () => {
+  it('accepts only the canonical HTTPS Finance Hub hostname', () => {
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za/')).toBe(true)
+  })
+
+  it('rejects other hosts, HTTP, credentials and nonstandard ports', () => {
+    expect(isApprovedCloudflareProductionRequest('https://www.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za.evil.example/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('http://finance.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://user:pass@finance.oxfordbusinessgroup.co.za/')).toBe(false)
+    expect(isApprovedCloudflareProductionRequest('https://finance.oxfordbusinessgroup.co.za:8443/')).toBe(false)
   })
 })
