@@ -1,34 +1,11 @@
-# Form pattern
+# Forms and server-side validation
 
-`src/examples/validated-form.tsx` is an unmounted, type-checked example. It uses React Hook Form, Zod, and the local Form components. It has no backend or persistence. Import it into a route only when building a feature that needs it, then replace its email schema and copy with that feature's fields.
+All application forms submit to typed Tanstack Start server functions or the dedicated Cloudflare API routes. Do not rely on client-side validation alone.
 
-The example validates before submission, links field errors to the input, disables submission while pending, preserves input on failure, and announces success only after the required handler resolves. The handler must reject when the server rejects the request. `fetch` resolving does not mean the response succeeded.
-
-After implementing your own `/api/contact` handler, connect it like this:
-
-```tsx
-import { ValidatedForm } from '@/examples/validated-form'
-
-export function ContactForm() {
-  return (
-    <ValidatedForm
-      onSubmit={async (values) => {
-        const response = await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(values),
-        })
-        if (!response.ok) {
-          throw new Error('Submission failed')
-        }
-      }}
-    />
-  )
-}
-```
-
-The endpoint is an example address, not a route supplied by Basic. Validate input again on the server. Don't return success until the requested operation has completed.
-
-For Netlify Forms, use the supplied Netlify Forms skill instead of this JSON endpoint: mirror the fields in static HTML, send URL-encoded data to that static path, and check the response status. Keep the example's validation, pending, and failure behaviour.
-
-Keep a visible label for every field. Give required fields both a schema rule and a `required` attribute. Use `FormDescription` for hints and `FormMessage` for field errors. Show submission failures in a separate `role="alert"` message without displaying internal exception details. Test invalid input, a rejected response, pending submission, success, and retry.
+- Validate input with Zod on the server.
+- Enforce same-origin and approved-host checks for sensitive operations.
+- Apply authentication and authorization before reading or changing protected records.
+- Use generic responses for account recovery to avoid disclosing registered addresses.
+- Never accept identity documents or bank statements through public general-enquiry forms.
+- Keep application intake and document uploads disabled in Production until the security and legal acceptance gates pass.
+- Do not include passwords, tokens, private document URLs or personal information in logs or analytics.

@@ -1,38 +1,38 @@
-> **Current release status (25 November 2026): NOT READY for public recruitment or real applicant submissions.** The current evidence and remaining gates are tracked in [Release Readiness](docs/RELEASE_READINESS.md). Production remains untouched; Preview is synthetic-data-only. The latest code commit is `fc6d21ce54897901f5cb0305005151623edc2f10`; its bounded multipart parser build is still pending. The last successful full build predates that parser change.
-
----
-
 # Oxford Finance Hub V3
 
-Oxford Finance Hub is the finance-intermediary platform of Oxford Business Group (Pty) Ltd, operating in South Africa.
+Oxford Finance Hub V3 is the private finance-enquiry and application platform for Oxford Business Group.
 
-**This is a recovery and development repository, not a production release.** The controlling functional and business requirements remain the Oxford Finance Hub V3 master project recovery and release specification dated 10 November 2026. The infrastructure/authentication/database architecture is superseded by the accepted decision in [ADR-001](docs/architecture/ADR-001-CLOUDFLARE-NEON-AUTH.md).
+## Production architecture
+- Application runtime: Cloudflare Workers.
+- Database: Neon PostgreSQL through Cloudflare Hyperdrive.
+- Private applicant-document storage: Supabase Storage, private bucket `oxford-customer-documents`.
+- Transactional email provider: Brevo.
+- Source control and CI: GitHub.
+- Production application: https://finance.oxfordbusinessgroup.co.za
+- Repository: https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3
 
-## Approved target architecture
+Cloudflare is the only deployment and runtime platform for this application. The application source, database migrations, local tooling and documentation must remain aligned with this architecture.
 
-- **Cloudflare Workers:** application hosting and server runtime.
-- **Oxford-owned Cloudflare-native authentication:** registration, password hashing, email verification, recovery, secure sessions and account lifecycle.
-- **Neon PostgreSQL:** authoritative V3 database for accounts, access control, applications, partners, audit events and workflows.
-- **Supabase Storage:** private customer/application document storage; no public buckets or unauthorised direct access.
-- **Brevo:** transactional email, controlled by explicit environment gates and recipient restrictions.
-- **Netlify:** retained as a rollback/reference environment during migration; Netlify Identity and Netlify Database are no longer the target V3 authorities.
+## Repository layout
+- `src/`: TanStack Start application, routes, server functions and shared domain logic.
+- `db/schema.ts`: PostgreSQL schema.
+- `db/cloudflare.ts`: request-scoped Worker database adapter.
+- `db/migrations/`: ordered SQL migration history.
+- `scripts/`: local administration and database utilities.
+- `wrangler.jsonc`: Cloudflare Worker configuration.
+- `vite.cloudflare.config.ts`: Cloudflare Vite build and runtime boundary.
+- `supabase/migrations/`: Supabase Storage policies and setup migrations.
 
-## Current development boundary
+## Safety defaults
+Production application intake, document uploads and notification delivery remain disabled until their respective security, regulatory and operational acceptance checks are complete. Do not enable them as part of routine deployment work. Do not store identity documents, bank statements or applicant credentials in public storage or source control.
 
-- Active branch: `work/v3-cloudflare-native-auth`.
-- Stable Preview reference: https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
-- Latest immutable Preview deployment: https://9d173fa4-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
-- Preview Neon branch: isolated `cloudflare-preview`.
-- Production hosting, DNS, database, secrets and customer processing remain untouched.
+## Validation
+```bash
+pnpm install --frozen-lockfile
+pnpm cf:build
+pnpm typecheck
+pnpm test
+pnpm lint
+```
 
-Preview secrets are environment-specific. Document uploads remain disabled. Email is restricted to the approved Preview mailbox. Do not send real customer communications, create real applications, upload real documents, process payments or settlements, or use production data in Preview.
-
-## Validation and release
-
-Latest full Preview build: **39 test files, 216 tests passed, TypeScript passed, ESLint zero errors** (two warnings in generated Worker types). The latest deployment includes locally bundled finance imagery.
-
-This is not comprehensive end-to-end acceptance and does not establish release readiness. Authentication/bootstrap, all role permissions, all application journeys, document security, email delivery, backup/restore, changed-files formatting, visual acceptance and qualified legal review remain open.
-
-See [Preview acceptance](docs/CLOUDFLARE-PREVIEW-ACCEPTANCE.md), [testing evidence](docs/TESTING.md), [known issues](docs/KNOWN_ISSUES.md), [security baseline](docs/SECURITY.md), [backup and recovery](docs/BACKUP_RECOVERY.md), [accepted architecture decision](docs/architecture/ADR-001-CLOUDFLARE-NEON-AUTH.md), [project plan](PLAN.md) and [contributor rules](AGENTS.md).
-
-Keep PR #9 draft and unmerged. Do not bind the production custom domain, change production resources or cut over without separate explicit approval.
+Database utilities require an explicitly supplied `DATABASE_URL`. Never print or commit secrets.

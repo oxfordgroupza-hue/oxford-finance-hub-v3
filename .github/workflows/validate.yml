@@ -1,10 +1,9 @@
 name: Project validation
 
 # GitHub-hosted runners are currently blocked before startup by the account
-# billing/spending restriction. Netlify Deploy Previews run the same checks
-# automatically and are the authoritative CI signal until billing is restored.
-# Keep this manual workflow as a fallback; re-enable PR/push triggers only after
-# GitHub Actions can start jobs successfully again.
+# billing/spending restriction. Cloudflare Workers Builds run the production and
+# Preview build, typecheck, test and lint commands. Keep this manual workflow as
+# a fallback; enable PR/push triggers when GitHub Actions can start successfully.
 on:
   workflow_dispatch:
 
