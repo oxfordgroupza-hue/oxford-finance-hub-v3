@@ -69,3 +69,9 @@ Status: IN PROGRESS
 
 ## Next action
 - Continue read-only provenance investigation to identify the GitHub commit/branch behind Cloudflare production version 35; then reconcile the README. Do not deploy or change provider configuration.
+
+## CI investigation update — 2026-11-27
+- [VERIFIED] Latest observed workflow run in the inspected Actions list: run 45947440335, workflow "Recover V3 baseline and implement contact details", main, commit a5fc584b8ef4eb2840fd7f11cea6091e6f79706b. It concluded failure.
+- [VERIFIED] Its job record started and completed within approximately two seconds, has runner_id=0, runner_name empty, and contains zero steps. The job log endpoint returned no retrievable log artifact. This points to a runner/job startup failure before workflow steps executed; it does not establish an application-code failure.
+- [VERIFIED] The workflow definition at that run's commit includes checkout, source import, code generation and pnpm validation steps. None of those steps ran according to the job record.
+- [PENDING] Root cause of the runner startup failure remains unknown. Do not rerun or alter workflow definitions without approval.
