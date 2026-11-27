@@ -9,6 +9,7 @@ import { Download, FilePen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { StatusBadge } from '@/components/site/StatusBadge'
+import { ContactDetails } from '@/components/site/ContactDetails'
 import { applicantTypes, applicationStatuses, getCategory } from '@/lib/finance-config'
 import { formatDate, formatDateTime, formatZAR } from '@/lib/format'
 import { calculateFinanceAmount } from '@/lib/fee-calculation'
@@ -78,6 +79,12 @@ export function CustomerDashboard({ applications, drafts, supportRequests, accou
           </div>
         </section>
       )}
+
+      <section aria-label="Contact Oxford for help" className="rounded-sm border border-border bg-card p-5">
+        <h2 className="text-lg font-medium">Need assistance with your application?</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Contact the Oxford team using the verified details below. Do not send identity documents or bank statements by email or WhatsApp.</p>
+        <div className="mt-4"><ContactDetails compact /></div>
+      </section>
 
       <section aria-labelledby="my-record-search" className="rounded-sm border border-border bg-card p-6">
         <h2 id="my-record-search" className="text-xl">Find my records</h2>
