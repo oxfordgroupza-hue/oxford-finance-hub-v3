@@ -31,18 +31,18 @@ describe("FinanceHubWhatsAppButton", () => {
     const firstMessage = firstUrl.searchParams.get("text") ?? "";
     const secondMessage = secondUrl.searchParams.get("text") ?? "";
     const firstReference = firstMessage.match(
-      /Reference: (OBG-\d{6}-[A-Z2-9]{6})/,
+      /Reference: (OXFH-\d{6}-[A-Z2-9]{6})/,
     )?.[1];
     const secondReference = secondMessage.match(
-      /Reference: (OBG-\d{6}-[A-Z2-9]{6})/,
+      /Reference: (OXFH-\d{6}-[A-Z2-9]{6})/,
     )?.[1];
 
     expect(firstUrl.origin + firstUrl.pathname).toBe(
       "https://wa.me/27639089071",
     );
     expect(firstMessage).toContain("Finance Hub Enquiry");
-    expect(firstReference).toMatch(/^OBG-\d{6}-[A-Z2-9]{6}$/);
-    expect(secondReference).toMatch(/^OBG-\d{6}-[A-Z2-9]{6}$/);
+    expect(firstReference).toMatch(/^OXFH-\d{6}-[A-Z2-9]{6}$/);
+    expect(secondReference).toMatch(/^OXFH-\d{6}-[A-Z2-9]{6}$/);
     expect(firstReference).not.toBe(secondReference);
     expect(firstMessage).not.toContain(
       "I am contacting you from the Oxford Finance Hub",

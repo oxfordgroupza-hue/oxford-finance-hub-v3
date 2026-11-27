@@ -15,7 +15,7 @@ export function createFinanceHubEnquiryReference(date = new Date()) {
     (value) => REFERENCE_ALPHABET[value % REFERENCE_ALPHABET.length],
   ).join("");
 
-  return `OBG-${datePart}-${suffix}`;
+  return `OXFH-${datePart}-${suffix}`;
 }
 
 function createFinanceHubEnquiryMessage(reference: string) {
