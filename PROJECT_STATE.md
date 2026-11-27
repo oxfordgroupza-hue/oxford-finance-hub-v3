@@ -1,5 +1,11 @@
 # Project State
 
+## Mandatory platform policy (2026-11-27)
+- **Cloudflare is Oxford's required default platform. Netlify is prohibited for new work and must not be recommended, selected, configured or used.** Netlify may only be considered where genuinely imperative and only with the user's explicit permission or direct request.
+- Assess Cloudflare-native replacements for any function historically assigned to Netlify. Do not assume a one-to-one equivalent; verify capability, security, compatibility, cost and data handling.
+- This policy does not authorise an automatic migration or production change. Existing dependencies remain until a safe replacement is implemented, tested and separately approved.
+- The repository's PROJECT_OPERATING_STANDARD.md version 2.0 contains the full mandatory Cloudflare-first policy.
+
 Last verified: 2026-11-27
 Status: IN PROGRESS
 
