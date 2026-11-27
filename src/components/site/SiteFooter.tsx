@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { intermediaryDisclaimer } from '@/lib/finance-config'
 import { BrandLogo } from './BrandLogo'
+import { ContactDetails } from './ContactDetails'
 
 const columns = [
   {
@@ -41,6 +42,7 @@ export function SiteFooter() {
           <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
             Oxford Business Group (Pty) Ltd connects individuals and businesses with suitable finance providers.
           </p>
+          <ContactDetails compact />
         </div>
         {columns.map((col) => (
           <div key={col.title}>

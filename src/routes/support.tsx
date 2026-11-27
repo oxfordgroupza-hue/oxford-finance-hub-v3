@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { EnquiryForm } from '@/components/site/EnquiryForm'
 import { InformationPage } from '@/components/site/InformationPage'
+import { ContactDetails } from '@/components/site/ContactDetails'
 
 export const Route = createFileRoute('/support')({
   head: () => ({ meta: [{ title: 'Support | Oxford Finance Hub' }] }),
@@ -17,7 +18,7 @@ export const Route = createFileRoute('/support')({
           </Accordion>
         ),
       }]}
-      aside={<EnquiryForm kind="support" title="Contact support" extraFields={[{ id: 'reference', label: 'Application reference' }]} />} />
+      aside={<div className="space-y-8"><EnquiryForm kind="support" title="Contact support" extraFields={[{ id: 'reference', label: 'Application reference' }]} /><ContactDetails compact /></div>} />
   ),
 })
 
