@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { HelpCircle, MessageSquareWarning } from 'lucide-react'
+import { ContactDetails } from '@/components/site/ContactDetails'
 import { EnquiryForm } from '@/components/site/EnquiryForm'
 import { PageHero } from '@/components/site/PageHero'
 import { SiteLayout } from '@/components/site/SiteLayout'
@@ -23,7 +24,8 @@ function ContactPage() {
           <Link to="/complaints" className="flex gap-4 rounded-sm border border-border bg-card p-6 hover:border-gold/50">
             <MessageSquareWarning className="size-5 shrink-0 text-gold" /><div><h2 className="text-2xl">Complaints</h2><p className="mt-1 text-sm text-muted-foreground">How to raise a complaint and what to expect from us.</p></div>
           </Link>
-          <p className="rounded-sm border border-border p-5 text-sm text-muted-foreground">Office telephone, email and address details will be published here once confirmed by Oxford Business Group.</p>
+          <ContactDetails />
+          <p className="rounded-sm border border-border p-5 text-xs leading-relaxed text-muted-foreground">Please do not send identity documents, bank statements, passwords or other sensitive financial information by email, WhatsApp or the general enquiry form. Use the secure portal only when Oxford confirms that document submission is enabled.</p>
         </div>
       </div>
     </SiteLayout>
