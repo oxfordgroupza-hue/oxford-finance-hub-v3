@@ -1,6 +1,6 @@
 # Oxford Project Operating Standard
 
-Version: 1.0
+Version: 2.0
 Created: 2026-11-27
 
 This document defines the working method to be copied into every Oxford project repository. It is a project-management and continuity document; it must not change application behaviour, production configuration, secrets, databases, DNS, or deployment settings.
@@ -8,6 +8,28 @@ This document defines the working method to be copied into every Oxford project 
 ## Purpose
 
 Prevent project confusion, repeated work, unsupported claims, accidental production changes, and loss of progress between work sessions.
+
+## Mandatory Cloudflare platform policy
+
+**Cloudflare is the mandatory default platform for Oxford Business Group projects. Netlify is not to be used.**
+
+1. All new Oxford projects, services, websites, APIs, scheduled jobs, deployment workflows and infrastructure decisions must use Cloudflare services wherever technically suitable.
+2. Any function previously performed by Netlify—including hosting, builds/deployments, previews, serverless functions, scheduled functions, forms, identity/authentication, database-related features or edge routing—must be evaluated for a Cloudflare-native replacement. Do not assume that every Netlify product has a direct one-to-one Cloudflare equivalent; identify the exact function and choose the appropriate Cloudflare architecture.
+3. **Netlify must never be selected, recommended, introduced, configured, or used by default.** It may only be considered where a documented, genuinely imperative requirement cannot reasonably be met with Cloudflare or another already-approved platform, and only after the user explicitly authorises that specific use or directly asks for Netlify.
+4. Convenience, familiarity, an existing README, a template default, or a previous project decision is not sufficient justification to use Netlify. This prohibition remains in force unless the user changes it.
+5. Use Cloudflare services according to their actual roles: Workers for server-side logic, APIs and edge execution; Pages for suitable website hosting and builds; D1 for suitable relational data; R2 for object/file storage; and Cloudflare-native routing, security and scheduled execution where appropriate. Validate product capabilities, plan limits, compatibility, backup, data residency, security and cost before committing to an architecture.
+6. This is **Cloudflare-first, not Cloudflare-only**. Existing approved non-Netlify services may remain where they provide a required capability and replacing them would create unnecessary risk. Do not force migrations or substitute services without technical assessment and user approval.
+7. Existing Netlify-dependent code, configuration, documentation or production systems are legacy dependencies to be assessed and replaced—not permission to continue using Netlify. Until an approved replacement is implemented and verified, do not remove or disrupt the existing dependency.
+8. Do not migrate, deploy, change DNS/routes, alter authentication, move databases/files, change secrets, or modify production merely because this policy has been adopted. Such changes require separate, explicit approval.
+9. Before any migration, map the current function, data, integrations, authentication/session behaviour, notifications, security controls, costs and rollback path. Verify the replacement in a non-production environment and obtain approval before production cutover.
+10. Repository documentation and project state must state the actual provider and distinguish verified live infrastructure from intended architecture. If documentation conflicts with live evidence or this policy, record the discrepancy and resolve it safely; never silently assume a migration has occurred.
+
+### Project-specific Cloudflare status rules
+
+- Oxford Finance Hub V3: Cloudflare Workers production hostname routing has been verified. The exact Git branch/commit behind the active Worker version remains unresolved. Existing Netlify references in V3 documentation are legacy documentation and do not override this policy. Do not alter the live Worker or remove dependencies until provenance and replacement requirements are established.
+- Oxford Business Group corporate website: Cloudflare Pages is the documented hosting target. The exact deployed production commit must be verified independently.
+- Oxford Payload CMS: Cloudflare Workers/OpenNext with D1/R2 is the documented target. No Cloudflare resources or production deployment are confirmed; Free-plan compatibility and staging workflows must be proven first.
+- Other Oxford projects: apply this policy after discovering their actual repositories, services and requirements. Do not invent deployment status.
 
 ## Source-of-truth order
 
