@@ -7,10 +7,9 @@ Status: IN PROGRESS
 - Project: Oxford Finance Hub V3
 - Purpose: Recovered V3 finance platform for individual and business finance applications, customer access and protected internal processing.
 - Repository: https://github.com/oxfordgroupza-hue/oxford-finance-hub-v3
-- Canonical production URL: Intended target is https://finance.oxfordbusinessgroup.co.za; live production status is not confirmed by the repository README.
+- Canonical production URL: https://finance.oxfordbusinessgroup.co.za (Cloudflare Worker hostname routing verified on 2026-11-27; application acceptance not implied).
 
 ## Source and deployment
-- Working branch: main (repository default branch)
 - Working branch: main (repository default branch)
 - Working commit: 82a2d1d5fd3e7c927c7cda202a920d523c03f491 (verified from GitHub branch endpoint on 2026-11-27; this is the state-record commit before this update).
 - Deployment provider: [VERIFIED] Cloudflare Workers currently serves the Finance Hub production hostname. Cloudflare account records show finance.oxfordbusinessgroup.co.za routed to Worker oxford-finance-hub-v3-production, enabled=true, environment=production. A separate oxford-finance-hub-v3-preview Worker exists.
