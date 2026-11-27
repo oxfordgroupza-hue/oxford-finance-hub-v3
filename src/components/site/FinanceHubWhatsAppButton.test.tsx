@@ -8,16 +8,12 @@ describe("FinanceHubWhatsAppButton", () => {
     vi.unstubAllGlobals();
   });
 
-  it("opens the Oxford WhatsApp chat with a Finance Hub label and a fresh contact-form-style UUID reference", () => {
-    const references = [
-      "8f1a2b3c-4d5e-4f60-8123-abcdef012345",
-      "9a2b3c4d-5e6f-4071-9234-bcdef0123456",
-    ];
-    const randomUUID = vi
+  it("opens the Oxford WhatsApp chat with a short corporate-style Finance Hub reference", () => {
+    const randomValues = vi
       .fn()
-      .mockReturnValueOnce(references[0])
-      .mockReturnValueOnce(references[1]);
-    vi.stubGlobal("crypto", { randomUUID });
+      .mockImplementationOnce((bytes: Uint8Array) => bytes.fill(0))
+      .mockImplementationOnce((bytes: Uint8Array) => bytes.fill(1));
+    vi.stubGlobal("crypto", { getRandomValues: randomValues });
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
 
     render(<FinanceHubWhatsAppButton />);
@@ -28,25 +24,30 @@ describe("FinanceHubWhatsAppButton", () => {
     fireEvent.click(button);
     fireEvent.click(button);
 
-    expect(randomUUID).toHaveBeenCalledTimes(2);
+    expect(randomValues).toHaveBeenCalledTimes(2);
     expect(open).toHaveBeenCalledTimes(2);
     const firstUrl = new URL(open.mock.calls[0][0] as string);
     const secondUrl = new URL(open.mock.calls[1][0] as string);
+    const firstMessage = firstUrl.searchParams.get("text") ?? "";
+    const secondMessage = secondUrl.searchParams.get("text") ?? "";
+    const firstReference = firstMessage.match(
+      /Reference: (OBG-\d{6}-[A-Z2-9]{6})/,
+    )?.[1];
+    const secondReference = secondMessage.match(
+      /Reference: (OBG-\d{6}-[A-Z2-9]{6})/,
+    )?.[1];
 
     expect(firstUrl.origin + firstUrl.pathname).toBe(
       "https://wa.me/27639089071",
     );
-    expect(firstUrl.searchParams.get("text")).toContain("Oxford Finance Hub");
-    expect(firstUrl.searchParams.get("text")).toContain("Finance Hub Enquiry");
-    expect(firstUrl.searchParams.get("text")).toContain(
-      `Reference: ${references[0]}`,
+    expect(firstMessage).toContain("Finance Hub Enquiry");
+    expect(firstReference).toMatch(/^OBG-\d{6}-[A-Z2-9]{6}$/);
+    expect(secondReference).toMatch(/^OBG-\d{6}-[A-Z2-9]{6}$/);
+    expect(firstReference).not.toBe(secondReference);
+    expect(firstMessage).not.toContain(
+      "I am contacting you from the Oxford Finance Hub",
     );
-    expect(secondUrl.searchParams.get("text")).toContain(
-      `Reference: ${references[1]}`,
-    );
-    expect(firstUrl.searchParams.get("text")).not.toBe(
-      secondUrl.searchParams.get("text"),
-    );
+    expect(firstMessage).not.toContain("8f1a2b3c");
     expect(open.mock.calls[0][1]).toBe("_blank");
     expect(open.mock.calls[0][2]).toBe("noopener,noreferrer");
   });

@@ -1,12 +1,27 @@
 import { MessageCircle } from "lucide-react";
 
 const WHATSAPP_NUMBER = "27639089071";
+const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+export function createFinanceHubEnquiryReference(date = new Date()) {
+  const datePart = [
+    String(date.getFullYear()).slice(-2),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("");
+  const randomBytes = crypto.getRandomValues(new Uint8Array(6));
+  const suffix = Array.from(
+    randomBytes,
+    (value) => REFERENCE_ALPHABET[value % REFERENCE_ALPHABET.length],
+  ).join("");
+
+  return `OBG-${datePart}-${suffix}`;
+}
 
 function createFinanceHubEnquiryMessage(reference: string) {
   return [
     "Good day, Oxford Business Group.",
     "",
-    "I am contacting you from the Oxford Finance Hub.",
     "Enquiry type: Finance Hub Enquiry",
     `Reference: ${reference}`,
     "",
@@ -19,7 +34,7 @@ function createFinanceHubEnquiryMessage(reference: string) {
 export function FinanceHubWhatsAppButton() {
   const openWhatsApp = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    const reference = crypto.randomUUID();
+    const reference = createFinanceHubEnquiryReference();
     const message = createFinanceHubEnquiryMessage(reference);
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank", "noopener,noreferrer");
