@@ -6,7 +6,7 @@
 - This policy does not authorise an automatic migration or production change. Existing dependencies remain until a safe replacement is implemented, tested and separately approved.
 - The repository's PROJECT_OPERATING_STANDARD.md version 2.0 contains the full mandatory Cloudflare-first policy.
 
-Last verified: 2026-11-27
+Last verified: 2026-11-28
 Status: IN PROGRESS
 
 ## Identity
@@ -17,7 +17,7 @@ Status: IN PROGRESS
 
 ## Source and deployment
 - Working branch: main (repository default branch)
-- Working commit: e72218692bba46a46755e5e8fde7ea510c6a47a6 (verified 2026-11-28) (verified from GitHub branch endpoint on 2026-11-27; this is the state-record commit before this update).
+- Working commit: e72218692bba46a46755e5e8fde7ea510c6a47a6 (verified 2026-11-28).
 - Deployment provider: [VERIFIED] Cloudflare Workers currently serves the Finance Hub production hostname. Cloudflare account records show finance.oxfordbusinessgroup.co.za routed to Worker oxford-finance-hub-v3-production, enabled=true, environment=production. A separate oxford-finance-hub-v3-preview Worker exists.
 - Production Worker latest observed deployment: 2026-11-27T07:31:07Z, deployment id 2ddf7db3-50e3-4660-bc26-e09d39b4c2f3, version id 2d7ea9ca-a53d-4237-a23d-c4eac062a611 (version 35, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
 - Preview Worker latest observed deployment: 2026-11-27T07:26:41Z, deployment id 346b4c0e-6274-4b3f-ba31-050767ceca99, version id 6fc4fc2e-26bd-4665-919a-5523e08e34bc (version 91, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
@@ -41,22 +41,23 @@ Status: IN PROGRESS
 |---|---|---|---|---|---|
 | Registration, email verification and login | USER-REPORTED PASS | Earlier project session; exact date/commit not captured here | User test environment | Not captured | Prior conversation report |
 | Hosting provider and production hostname routing | VERIFIED | 2026-11-27 | Cloudflare account configuration | Worker version 35 | Enabled hostname route maps finance.oxfordbusinessgroup.co.za to oxford-finance-hub-v3-production |
-| Exact deployed Git branch and commit | BLOCKED | 2026-11-27 | Cloudflare Worker version metadata vs GitHub refs | — | Cloudflare identifies Wrangler as deployment source but does not expose Git commit/branch |
+| Exact deployed Git branch and commit | VERIFIED | 2026-11-28 | Cloudflare source maps vs GitHub V3 tree | 464a26aaa0a2157b1fda3abd0e90f2eb1640891a | 116 non-image application source files matched exactly; preview independently matched 115 non-image files |
 | Current production application and upload readiness | PENDING | — | Production | — | README documents these capabilities as disabled pending approval |
 | Current build/CI acceptance suite | PENDING | — | Repository | — | Not run in this documentation-only session |
 
 ## Outstanding work
-1. [VERIFIED] Production Worker source identified by exact source-content comparison: fix/finance-hub-whatsapp-reference-format @ 464a26aaa0a2157b1f1fda3abd0e90f2eb1640891a. Keep the source match evidence and do not infer deployment provenance from branch labels alone.
+1. [VERIFIED] Production Worker source identified by exact source-content comparison: fix/finance-hub-whatsapp-reference-format @ 464a26aaa0a2157b1fda3abd0e90f2eb1640891a. Keep the source match evidence and do not infer deployment provenance from branch labels alone.
 2. [PENDING] Reconcile README architecture documentation with the verified Cloudflare production routing. Documentation correction should follow source/deployment provenance confirmation and must not trigger a deployment.
 3. [PENDING] Inspect current CI and test evidence; do not repeat the user's successful authentication tests unless a relevant change or mismatch requires it.
 4. [PENDING] Keep application processing, uploads and notifications disabled until their acceptance tests and separate approvals are complete.
 
 ## Confirmed defects and blockers
-- [BLOCKED] Documentation/provenance discrepancy: README describes Netlify, while Cloudflare currently routes the production Finance Hub hostname to its V3 Worker. Cloudflare is verified as the active routing provider; exact source branch/commit remains unknown. No deployment action should be taken until provenance and documentation are reconciled.
+- [VERIFIED] Documentation discrepancy: V3 main README still describes Netlify as target architecture, while the deployed V3 source branch AGENTS.md and Worker source implement Cloudflare-native auth/runtime. Exact deployed source commit is now verified by source-content matching. Reconcile documentation before further release instructions are followed.
 - No new application defect established in this session.
 
 ## Integrations and configuration
-- Netlify Identity and Netlify Database are described in the V3 README as the intended authentication and relational data services.
+- [VERIFIED IN SOURCE BRANCH] Cloudflare Workers — hosting and server-side runtime; Oxford-owned Cloudflare-native authentication; Neon PostgreSQL via Cloudflare Hyperdrive as the documented authoritative relational database; Supabase Storage for private application files; Brevo for transactional email. Production feature gates remain as recorded below.
+- Main README still has stale Netlify architecture text; it is not authoritative over the V3 source branch AGENTS.md and deployed source fingerprint.
 - Supabase Storage is documented for private application files only; Supabase Auth and Supabase relational tables are excluded by the README.
 - Brevo is documented as disabled until controlled acceptance tests pass.
 - [VERIFIED] Current Cloudflare routing maps finance.oxfordbusinessgroup.co.za to oxford-finance-hub-v3-production; the V3 preview Worker is also present. No secret values or applicant data were read or copied.
