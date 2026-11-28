@@ -997,8 +997,8 @@ function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: numb
   ]
   const consents: { key: keyof ApplicationForm; label: string; required: boolean }[] = [
     { key: 'consentAccuracy', label: 'I confirm that the information in this application is true, complete and accurate.', required: true },
-    { key: 'consentProcessing', label: 'I consent to Oxford Business Group processing my personal information to assess and arrange finance, as described in the Privacy Policy and POPIA notice.', required: true },
-    { key: 'consentShareProviders', label: 'I consent to Oxford Business Group sharing this application with suitable finance providers for assessment.', required: true },
+    { key: 'consentProcessing', label: 'I consent to Oxford Finance Hub, operated by Oxford Business Group (Pty) Ltd, processing my personal information to support my finance enquiry and application, as described in the Privacy Policy and POPIA notice.', required: true },
+    { key: 'consentShareProviders', label: 'I consent to Oxford Finance Hub sharing my application with relevant finance providers for assessment. I understand that each provider makes its own decision and sets its own terms.', required: true },
     { key: 'consentCreditCheck', label: 'I understand that finance providers may perform credit and fraud checks as part of their assessment.', required: true },
     { key: 'consentMarketing', label: 'Send me occasional updates about Oxford finance solutions (optional).', required: false },
   ]
@@ -1058,9 +1058,7 @@ function Confirmation({ reference, form }: { reference: string; form: Applicatio
         </Button>
       </div>
       <PreviewNotice className="mt-8 text-left">
-        Your application has been recorded for Oxford Business Group's review. This confirmation is not a credit
-        approval, finance offer or guarantee of funding. Our office will contact you if further information or
-        supporting documents are required.
+        Your application has been recorded for Oxford Finance Hub's review. This confirmation is not a finance offer or guarantee of approval. The relevant finance provider makes its own assessment and decision. Our team will contact you if further information or supporting documents are required.
       </PreviewNotice>
       <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         <Button asChild variant="gold" className="rounded-sm"><Link to="/dashboard">Go to my dashboard</Link></Button>
