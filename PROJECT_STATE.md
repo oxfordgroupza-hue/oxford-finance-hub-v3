@@ -17,7 +17,7 @@ Status: IN PROGRESS
 
 ## Source and deployment
 - Working branch: feature/finance-provider-disclosures-2026-11-28
-- Working commit: b459aceefa42b04d3cf63243025dbc396e0fbf59 (latest application-code commit before project-record files were added).
+- Latest application-code commit: b459aceefa42b04d3cf63243025dbc396e0fbf59. Latest project documentation commit before this state refresh: ca1442416fb51e8672544ac8452adfcefe995dc7.
 - Deployment provider: [VERIFIED] Cloudflare Workers currently serves the Finance Hub production hostname. Cloudflare account records show finance.oxfordbusinessgroup.co.za routed to Worker oxford-finance-hub-v3-production, enabled=true, environment=production. A separate oxford-finance-hub-v3-preview Worker exists.
 - Production Worker latest observed deployment: 2026-11-27T07:31:07Z, deployment id 2ddf7db3-50e3-4660-bc26-e09d39b4c2f3, version id 2d7ea9ca-a53d-4237-a23d-c4eac062a611 (version 35, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
 - Preview Worker latest observed deployment: 2026-11-27T07:26:41Z, deployment id 346b4c0e-6274-4b3f-ba31-050767ceca99, version id 6fc4fc2e-26bd-4665-919a-5523e08e34bc (version 91, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
@@ -33,6 +33,9 @@ Status: IN PROGRESS
 - [VERIFIED] Applicant consent required/optional flags and application submission/security logic were not changed.
 - [VERIFIED] Preview Neon `site_content` contains published overrides for `home.hero.eyebrow`, `home.hero.intro` and `solutions.hero.intro`; the current values still contain the previous intermediary-focused wording. These rows override the new source fallbacks.
 - [VERIFIED] No Neon data was changed. Explicit user approval is required before editing the three Preview content rows; Production database remains untouched.
+- [VERIFIED] `AGENTS.md` now requires the operating standard and state at the start of each task and marks Netlify as legacy-only.
+- [VERIFIED] `README.md` now identifies the verified V3 source baseline and states that Netlify must not be used.
+- [VERIFIED] `.github/workflows/validate.yml` no longer treats Netlify Deploy Previews as the authoritative CI signal; GitHub Actions remains manual-only pending runner availability.
 - [PENDING] Build, typecheck, tests and lint have not been run on this feature branch. The repository validation workflow is manual-only and the project records GitHub-hosted runner billing restrictions; do not dispatch it without explicit approval or a confirmed free execution path.
 
 ## Completed work
@@ -104,3 +107,9 @@ Status: IN PROGRESS
 - Footer, Solutions, About, homepage fallbacks, Terms, provider-sharing consent and application confirmation now use the Finance Hub brand and clarify provider assessment/decision responsibility in discreet locations.
 - Preview database overrides remain unchanged. Published values currently contain the previous wording and override the updated homepage/Solutions fallbacks.
 - Tests/build not run. No preview Worker deployment, Production Worker deployment, database mutation, feature-flag change or DNS change occurred.
+
+
+## Project controls update — 2026-11-28
+- [VERIFIED] Added `PROJECT_OPERATING_STANDARD.md` and `PROJECT_STATE.md` to this feature branch so future sessions have the mandatory start-of-work controls.
+- [VERIFIED] Updated `AGENTS.md`, `README.md` and `.github/workflows/validate.yml` to align with the Cloudflare-first policy and remove Netlify preview as an approved validation path.
+- Latest application-code commit remains `b459aceefa42b04d3cf63243025dbc396e0fbf59`; later commits on this branch are project-control/documentation updates only.
