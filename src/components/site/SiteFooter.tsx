@@ -40,8 +40,8 @@ export function SiteFooter() {
         <div className="space-y-5">
           <BrandLogo />
           <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-            Oxford Business Group (Pty) Ltd connects individuals and businesses
-            with suitable finance providers.
+            Oxford Finance Hub helps individuals and businesses explore finance
+            options for personal, business and asset requirements.
           </p>
           <ContactDetails compact />
         </div>
