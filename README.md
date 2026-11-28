@@ -15,11 +15,12 @@ Oxford Finance Hub is the finance-intermediary platform of Oxford Business Group
 - **Neon PostgreSQL:** authoritative V3 database for accounts, access control, applications, partners, audit events and workflows.
 - **Supabase Storage:** private customer/application document storage; no public buckets or unauthorised direct access.
 - **Brevo:** transactional email, controlled by explicit environment gates and recipient restrictions.
-- **Netlify:** retained as a rollback/reference environment during migration; Netlify Identity and Netlify Database are no longer the target V3 authorities.
+- **Netlify:** historical legacy references only. Do not deploy to, use or configure Netlify. Cloudflare is the approved V3 hosting and deployment platform.
 
 ## Current development boundary
 
-- Active branch: `work/v3-cloudflare-native-auth`.
+- Deployed source baseline: `fix/finance-hub-whatsapp-reference-format` at `464a26aaa0a2157b1fda3abd0e90f2eb1640891a` (verified by exact application-source fingerprint on 28 November 2026).
+- Current development branch: `feature/finance-provider-disclosures-2026-11-28`.
 - Stable Preview reference: https://work-v3-cloudflare-native-auth-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
 - Latest immutable Preview deployment: https://9d173fa4-oxford-finance-hub-v3-preview.oxfordbusinessgroup.workers.dev/
 - Preview Neon branch: isolated `cloudflare-preview`.
