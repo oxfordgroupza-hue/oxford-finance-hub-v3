@@ -34,7 +34,7 @@ export const Route = createFileRoute('/')({
 })
 
 const featureStrip = [
-  { icon: Waypoints, title: 'Intermediary access', body: 'One application, presented to suitable finance providers.' },
+  { icon: Waypoints, title: 'Finance options', body: 'Explore options for personal, business and asset finance needs.' },
   { icon: Briefcase, title: 'Individual & business', body: 'Dedicated journeys for private and commercial applicants.' },
   { icon: FileCheck2, title: 'Application status', body: 'Online applications are temporarily paused while secure services are verified.' },
   { icon: ShieldCheck, title: 'Private document handling', body: 'Private document collection is not yet enabled. Do not send sensitive documents by email or general enquiry forms.' },
@@ -96,7 +96,7 @@ function Home() {
                 name: 'Oxford Business Group (Pty) Ltd',
                 alternateName: 'Oxford Finance Hub',
                 url: 'https://finance.oxfordbusinessgroup.co.za/',
-                description: 'Oxford Business Group facilitates finance enquiries and connects individuals and businesses with relevant finance providers. It is an intermediary, not a lender.',
+                description: 'Oxford Finance Hub helps individuals and businesses explore finance options for vehicles, equipment, commercial assets and other requirements. Applications are considered by relevant finance providers.',
                 areaServed: { '@type': 'Country', name: 'South Africa' },
               },
               {
@@ -133,14 +133,14 @@ function Home() {
         <div className="absolute inset-0 z-10 bg-gradient-to-t from-background via-background/55 to-black/30" />
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
         <div className="relative z-20 mx-auto w-full max-w-content px-4 pt-36 pb-16 sm:px-6 md:pb-24">
-          <p className="eyebrow fade-up">{content['home.hero.eyebrow'] || 'Oxford Business Group · Finance Intermediary'}</p>
+          <p className="eyebrow fade-up">{content['home.hero.eyebrow'] || 'Oxford Finance Hub · Personal, Business & Asset Finance'}</p>
           <h1 className="fade-up mt-6 max-w-4xl text-5xl leading-[0.98] font-medium sm:text-6xl md:text-[5.5rem]">
             Finance, arranged
             <br />
             <span className="text-gold-gradient italic">with intention.</span>
           </h1>
           <p className="fade-up mt-7 max-w-xl text-lg leading-relaxed text-foreground/80">
-            {content['home.hero.intro'] || 'Vehicle, equipment and commercial asset finance for individuals and businesses — prepared with care and presented to the right finance providers.'}
+            {content['home.hero.intro'] || 'Vehicle, equipment and commercial asset finance for individuals and businesses — with clear guidance throughout the application process.'}
           </p>
           <div className="fade-up mt-10 flex flex-col gap-3 sm:flex-row">
             <Button asChild variant="gold" size="xl">
