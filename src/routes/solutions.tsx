@@ -27,7 +27,7 @@ function SolutionsPage() {
   return (
     <SiteLayout>
       <PageHero eyebrow="Finance solutions" title={content['solutions.hero.title'] || 'Finance for the assets that move you forward.'}
-        intro={content['solutions.hero.intro'] || 'Oxford Business Group prepares your application and presents it to suitable finance providers across four categories, for individuals and businesses alike.'}
+        intro={content['solutions.hero.intro'] || 'Explore finance options for vehicles, equipment, commercial assets and other requirements, with guidance throughout the application process.'}
         image="solutions-hero.jpg" />
       <div className="mx-auto max-w-content space-y-6 px-4 py-20 sm:px-6">
         {categories.map((c, i) => (
