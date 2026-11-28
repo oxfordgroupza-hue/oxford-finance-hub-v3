@@ -17,12 +17,12 @@ Status: IN PROGRESS
 
 ## Source and deployment
 - Working branch: main (repository default branch)
-- Working commit: 82a2d1d5fd3e7c927c7cda202a920d523c03f491 (verified from GitHub branch endpoint on 2026-11-27; this is the state-record commit before this update).
+- Working commit: e72218692bba46a46755e5e8fde7ea510c6a47a6 (verified 2026-11-28) (verified from GitHub branch endpoint on 2026-11-27; this is the state-record commit before this update).
 - Deployment provider: [VERIFIED] Cloudflare Workers currently serves the Finance Hub production hostname. Cloudflare account records show finance.oxfordbusinessgroup.co.za routed to Worker oxford-finance-hub-v3-production, enabled=true, environment=production. A separate oxford-finance-hub-v3-preview Worker exists.
 - Production Worker latest observed deployment: 2026-11-27T07:31:07Z, deployment id 2ddf7db3-50e3-4660-bc26-e09d39b4c2f3, version id 2d7ea9ca-a53d-4237-a23d-c4eac062a611 (version 35, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
 - Preview Worker latest observed deployment: 2026-11-27T07:26:41Z, deployment id 346b4c0e-6274-4b3f-ba31-050767ceca99, version id 6fc4fc2e-26bd-4665-919a-5523e08e34bc (version 91, 100% traffic). Version metadata identifies Wrangler as source but does not identify a Git commit or branch.
-- Deployment source branch: UNRESOLVED. The repository contains multiple release, production and feature branches. The previously observed release/v3-production-2026-11-25 branch points to 43e0cbd80f5da5bc05ea5fc26f1ced516ae273b9, but no provider evidence links that commit to the currently active Worker version.
-- Deployed commit: UNRESOLVED. Cloudflare Worker version metadata does not expose a Git commit SHA. Do not assume main or the older release branch was deployed.
+- Deployment source branch: [VERIFIED BY SOURCE MATCH] fix/finance-hub-whatsapp-reference-format.
+- Deployed commit: [VERIFIED BY SOURCE MATCH] 464a26aaa0a2157b1fda3abd0e90f2eb1640891a. Cloudflare metadata itself reports Wrangler and has no Git SHA; embedded Worker source maps match this commit's application source files.
 - Preview URL: Not confirmed in this record.
 - Production URL: [VERIFIED ROUTING] https://finance.oxfordbusinessgroup.co.za is configured as an enabled Cloudflare Worker domain for the production Worker. This verifies routing configuration, not a full end-to-end application acceptance test.
 - Production changed during last session: NO
@@ -46,7 +46,7 @@ Status: IN PROGRESS
 | Current build/CI acceptance suite | PENDING | — | Repository | — | Not run in this documentation-only session |
 
 ## Outstanding work
-1. [BLOCKED] Identify the exact GitHub source branch and commit used to build the currently active Cloudflare production Worker. Do not infer it from the presence of release branches or from main HEAD.
+1. [VERIFIED] Production Worker source identified by exact source-content comparison: fix/finance-hub-whatsapp-reference-format @ 464a26aaa0a2157b1f1fda3abd0e90f2eb1640891a. Keep the source match evidence and do not infer deployment provenance from branch labels alone.
 2. [PENDING] Reconcile README architecture documentation with the verified Cloudflare production routing. Documentation correction should follow source/deployment provenance confirmation and must not trigger a deployment.
 3. [PENDING] Inspect current CI and test evidence; do not repeat the user's successful authentication tests unless a relevant change or mismatch requires it.
 4. [PENDING] Keep application processing, uploads and notifications disabled until their acceptance tests and separate approvals are complete.
@@ -75,3 +75,14 @@ Status: IN PROGRESS
 - [VERIFIED] Its job record started and completed within approximately two seconds, has runner_id=0, runner_name empty, and contains zero steps. The job log endpoint returned no retrievable log artifact. This points to a runner/job startup failure before workflow steps executed; it does not establish an application-code failure.
 - [VERIFIED] The workflow definition at that run's commit includes checkout, source import, code generation and pnpm validation steps. None of those steps ran according to the job record.
 - [PENDING] Root cause of the runner startup failure remains unknown. Do not rerun or alter workflow definitions without approval.
+
+
+## Worker source provenance resolved — 2026-11-28
+- [VERIFIED] The active production Worker bundle was downloaded read-only from Cloudflare and its embedded source maps were parsed. The 116 non-image application source files match the Git blobs at V3 commit `464a26aaa0a2157b1fda3abd0e90f2eb1640891a` exactly. The matching branch is `fix/finance-hub-whatsapp-reference-format`.
+- [VERIFIED] The preview Worker bundle was independently downloaded and all 115 non-image application source files matched the same commit exactly. Generated `src/routeTree.gen.ts` and binary/image assets were excluded from the source-code fingerprint comparison.
+- [VERIFIED] Commit `464a26aaa0a2157b1fda3abd0e90f2eb1640891a` was authored/committed 2026-11-27 07:21:58 UTC. Cloudflare production deployment `2ddf7db3-50e3-4660-bc26-e09d39b4c2f3`, version `2d7ea9ca-a53d-4237-a23d-c4eac062a611`, was created 2026-11-27 07:31:07 UTC (Wrangler source). Preview deployment `346b4c0e-6274-4b3f-ba31-050767ceca99`, version `6fc4fc2e-26bd-4665-919a-5523e08e34bc`, was recorded at 07:26:41 UTC.
+- [VERIFIED] The Worker deployment API still does not expose a Git commit SHA. The source attribution above is based on exact source-content hashes across the deployed source maps, not deployment metadata.
+- [VERIFIED] V3 main currently points to `e72218692bba46a46755e5e8fde7ea510c6a47a6`; it is not the deployed source commit. The main README still contains stale Netlify target-architecture wording. The V3 source branch AGENTS.md describes the Cloudflare/Neon/Supabase architecture, but that branch does not contain PROJECT_STATE.md or PROJECT_OPERATING_STANDARD.md.
+- [VERIFIED] The V3 production and preview Worker application source is therefore now traceable to the identified V3 source commit. No Worker, deployment, DNS, database, secret, feature-flag or customer data was changed.
+- [PENDING] Reconcile the stale V3 main README/project documentation with the Cloudflare-first policy and preserve a current project state on the active development branch before further feature work.
+- [PENDING] Review and implement the previously approved finance disclosure wording on a new feature branch based on the verified source commit; do not merge or deploy without explicit approval.
