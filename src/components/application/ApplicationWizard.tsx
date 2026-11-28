@@ -998,7 +998,7 @@ function ReviewStep({ form, errors, update, goTo }: StepProps & { goTo: (i: numb
   const consents: { key: keyof ApplicationForm; label: string; required: boolean }[] = [
     { key: 'consentAccuracy', label: 'I confirm that the information in this application is true, complete and accurate.', required: true },
     { key: 'consentProcessing', label: 'I consent to Oxford Business Group processing my personal information to assess and arrange finance, as described in the Privacy Policy and POPIA notice.', required: true },
-    { key: 'consentShareProviders', label: 'I consent to Oxford Business Group sharing this application with suitable finance providers for assessment.', required: true },
+    { key: 'consentShareProviders', label: 'I consent to Oxford Business Group sharing this application with relevant finance providers so they can assess my finance request. Each provider independently decides whether to make an offer and, if so, the applicable terms.', required: true },
     { key: 'consentCreditCheck', label: 'I understand that finance providers may perform credit and fraud checks as part of their assessment.', required: true },
     { key: 'consentMarketing', label: 'Send me occasional updates about Oxford finance solutions (optional).', required: false },
   ]
