@@ -145,7 +145,7 @@ export const categoryAssetLabel: Record<FinanceCategoryId, string> = {
 }
 
 export const intermediaryDisclaimer =
-  'Oxford Business Group is a finance intermediary, not a bank or lender. All finance is subject to assessment and approval by the relevant finance provider, and no approval is guaranteed.'
+  'Oxford Finance Hub facilitates access to finance solutions through relevant finance providers. Finance approval, applicable terms and conditions are subject to the relevant provider\'s assessment.'
 
 export const documentCollectionNotice =
   'Private document collection is not yet enabled. Please do not send ID documents, bank statements or other sensitive information through general enquiry forms or email.'
